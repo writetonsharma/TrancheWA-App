@@ -228,6 +228,41 @@
     </div>
   </div>
 
+  <!-- ── Messages from Customers ──────────────────────────── -->
+  <div class="section-card">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+      <span>💬 Messages from Customers</span>
+      <span class="badge bg-white text-info badge-count" th:text="${dashboard.messages.size()} + ' messages'"></span>
+    </div>
+    <div class="card-body p-0">
+      <div th:if="${dashboard.messages.isEmpty()}" class="p-3 text-muted">No messages yet.</div>
+      <div th:unless="${dashboard.messages.isEmpty()}" class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr><th>Customer</th><th>Message</th><th>Received</th><th>Reply</th></tr>
+          </thead>
+          <tbody>
+            <tr th:each="msg : ${dashboard.messages}">
+              <td>
+                <div th:text="${msg.customer.phone}"></div>
+                <small class="text-muted" th:text="${msg.customer.name}"></small>
+              </td>
+              <td th:text="${msg.message}"></td>
+              <td th:text="${#temporals.format(msg.createdAt, 'dd MMM HH:mm')}"></td>
+              <td>
+                <button class="btn btn-sm btn-outline-secondary"
+                        onclick="document.getElementById('msg-phone').value = this.dataset.phone; document.getElementById('send-msg').scrollIntoView();"
+                        th:data-phone="${msg.customer.phone}">
+                  ↩ Reply
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Send Message ───────────────────────────────────────── -->
   <div class="section-card send-msg-section" id="send-msg">
     <div class="card-header d-flex justify-content-between align-items-center">

@@ -1,8 +1,6 @@
 package com.tranche.bakery.admin;
 
-import com.tranche.bakery.order.Order;
-import com.tranche.bakery.order.OrderItem;
-import com.tranche.bakery.payment.Payment;
+import com.tranche.bakery.feedback.Feedback;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -13,5 +11,6 @@ public record AdminDashboard(
         List<AdminOrderView> deliveringTomorrow,
         List<AdminOrderView> paymentReview,
         List<AdminOrderView> stuckDrafts,
-        List<AdminOrderView> awaitingScreenshot
+        List<AdminOrderView> awaitingScreenshot,
+        List<Feedback> messages
 ) {}
