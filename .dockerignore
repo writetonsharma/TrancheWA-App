@@ -1,0 +1,7 @@
+.git
+.gitignore
+.mvn/wrapper
+target
+*.md
+.vscode
+.DS_Store
