@@ -1,0 +1,187 @@
+{
+  "initialState": "IDLE",
+  "states": {
+
+    "IDLE": {
+      "defaultResponse": "Send *hi* to begin your Tranché Bakery experience. 🥖",
+      "transitions": [
+        { "match": "hi", "ignoreCase": true, "nextState": "MAIN_MENU" }
+      ]
+    },
+
+    "MAIN_MENU": {
+      "entryMessage": {
+        "type": "buttons",
+        "body": "Welcome to Tranché Bakery! 🥖\n\nFreshly baked, just for you. We kindly suggest placing your order before *6 PM* for next-day delivery.\n\nHow can we help you today?\n\n_Send *hi* anytime to start over._",
+        "buttons": [
+          { "id": "order",   "title": "Order" },
+          { "id": "message", "title": "Message Us" },
+          { "id": "hours",   "title": "Hours & Info" }
+        ]
+      },
+      "transitions": [
+        { "match": "order",   "nextState": "ORDER_SELECT_CATEGORY" },
+        { "match": "message", "nextState": "MESSAGE_AWAITING_TEXT" },
+        { "match": "hours",   "nextState": "HOURS_INFO" },
+        { "match": "*",       "nextState": "MAIN_MENU" }
+      ]
+    },
+
+    "HOURS_INFO": {
+      "entryMessage": {
+        "type": "text",
+        "body": "🕐 *Bake Days:* Tuesday to Sunday\n🕖 *Order Cutoff:* 6 PM\n\nWe bake fresh every morning. Orders placed after 6 PM will be lovingly prepared for the following bake day."
+      },
+      "autoTransition": "MAIN_MENU"
+    },
+
+    "AREA_SELECT": {
+      "entryMessage": {
+        "type": "text",
+        "body": "👋 Hello! We currently deliver to select areas in Gurgaon.\n\nPlease share your *pincode* and we'll let you know if we can bring freshness to your door:"
+      },
+      "transitions": [
+        { "match": "*", "nextState": "NAME_COLLECT", "saveContext": "pincode", "action": "SAVE_AREA" }
+      ]
+    },
+
+    "NAME_COLLECT": {
+      "entryMessage": {
+        "type": "text",
+        "body": "Wonderful, we deliver to your area! 🎉\n\nMay we know your name? We'd love to make your experience a little more personal."
+      },
+      "transitions": [
+        { "match": "*", "nextState": "MAIN_MENU", "saveContext": "customerName", "action": "SAVE_NAME" }
+      ]
+    },
+
+    "ORDER_SELECT_CATEGORY": {
+      "entryMessage": {
+        "type": "list",
+        "body": "What are you in the mood for today? Browse our categories below:",
+        "buttonLabel": "View Categories",
+        "dataSource": "MENU_CATEGORIES"
+      },
+      "transitions": [
+        { "match": "*", "nextState": "ORDER_SELECT_ITEM", "saveContext": "categoryId" }
+      ]
+    },
+
+    "ORDER_SELECT_ITEM": {
+      "entryMessage": {
+        "type": "list",
+        "body": "Here's what we have in this category — take your pick:",
+        "buttonLabel": "View Items",
+        "dataSource": "MENU_ITEMS"
+      },
+      "transitions": [
+        { "match": "*", "nextState": "ORDER_SELECT_QUANTITY", "saveContext": "itemId" }
+      ]
+    },
+
+    "ORDER_SELECT_QUANTITY": {
+      "entryMessage": {
+        "type": "buttons",
+        "body": "How many would you like? Tap a button or type *4* or *5* for larger quantities:",
+        "buttons": [
+          { "id": "1", "title": "1" },
+          { "id": "2", "title": "2" },
+          { "id": "3", "title": "3" }
+        ]
+      },
+      "transitions": [
+        { "match": "1", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
+        { "match": "2", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
+        { "match": "3", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
+        { "match": "4", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
+        { "match": "5", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
+        { "match": "*", "errorMessage": "We can do between 1 and 5 per item. Please tap a button or type a number." }
+      ]
+    },
+
+    "ORDER_ADD_MORE": {
+      "entryMessage": {
+        "type": "buttons",
+        "body": "Lovely choice! 🧡 Would you like to add anything else, or shall we review your order?",
+        "buttons": [
+          { "id": "add_item",   "title": "Add Another" },
+          { "id": "view_order", "title": "View Order" }
+        ]
+      },
+      "transitions": [
+        { "match": "add_item",   "nextState": "ORDER_SELECT_CATEGORY" },
+        { "match": "view_order", "nextState": "ADDRESS_GATE" },
+        { "match": "*",          "nextState": "ORDER_ADD_MORE" }
+      ]
+    },
+
+    "ADDRESS_GATE": {
+      "entryAction": "ROUTE_TO_ADDRESS_OR_CONFIRM"
+    },
+
+    "ADDRESS_COLLECT": {
+      "entryMessage": {
+        "type": "text",
+        "body": "📍 To make sure we find you easily, please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_"
+      },
+      "transitions": [
+        { "match": "*", "nextState": "LOCATION_SHARE", "saveContext": "deliveryAddress", "action": "SAVE_DELIVERY_ADDRESS" }
+      ]
+    },
+
+    "LOCATION_SHARE": {
+      "entryMessage": {
+        "type": "text",
+        "body": "📌 Almost done! Please drop a location pin so our delivery team can find you easily.\n\nTap the 📎 paperclip → *Location* → send a *pinned location* (kindly avoid live location)."
+      },
+      "transitions": [
+        { "matchType": "location", "nextState": "ORDER_CONFIRM", "action": "SAVE_LOCATION" }
+      ]
+    },
+
+    "ORDER_CONFIRM": {
+      "entryAction": "SHOW_ORDER_SUMMARY",
+      "transitions": [
+        { "match": "confirm", "nextState": "PAYMENT_PENDING", "action": "CONFIRM_ORDER" },
+        { "match": "cancel",  "nextState": "MAIN_MENU",       "action": "CANCEL_ORDER"  }
+      ]
+    },
+
+    "PAYMENT_PENDING": {
+      "entryMessage": {
+        "type": "text",
+        "body": "💳 *You're almost there!*\n\nTo complete your order, please make a UPI payment and share a screenshot right here.\n\n*UPI ID:* bakery@upi\n\nWe'll verify and confirm your order promptly. Thank you for your patience! 🙏"
+      },
+      "transitions": [
+        { "matchType": "image", "nextState": "PAYMENT_RECEIVED", "action": "SAVE_PAYMENT_SCREENSHOT" }
+      ]
+    },
+
+    "PAYMENT_RECEIVED": {
+      "entryMessage": {
+        "type": "text",
+        "body": "✅ Wonderful! We've received your payment screenshot and will have everything confirmed for you shortly.\n\nWe'll send you a message once your order is confirmed. Thank you for choosing Tranché Bakery! 🥖"
+      },
+      "autoTransition": "IDLE"
+    },
+
+    "MESSAGE_AWAITING_TEXT": {
+      "entryMessage": {
+        "type": "text",
+        "body": "💬 We'd love to hear from you! Whether it's a question, feedback, or a special request — please share and we'll get back to you personally."
+      },
+      "transitions": [
+        { "match": "*", "nextState": "MESSAGE_DONE", "action": "SAVE_FEEDBACK" }
+      ]
+    },
+
+    "MESSAGE_DONE": {
+      "entryMessage": {
+        "type": "text",
+        "body": "Thank you so much for writing in! We've noted your message and will be in touch soon. Have a wonderful day! 😊"
+      },
+      "autoTransition": "IDLE"
+    }
+
+  }
+}

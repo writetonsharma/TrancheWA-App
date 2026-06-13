@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tranché Bakery — Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f8f5f0; }
+    .navbar-brand { font-weight: 700; letter-spacing: 1px; }
+    .section-card { background: white; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
+    .section-card .card-header { border-radius: 8px 8px 0 0; font-weight: 600; }
+    .badge-count { font-size: .75rem; }
+    .maps-link { font-size: .85rem; }
+    .items-cell { max-width: 260px; word-break: break-word; }
+    .alert-section .card-header { background: #fff3cd; }
+    .send-msg-section .card-header { background: #d1e7dd; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark mb-4">
+  <div class="container-fluid">
+    <span class="navbar-brand">🥖 Tranché Bakery — Admin</span>
+    <span class="navbar-text text-white-50" th:text="${#temporals.format(dashboard.today, 'EEEE, d MMMM yyyy')}"></span>
+  </div>
+</nav>
+
+<div class="container-fluid px-4">
+
+  <!-- Flash message -->
+  <div th:if="${flash}" class="alert alert-success alert-dismissible fade show" role="alert">
+    <span th:text="${flash}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <!-- ── Payment Review ─────────────────────────────────────── -->
+  <div class="section-card">
+    <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+      <span>🔴 Payment Review</span>
+      <span class="badge bg-white text-danger badge-count" th:text="${dashboard.paymentReview.size()} + ' orders'"></span>
+    </div>
+    <div class="card-body p-0">
+      <div th:if="${dashboard.paymentReview.isEmpty()}" class="p-3 text-muted">No orders awaiting payment review.</div>
+      <div th:unless="${dashboard.paymentReview.isEmpty()}" class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Order #</th><th>Customer</th><th>Area</th><th>Items</th>
+              <th>Total</th><th>Status</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr th:each="v : ${dashboard.paymentReview}">
+              <td th:text="${v.order.id}"></td>
+              <td>
+                <div th:text="${v.order.customer.phone}"></div>
+                <small class="text-muted" th:text="${v.order.customer.name}"></small>
+              </td>
+              <td>
+                <div th:text="${v.order.customer.deliveryArea ?: '—'}"></div>
+                <small class="text-muted" th:text="${v.order.customer.deliveryAddress ?: ''}"></small>
+                <br th:if="${v.mapsUrl != null}">
+                <a th:if="${v.mapsUrl != null}" th:href="${v.mapsUrl}" target="_blank" class="maps-link">📍 View on Maps</a>
+              </td>
+              <td class="items-cell" th:text="${v.itemsSummary}"></td>
+              <td th:text="'₹' + ${v.order.totalAmount}"></td>
+              <td>
+                <span class="badge bg-warning text-dark" th:if="${v.order.status.name() == 'PAYMENT_SCREENSHOT_RECEIVED'}">Screenshot Received</span>
+                <span class="badge bg-danger" th:if="${v.order.status.name() == 'PAYMENT_REVIEW_REQUIRED'}">Review Required</span>
+              </td>
+              <td>
+                <form th:action="@{/admin/orders/{id}/approve-payment(id=${v.order.id})}" method="post" class="d-inline">
+                  <button type="submit" class="btn btn-sm btn-success">✅ Approve</button>
+                </form>
+                <form th:action="@{/admin/orders/{id}/flag-payment(id=${v.order.id})}" method="post" class="d-inline ms-1"
+                      th:if="${v.order.status.name() == 'PAYMENT_SCREENSHOT_RECEIVED'}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">🚩 Flag</button>
+                </form>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Delivering Today ───────────────────────────────────── -->
+  <div class="section-card">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+      <span>🚚 Delivering Today</span>
+      <span class="badge bg-white text-success badge-count" th:text="${dashboard.deliveringToday.size()} + ' orders'"></span>
+    </div>
+    <div class="card-body p-0">
+      <div th:if="${dashboard.deliveringToday.isEmpty()}" class="p-3 text-muted">No deliveries today.</div>
+      <div th:unless="${dashboard.deliveringToday.isEmpty()}" class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr><th>Order #</th><th>Customer</th><th>Area / Address</th><th>Items</th><th>Total</th><th>Location</th></tr>
+          </thead>
+          <tbody>
+            <tr th:each="v : ${dashboard.deliveringToday}">
+              <td th:text="${v.order.id}"></td>
+              <td>
+                <div th:text="${v.order.customer.phone}"></div>
+                <small class="text-muted" th:text="${v.order.customer.name}"></small>
+              </td>
+              <td>
+                <div th:text="${v.order.customer.deliveryArea ?: '—'}"></div>
+                <small class="text-muted" th:text="${v.order.customer.deliveryAddress ?: '—'}"></small>
+              </td>
+              <td class="items-cell" th:text="${v.itemsSummary}"></td>
+              <td th:text="'₹' + ${v.order.totalAmount}"></td>
+              <td>
+                <a th:if="${v.mapsUrl != null}" th:href="${v.mapsUrl}" target="_blank" class="btn btn-sm btn-outline-primary">📍 Maps</a>
+                <span th:unless="${v.mapsUrl != null}" class="text-muted">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Delivering Tomorrow ────────────────────────────────── -->
+  <div class="section-card">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <span>📋 Delivering Tomorrow</span>
+      <span class="badge bg-white text-primary badge-count" th:text="${dashboard.deliveringTomorrow.size()} + ' orders'"></span>
+    </div>
+    <div class="card-body p-0">
+      <div th:if="${dashboard.deliveringTomorrow.isEmpty()}" class="p-3 text-muted">No confirmed orders for tomorrow yet.</div>
+      <div th:unless="${dashboard.deliveringTomorrow.isEmpty()}" class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr><th>Order #</th><th>Customer</th><th>Area / Address</th><th>Items</th><th>Total</th><th>Location</th></tr>
+          </thead>
+          <tbody>
+            <tr th:each="v : ${dashboard.deliveringTomorrow}">
+              <td th:text="${v.order.id}"></td>
+              <td>
+                <div th:text="${v.order.customer.phone}"></div>
+                <small class="text-muted" th:text="${v.order.customer.name}"></small>
+              </td>
+              <td>
+                <div th:text="${v.order.customer.deliveryArea ?: '—'}"></div>
+                <small class="text-muted" th:text="${v.order.customer.deliveryAddress ?: '—'}"></small>
+              </td>
+              <td class="items-cell" th:text="${v.itemsSummary}"></td>
+              <td th:text="'₹' + ${v.order.totalAmount}"></td>
+              <td>
+                <a th:if="${v.mapsUrl != null}" th:href="${v.mapsUrl}" target="_blank" class="btn btn-sm btn-outline-primary">📍 Maps</a>
+                <span th:unless="${v.mapsUrl != null}" class="text-muted">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Reconciliation ─────────────────────────────────────── -->
+  <div class="section-card alert-section">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>⚠️ Reconciliation Alerts</span>
+      <span class="badge bg-warning text-dark badge-count"
+            th:text="${dashboard.stuckDrafts.size() + dashboard.awaitingScreenshot.size()} + ' issues'"></span>
+    </div>
+    <div class="card-body">
+
+      <!-- Stuck drafts -->
+      <h6 class="fw-semibold">Stuck Drafts
+        <span class="badge bg-secondary ms-1" th:text="${dashboard.stuckDrafts.size()}"></span>
+      </h6>
+      <div th:if="${dashboard.stuckDrafts.isEmpty()}" class="text-muted small mb-3">None.</div>
+      <div th:unless="${dashboard.stuckDrafts.isEmpty()}" class="table-responsive mb-3">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr><th>Order #</th><th>Customer</th><th>Items</th><th>Started</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <tr th:each="v : ${dashboard.stuckDrafts}">
+              <td th:text="${v.order.id}"></td>
+              <td th:text="${v.order.customer.phone}"></td>
+              <td class="items-cell" th:text="${v.itemsSummary.isEmpty() ? '(empty)' : v.itemsSummary}"></td>
+              <td th:text="${#temporals.format(v.order.createdAt, 'dd MMM HH:mm')}"></td>
+              <td>
+                <button class="btn btn-sm btn-outline-secondary"
+                        onclick="document.getElementById('msg-phone').value = this.dataset.phone; document.getElementById('send-msg').scrollIntoView();"
+                        th:data-phone="${v.order.customer.phone}">
+                  💬 Message
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Awaiting payment screenshot -->
+      <h6 class="fw-semibold">Awaiting Payment Screenshot
+        <span class="badge bg-secondary ms-1" th:text="${dashboard.awaitingScreenshot.size()}"></span>
+      </h6>
+      <div th:if="${dashboard.awaitingScreenshot.isEmpty()}" class="text-muted small">None.</div>
+      <div th:unless="${dashboard.awaitingScreenshot.isEmpty()}" class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr><th>Order #</th><th>Customer</th><th>Items</th><th>Total</th><th>Since</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <tr th:each="v : ${dashboard.awaitingScreenshot}">
+              <td th:text="${v.order.id}"></td>
+              <td th:text="${v.order.customer.phone}"></td>
+              <td class="items-cell" th:text="${v.itemsSummary}"></td>
+              <td th:text="'₹' + ${v.order.totalAmount}"></td>
+              <td th:text="${#temporals.format(v.order.updatedAt, 'dd MMM HH:mm')}"></td>
+              <td>
+                <button class="btn btn-sm btn-outline-secondary"
+                        onclick="document.getElementById('msg-phone').value = this.dataset.phone; document.getElementById('send-msg').scrollIntoView();"
+                        th:data-phone="${v.order.customer.phone}">
+                  💬 Message
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Send Message ───────────────────────────────────────── -->
+  <div class="section-card send-msg-section" id="send-msg">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>💬 Send Message to Customer</span>
+    </div>
+    <div class="card-body">
+      <form th:action="@{/admin/message/send}" method="post">
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">Phone Number</label>
+            <input type="text" id="msg-phone" name="phone" class="form-control"
+                   placeholder="91XXXXXXXXXX" required>
+          </div>
+          <div class="col-md-7">
+            <label class="form-label fw-semibold">Message</label>
+            <textarea name="message" class="form-control" rows="2"
+                      placeholder="Type your message here..." required></textarea>
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-success w-100">Send ✉️</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
