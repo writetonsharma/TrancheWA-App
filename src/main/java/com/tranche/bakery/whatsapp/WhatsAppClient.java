@@ -78,7 +78,7 @@ public class WhatsAppClient {
                     .body(message)
                     .retrieve()
                     .body(String.class);
-            log.debug("WhatsApp API response: {}", response);
+            log.info("WhatsApp API response: {}", response);
         } catch (Exception e) {
             log.error("Failed to send WhatsApp message: {}", e.getMessage());
         }
