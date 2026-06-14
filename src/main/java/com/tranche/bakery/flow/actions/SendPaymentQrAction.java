@@ -78,14 +78,12 @@ public class SendPaymentQrAction implements FlowAction {
 
             String mediaId = whatsAppClient.uploadMedia(qrPng, "payment-qr.png");
             log.info("Media uploaded, mediaId={}", mediaId);
-            log.info("Media uploaded, mediaId={}", mediaId);
             String caption = String.format(
                     "💳 *Please pay ₹%.2f to complete your order.*%n%n" +
                     "Scan the QR code above with any UPI app, or pay manually to *%s*.%n%n" +
                     "Once paid, please share a screenshot here and we'll confirm your order promptly. 🙏",
                     amount, upiId);
             whatsAppClient.sendImage(ctx.getCustomer().getPhone(), mediaId, caption);
-            log.info("sendImage called for order {}", order.getId());
             log.info("sendImage called for order {}", order.getId());
         } catch (Exception e) {
             log.error("Payment QR flow failed for order {}: {}", order.getId(), e.getMessage(), e);
