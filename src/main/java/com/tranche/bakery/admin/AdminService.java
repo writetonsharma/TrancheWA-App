@@ -94,6 +94,13 @@ public class AdminService {
         log.info("Admin sent message to {}", phone);
     }
 
+    public byte[] getQrImage(Long orderId) {
+        return orderRepository.findById(orderId)
+                .flatMap(paymentRepository::findByOrder)
+                .map(p -> p.getQrImageData())
+                .orElse(null);
+    }
+
     private List<AdminOrderView> loadViews(List<Order> orders) {
         return orders.stream()
                 .map(o -> AdminOrderView.of(

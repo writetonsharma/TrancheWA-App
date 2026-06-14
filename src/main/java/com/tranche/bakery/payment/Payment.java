@@ -29,6 +29,9 @@ public class Payment {
     @Enumerated(EnumType.STRING)
     private PaymentStatus status = PaymentStatus.PENDING;
 
+    @Column(columnDefinition = "BYTEA")
+    private byte[] qrImageData;
+
     @OneToMany(mappedBy = "payment", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<PaymentScreenshot> screenshots;
 
