@@ -31,7 +31,8 @@ public class OrderService {
     @Transactional
     public Order getOrCreateDraft(Customer customer, WhatsappConversation conversation) {
         return orderRepository
-                .findTopByCustomerIdAndStatusOrderByCreatedAtDesc(customer.getId(), OrderStatus.DRAFT)
+                .findTopByCustomerIdAndStatusInOrderByCreatedAtDesc(
+                        customer.getId(), List.of(OrderStatus.DRAFT, OrderStatus.PENDING_CONFIRMATION))
                 .orElseGet(() -> {
                     Order o = new Order();
                     o.setCustomer(customer);

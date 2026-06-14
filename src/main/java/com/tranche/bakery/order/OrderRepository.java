@@ -13,6 +13,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     Optional<Order> findTopByCustomerIdAndStatusOrderByCreatedAtDesc(Long customerId, OrderStatus status);
 
+    Optional<Order> findTopByCustomerIdAndStatusInOrderByCreatedAtDesc(Long customerId, Collection<OrderStatus> statuses);
+
     List<Order> findAllByStatusOrderByCreatedAtDesc(OrderStatus status);
 
     List<Order> findAllByStatusIn(Collection<OrderStatus> statuses);
