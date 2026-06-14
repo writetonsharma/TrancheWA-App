@@ -4,6 +4,8 @@ import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderRepository;
+import com.tranche.bakery.payment.Payment;
+import com.tranche.bakery.payment.PaymentRepository;
 import com.tranche.bakery.payment.QrCodeService;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ import java.math.BigDecimal;
 public class SendPaymentQrAction implements FlowAction {
 
     private final OrderRepository orderRepository;
+    private final PaymentRepository paymentRepository;
     private final QrCodeService qrCodeService;
     private final WhatsAppClient whatsAppClient;
 
@@ -27,6 +30,9 @@ public class SendPaymentQrAction implements FlowAction {
 
     @Value("${bakery.payment.upi-name}")
     private String upiName;
+
+    @Value("${bakery.payment.test-mode:false}")
+    private boolean testMode;
 
     @Override
     public String getName() { return "SEND_PAYMENT_QR"; }
@@ -47,8 +53,19 @@ public class SendPaymentQrAction implements FlowAction {
             return;
         }
 
-        BigDecimal amount = order.getTotalAmount();
+        BigDecimal amount = testMode
+                ? BigDecimal.valueOf(1.0 + (int)(Math.random() * 99) / 100.0).setScale(2, java.math.RoundingMode.HALF_UP)
+                : order.getTotalAmount();
         String note = "Tranche Bakery Order #" + order.getId();
+
+        Payment payment = paymentRepository.findByOrder(order).orElseGet(() -> {
+            Payment p = new Payment();
+            p.setOrder(order);
+            p.setUpiId(upiId);
+            return p;
+        });
+        payment.setAmount(amount);
+        paymentRepository.save(payment);
 
         try {
             byte[] qrPng = qrCodeService.generateUpiQrPng(upiId, upiName, amount, note);

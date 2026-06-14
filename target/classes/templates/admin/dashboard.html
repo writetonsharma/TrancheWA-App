@@ -59,7 +59,7 @@
               </td>
               <td>
                 <div th:text="${v.order.customer.deliveryArea ?: '—'}"></div>
-                <small class="text-muted" th:text="${v.order.customer.deliveryAddress ?: ''}"></small>
+                <small class="text-muted" th:text="${v.order.deliveryAddress ?: v.order.customer.deliveryAddress ?: ''}"></small>
                 <br th:if="${v.mapsUrl != null}">
                 <a th:if="${v.mapsUrl != null}" th:href="${v.mapsUrl}" target="_blank" class="maps-link">📍 View on Maps</a>
               </td>
@@ -107,7 +107,7 @@
               </td>
               <td>
                 <div th:text="${v.order.customer.deliveryArea ?: '—'}"></div>
-                <small class="text-muted" th:text="${v.order.customer.deliveryAddress ?: '—'}"></small>
+                <small class="text-muted" th:text="${v.order.deliveryAddress ?: v.order.customer.deliveryAddress ?: '—'}"></small>
               </td>
               <td class="items-cell" th:text="${v.itemsSummary}"></td>
               <td th:text="'₹' + ${v.order.totalAmount}"></td>
@@ -144,7 +144,7 @@
               </td>
               <td>
                 <div th:text="${v.order.customer.deliveryArea ?: '—'}"></div>
-                <small class="text-muted" th:text="${v.order.customer.deliveryAddress ?: '—'}"></small>
+                <small class="text-muted" th:text="${v.order.deliveryAddress ?: v.order.customer.deliveryAddress ?: '—'}"></small>
               </td>
               <td class="items-cell" th:text="${v.itemsSummary}"></td>
               <td th:text="'₹' + ${v.order.totalAmount}"></td>

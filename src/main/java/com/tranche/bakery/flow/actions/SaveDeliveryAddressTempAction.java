@@ -1,6 +1,5 @@
 package com.tranche.bakery.flow.actions;
 
-import com.tranche.bakery.customer.CustomerRepository;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.OrderRepository;
@@ -11,21 +10,17 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class SaveDeliveryAddressAction implements FlowAction {
+public class SaveDeliveryAddressTempAction implements FlowAction {
 
-    private final CustomerRepository customerRepository;
     private final OrderRepository orderRepository;
 
     @Override
-    public String getName() { return "SAVE_DELIVERY_ADDRESS"; }
+    public String getName() { return "SAVE_DELIVERY_ADDRESS_TEMP"; }
 
     @Override
     public void execute(ActionContext ctx) {
         String address = ctx.getInput().trim();
         if (address.isEmpty()) return;
-
-        ctx.getCustomer().setDeliveryAddress(address);
-        customerRepository.save(ctx.getCustomer());
 
         String orderIdStr = ctx.contextValue("orderId");
         if (orderIdStr != null) {
@@ -34,6 +29,6 @@ public class SaveDeliveryAddressAction implements FlowAction {
                 orderRepository.save(order);
             });
         }
-        log.info("Saved permanent delivery address for customer {}", ctx.getCustomer().getPhone());
+        log.info("Saved temporary delivery address for customer {}", ctx.getCustomer().getPhone());
     }
 }

@@ -41,6 +41,15 @@ public class Order {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    @Column(columnDefinition = "TEXT")
+    private String deliveryAddress;
+
+    @Column(precision = 9, scale = 6)
+    private BigDecimal locationLat;
+
+    @Column(precision = 9, scale = 6)
+    private BigDecimal locationLng;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<OrderItem> items;
 

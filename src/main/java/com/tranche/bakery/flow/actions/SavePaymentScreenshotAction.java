@@ -33,22 +33,17 @@ public class SavePaymentScreenshotAction implements FlowAction {
         Order order = orderRepository.findById(Long.parseLong(orderIdStr)).orElse(null);
         if (order == null) return;
 
-        // Get or create Payment record
-        Payment payment = paymentRepository.findAll().stream()
-                .filter(p -> p.getOrder().getId().equals(order.getId()))
-                .findFirst()
-                .orElseGet(() -> {
-                    Payment p = new Payment();
-                    p.setOrder(order);
-                    p.setAmount(order.getTotalAmount());
-                    return p;
-                });
+        // Reuse Payment created by SendPaymentQrAction (which holds the correct QR amount)
+        Payment payment = paymentRepository.findByOrder(order).orElseGet(() -> {
+            Payment p = new Payment();
+            p.setOrder(order);
+            p.setAmount(order.getTotalAmount());
+            return p;
+        });
         payment.setStatus(PaymentStatus.SCREENSHOT_RECEIVED);
         paymentRepository.save(payment);
 
-        // Extract WhatsApp media ID from raw message
         String mediaId = ctx.getRawMessage().path("image").path("id").asText(null);
-
         PaymentScreenshot screenshot = new PaymentScreenshot();
         screenshot.setPayment(payment);
         screenshot.setWhatsappMediaId(mediaId);

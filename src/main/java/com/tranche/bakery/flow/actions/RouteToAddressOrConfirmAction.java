@@ -19,9 +19,9 @@ public class RouteToAddressOrConfirmAction implements FlowAction {
                     ctx.getCustomer().getPhone());
             ctx.setRedirectState("ADDRESS_COLLECT");
         } else {
-            log.debug("Delivery address known for customer {}, routing to ORDER_CONFIRM",
+            log.debug("Delivery address known for customer {}, routing to ADDRESS_CONFIRM",
                     ctx.getCustomer().getPhone());
-            ctx.setRedirectState("ORDER_CONFIRM");
+            ctx.setRedirectState("ADDRESS_CONFIRM");
         }
     }
 }

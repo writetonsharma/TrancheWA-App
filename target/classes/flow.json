@@ -122,10 +122,29 @@
     "ADDRESS_COLLECT": {
       "entryMessage": {
         "type": "text",
-        "body": "📍 To make sure we find you easily, please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_"
+        "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_This will be saved as your permanent delivery address for all future orders, so please choose carefully._"
       },
       "transitions": [
         { "match": "*", "nextState": "LOCATION_SHARE", "saveContext": "deliveryAddress", "action": "SAVE_DELIVERY_ADDRESS" }
+      ]
+    },
+
+    "ADDRESS_CONFIRM": {
+      "entryAction": "SHOW_SAVED_ADDRESS",
+      "transitions": [
+        { "match": "use_address",    "nextState": "ORDER_CONFIRM",        "action": "COPY_ADDRESS_TO_ORDER" },
+        { "match": "change_address", "nextState": "ADDRESS_COLLECT_TEMP"  },
+        { "match": "*",              "nextState": "ADDRESS_CONFIRM"        }
+      ]
+    },
+
+    "ADDRESS_COLLECT_TEMP": {
+      "entryMessage": {
+        "type": "text",
+        "body": "📍 Please share the delivery address for this order:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_"
+      },
+      "transitions": [
+        { "match": "*", "nextState": "LOCATION_SHARE_TEMP", "saveContext": "deliveryAddress", "action": "SAVE_DELIVERY_ADDRESS_TEMP" }
       ]
     },
 
@@ -136,6 +155,16 @@
       },
       "transitions": [
         { "matchType": "location", "nextState": "ORDER_CONFIRM", "action": "SAVE_LOCATION" }
+      ]
+    },
+
+    "LOCATION_SHARE_TEMP": {
+      "entryMessage": {
+        "type": "text",
+        "body": "📌 Almost done! Please drop a location pin for this delivery address.\n\nTap the 📎 paperclip → *Location* → send a *pinned location* (kindly avoid live location)."
+      },
+      "transitions": [
+        { "matchType": "location", "nextState": "ORDER_CONFIRM", "action": "SAVE_LOCATION_TEMP" }
       ]
     },
 

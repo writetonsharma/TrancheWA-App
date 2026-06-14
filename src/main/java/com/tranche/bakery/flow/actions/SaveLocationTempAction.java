@@ -1,6 +1,5 @@
 package com.tranche.bakery.flow.actions;
 
-import com.tranche.bakery.customer.CustomerRepository;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.OrderRepository;
@@ -13,13 +12,12 @@ import java.math.BigDecimal;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class SaveLocationAction implements FlowAction {
+public class SaveLocationTempAction implements FlowAction {
 
-    private final CustomerRepository customerRepository;
     private final OrderRepository orderRepository;
 
     @Override
-    public String getName() { return "SAVE_LOCATION"; }
+    public String getName() { return "SAVE_LOCATION_TEMP"; }
 
     @Override
     public void execute(ActionContext ctx) {
@@ -30,21 +28,15 @@ public class SaveLocationAction implements FlowAction {
 
         double lat = location.path("latitude").asDouble(0);
         double lng = location.path("longitude").asDouble(0);
-        BigDecimal bdLat = BigDecimal.valueOf(lat);
-        BigDecimal bdLng = BigDecimal.valueOf(lng);
-
-        ctx.getCustomer().setLocationLat(bdLat);
-        ctx.getCustomer().setLocationLng(bdLng);
-        customerRepository.save(ctx.getCustomer());
 
         String orderIdStr = ctx.contextValue("orderId");
         if (orderIdStr != null) {
             orderRepository.findById(Long.parseLong(orderIdStr)).ifPresent(order -> {
-                order.setLocationLat(bdLat);
-                order.setLocationLng(bdLng);
+                order.setLocationLat(BigDecimal.valueOf(lat));
+                order.setLocationLng(BigDecimal.valueOf(lng));
                 orderRepository.save(order);
             });
         }
-        log.info("Saved permanent location ({}, {}) for customer {}", lat, lng, ctx.getCustomer().getPhone());
+        log.info("Saved temporary location ({}, {}) for customer {}", lat, lng, ctx.getCustomer().getPhone());
     }
 }

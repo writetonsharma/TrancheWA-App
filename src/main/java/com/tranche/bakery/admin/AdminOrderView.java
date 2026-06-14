@@ -16,10 +16,11 @@ public record AdminOrderView(
 ) {
     public static AdminOrderView of(Order order, List<OrderItem> items, Payment payment) {
         String mapsUrl = null;
-        if (order.getCustomer().getLocationLat() != null && order.getCustomer().getLocationLng() != null) {
-            mapsUrl = "https://maps.google.com/?q=" +
-                    order.getCustomer().getLocationLat() + "," +
-                    order.getCustomer().getLocationLng();
+        // Prefer order-level location, fall back to customer default
+        var lat = order.getLocationLat() != null ? order.getLocationLat() : order.getCustomer().getLocationLat();
+        var lng = order.getLocationLng() != null ? order.getLocationLng() : order.getCustomer().getLocationLng();
+        if (lat != null && lng != null) {
+            mapsUrl = "https://maps.google.com/?q=" + lat + "," + lng;
         }
 
         String summary = items.stream()
