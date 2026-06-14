@@ -3,6 +3,7 @@ package com.tranche.bakery.flow.actions;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderNumberGenerator;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ public class ConfirmOrderAction implements FlowAction {
 
     private final OrderService orderService;
     private final OrderRepository orderRepository;
+    private final OrderNumberGenerator orderNumberGenerator;
 
     @Override
     public String getName() { return "CONFIRM_ORDER"; }
@@ -28,7 +30,12 @@ public class ConfirmOrderAction implements FlowAction {
         Order order = orderRepository.findById(Long.parseLong(orderIdStr)).orElse(null);
         if (order == null) return;
 
+        if (order.getOrderNumber() == null) {
+            order.setOrderNumber(orderNumberGenerator.generate(order.getId(), order.getCreatedAt()));
+            orderRepository.save(order);
+        }
+
         orderService.confirm(order);
-        log.info("Order {} confirmed for customer {}", order.getId(), ctx.getCustomer().getPhone());
+        log.info("Order {} ({}) confirmed for customer {}", order.getId(), order.getOrderNumber(), ctx.getCustomer().getPhone());
     }
 }

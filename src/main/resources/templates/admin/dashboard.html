@@ -52,7 +52,7 @@
           </thead>
           <tbody>
             <tr th:each="v : ${dashboard.paymentReview}">
-              <td th:text="${v.order.id}"></td>
+              <td th:text="${v.order.orderNumber ?: v.order.id}"></td>
               <td>
                 <div th:text="${v.order.customer.phone}"></div>
                 <small class="text-muted" th:text="${v.order.customer.name}"></small>
@@ -103,7 +103,7 @@
           </thead>
           <tbody>
             <tr th:each="v : ${dashboard.deliveringToday}">
-              <td th:text="${v.order.id}"></td>
+              <td th:text="${v.order.orderNumber ?: v.order.id}"></td>
               <td>
                 <div th:text="${v.order.customer.phone}"></div>
                 <small class="text-muted" th:text="${v.order.customer.name}"></small>
@@ -140,7 +140,7 @@
           </thead>
           <tbody>
             <tr th:each="v : ${dashboard.deliveringTomorrow}">
-              <td th:text="${v.order.id}"></td>
+              <td th:text="${v.order.orderNumber ?: v.order.id}"></td>
               <td>
                 <div th:text="${v.order.customer.phone}"></div>
                 <small class="text-muted" th:text="${v.order.customer.name}"></small>
@@ -183,7 +183,7 @@
           </thead>
           <tbody>
             <tr th:each="v : ${dashboard.stuckDrafts}">
-              <td th:text="${v.order.id}"></td>
+              <td th:text="${v.order.orderNumber ?: v.order.id}"></td>
               <td th:text="${v.order.customer.phone}"></td>
               <td class="items-cell" th:text="${v.itemsSummary.isEmpty() ? '(empty)' : v.itemsSummary}"></td>
               <td th:text="${#temporals.format(v.order.createdAt, 'dd MMM HH:mm')}"></td>
@@ -211,7 +211,7 @@
           </thead>
           <tbody>
             <tr th:each="v : ${dashboard.awaitingScreenshot}">
-              <td th:text="${v.order.id}"></td>
+              <td th:text="${v.order.orderNumber ?: v.order.id}"></td>
               <td th:text="${v.order.customer.phone}"></td>
               <td class="items-cell" th:text="${v.itemsSummary}"></td>
               <td th:text="'₹' + ${v.order.totalAmount}"></td>

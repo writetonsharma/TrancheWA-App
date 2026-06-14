@@ -1,0 +1,2 @@
+ALTER TABLE orders
+    ADD COLUMN order_number VARCHAR(20) UNIQUE;

@@ -184,10 +184,7 @@
     },
 
     "PAYMENT_RECEIVED": {
-      "entryMessage": {
-        "type": "text",
-        "body": "✅ Wonderful! We've received your payment screenshot and will have everything confirmed for you shortly.\n\nWe'll send you a message once your order is confirmed. Thank you for choosing Tranché Bakery! 🥖"
-      },
+      "entryAction": "AUTO_CONFIRM_ORDER",
       "autoTransition": "IDLE"
     },
 
