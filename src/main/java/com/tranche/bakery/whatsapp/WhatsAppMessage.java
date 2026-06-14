@@ -123,4 +123,29 @@ public class WhatsAppMessage {
             this.description = null;
         }
     }
+
+    @Data @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ImageMessage {
+        private String messaging_product = "whatsapp";
+        private String to;
+        private String type = "image";
+        private ImagePayload image;
+
+        ImageMessage(String to, ImagePayload image) {
+            this.to = to;
+            this.image = image;
+        }
+    }
+
+    @Data @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ImagePayload {
+        private String id;
+        private String caption;
+    }
+
+    public static ImageMessage imageMessage(String to, String mediaId, String caption) {
+        return new ImageMessage(to, new ImagePayload(mediaId, caption));
+    }
 }
