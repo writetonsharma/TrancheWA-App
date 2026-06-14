@@ -25,8 +25,8 @@ public class ShowSavedAddressAction implements FlowAction {
                 ctx.getCustomer().getPhone(),
                 "📍 We have your delivery address on file:\n\n_" + savedAddress + "_\n\nShall we deliver here, or would you like a different address for this order?",
                 List.of(
-                        new WhatsAppMessage.Button("use_address",  "Use This Address"),
-                        new WhatsAppMessage.Button("change_address", "Deliver Somewhere Else")
+                        new WhatsAppMessage.Button("use_address",    "Use This Address"),
+                        new WhatsAppMessage.Button("change_address", "Different Address")
                 )
         );
     }

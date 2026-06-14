@@ -57,29 +57,30 @@ public class SendPaymentQrAction implements FlowAction {
                 ? BigDecimal.valueOf(1.0 + (int)(Math.random() * 99) / 100.0).setScale(2, java.math.RoundingMode.HALF_UP)
                 : order.getTotalAmount();
         String note = "Tranche Bakery Order #" + order.getId();
-
-        Payment payment = paymentRepository.findByOrder(order).orElseGet(() -> {
-            Payment p = new Payment();
-            p.setOrder(order);
-            p.setUpiId(upiId);
-            return p;
-        });
-        payment.setAmount(amount);
-        paymentRepository.save(payment);
+        log.info("Sending payment QR for order {} amount {}", order.getId(), amount);
 
         try {
+            Payment payment = paymentRepository.findByOrder(order).orElseGet(() -> {
+                Payment p = new Payment();
+                p.setOrder(order);
+                p.setUpiId(upiId);
+                return p;
+            });
+            payment.setAmount(amount);
+            paymentRepository.save(payment);
+
             byte[] qrPng = qrCodeService.generateUpiQrPng(upiId, upiName, amount, note);
             String mediaId = whatsAppClient.uploadMedia(qrPng, "payment-qr.png");
             String caption = String.format(
-                    "💳 *Please pay ₹%.0f to complete your order.*%n%n" +
+                    "💳 *Please pay ₹%.2f to complete your order.*%n%n" +
                     "Scan the QR code above with any UPI app, or pay manually to *%s*.%n%n" +
                     "Once paid, please share a screenshot here and we'll confirm your order promptly. 🙏",
                     amount, upiId);
             whatsAppClient.sendImage(ctx.getCustomer().getPhone(), mediaId, caption);
         } catch (Exception e) {
-            log.warn("QR upload failed, falling back to text payment prompt: {}", e.getMessage());
+            log.error("Payment QR flow failed for order {}: {}", order.getId(), e.getMessage(), e);
             whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                    String.format("💳 *Please pay ₹%.0f to complete your order.*%n%n" +
+                    String.format("💳 *Please pay ₹%.2f to complete your order.*%n%n" +
                             "*UPI ID:* %s%n%n" +
                             "Once paid, please share a screenshot here and we'll confirm your order promptly. 🙏",
                             amount, upiId));

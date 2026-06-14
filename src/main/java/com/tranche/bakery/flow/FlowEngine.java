@@ -188,7 +188,13 @@ public class FlowEngine {
                 .filter(a -> a.getName().equals(actionName))
                 .findFirst()
                 .ifPresentOrElse(
-                        a -> a.execute(ctx),
+                        a -> {
+                            try {
+                                a.execute(ctx);
+                            } catch (Exception e) {
+                                log.error("Action '{}' threw an exception: {}", actionName, e.getMessage(), e);
+                            }
+                        },
                         () -> log.warn("No action registered for: {}", actionName));
     }
 
