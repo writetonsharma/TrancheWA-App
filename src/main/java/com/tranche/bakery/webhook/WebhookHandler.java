@@ -1,6 +1,7 @@
 package com.tranche.bakery.webhook;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.tranche.bakery.alert.AlertService;
 import com.tranche.bakery.conversation.ConversationService;
 import com.tranche.bakery.customer.CustomerService;
 import com.tranche.bakery.customer.Customer;
@@ -20,6 +21,7 @@ public class WebhookHandler {
 
     private final CustomerService customerService;
     private final ConversationService conversationService;
+    private final AlertService alertService;
 
     // Deduplication: track last 500 processed message IDs in memory
     private final Set<String> processedMessageIds = Collections.newSetFromMap(
@@ -48,6 +50,8 @@ public class WebhookHandler {
                     JsonNode errors  = status.path("errors");
                     if (!errors.isMissingNode() && errors.isArray() && !errors.isEmpty()) {
                         log.error("Message {} status={} errors={}", statusId, statusVal, errors);
+                        alertService.raise("DELIVERY_FAILURE",
+                                "WhatsApp message " + statusId + " failed: " + errors);
                     } else {
                         log.info("Message {} status={}", statusId, statusVal);
                     }

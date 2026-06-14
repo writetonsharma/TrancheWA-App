@@ -51,4 +51,11 @@ public class AdminController {
         redirectAttributes.addFlashAttribute("flash", "Message sent to " + phone + ".");
         return "redirect:/admin";
     }
+
+    @PostMapping("/alerts/resolve-all")
+    public String resolveAllAlerts(RedirectAttributes redirectAttributes) {
+        adminService.resolveAllAlerts();
+        redirectAttributes.addFlashAttribute("flash", "All alerts marked as resolved.");
+        return "redirect:/admin";
+    }
 }

@@ -1,5 +1,6 @@
 package com.tranche.bakery.flow.actions;
 
+import com.tranche.bakery.alert.AlertService;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
@@ -8,12 +9,14 @@ import com.tranche.bakery.payment.Payment;
 import com.tranche.bakery.payment.PaymentRepository;
 import com.tranche.bakery.payment.QrCodeService;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
+import com.tranche.bakery.whatsapp.WhatsAppMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -24,6 +27,7 @@ public class SendPaymentQrAction implements FlowAction {
     private final PaymentRepository paymentRepository;
     private final QrCodeService qrCodeService;
     private final WhatsAppClient whatsAppClient;
+    private final AlertService alertService;
 
     @Value("${bakery.payment.upi-id}")
     private String upiId;
@@ -87,6 +91,9 @@ public class SendPaymentQrAction implements FlowAction {
             log.info("sendImage called for order {}", order.getId());
         } catch (Exception e) {
             log.error("Payment QR flow failed for order {}: {}", order.getId(), e.getMessage(), e);
+            alertService.raise("QR_FAILURE",
+                    "Payment QR failed for order " + order.getId() + ": " + e.getMessage(),
+                    order.getId(), ctx.getCustomer().getPhone());
             whatsAppClient.sendText(ctx.getCustomer().getPhone(),
                     String.format("💳 *Please pay ₹%.2f to complete your order.*%n%n" +
                             "*UPI ID:* %s%n%n" +
@@ -94,9 +101,12 @@ public class SendPaymentQrAction implements FlowAction {
                             amount, upiId));
         }
 
-        whatsAppClient.sendButtons(ctx.getCustomer().getPhone(),
-                "Changed your mind? You can cancel this order below.",
-                java.util.List.of(new com.tranche.bakery.whatsapp.WhatsAppMessage.Button("cancel_order", "Cancel Order")));
-    }
+        try {
+            whatsAppClient.sendButtons(ctx.getCustomer().getPhone(),
+                    "Changed your mind? You can cancel this order below.",
+                    List.of(new WhatsAppMessage.Button("cancel_order", "Cancel Order")));
+        } catch (Exception e) {
+            log.error("Failed to send cancel button for order {}: {}", order.getId(), e.getMessage());
+        }
     }
 }

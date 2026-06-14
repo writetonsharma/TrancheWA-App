@@ -1,5 +1,6 @@
 package com.tranche.bakery.admin;
 
+import com.tranche.bakery.alert.Alert;
 import com.tranche.bakery.feedback.Feedback;
 
 import java.time.LocalDate;
@@ -12,5 +13,6 @@ public record AdminDashboard(
         List<AdminOrderView> paymentReview,
         List<AdminOrderView> stuckDrafts,
         List<AdminOrderView> awaitingScreenshot,
-        List<Feedback> messages
+        List<Feedback> messages,
+        List<Alert> alerts
 ) {}

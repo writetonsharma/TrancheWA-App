@@ -1,5 +1,7 @@
 package com.tranche.bakery.admin;
 
+import com.tranche.bakery.alert.AlertRepository;
+import com.tranche.bakery.alert.AlertService;
 import com.tranche.bakery.feedback.FeedbackRepository;
 import com.tranche.bakery.order.*;
 import com.tranche.bakery.payment.PaymentRepository;
@@ -23,6 +25,8 @@ public class AdminService {
     private final OrderItemRepository orderItemRepository;
     private final PaymentRepository paymentRepository;
     private final FeedbackRepository feedbackRepository;
+    private final AlertRepository alertRepository;
+    private final AlertService alertService;
     private final WhatsAppClient whatsAppClient;
 
     @Transactional(readOnly = true)
@@ -57,7 +61,13 @@ public class AdminService {
         return new AdminDashboard(
                 today, deliveringToday, deliveringTomorrow,
                 paymentReview, stuckDrafts, awaitingScreenshot,
-                feedbackRepository.findAllByOrderByCreatedAtDesc());
+                feedbackRepository.findAllByOrderByCreatedAtDesc(),
+                alertRepository.findAllByResolvedFalseOrderByCreatedAtDesc());
+    }
+
+    @Transactional
+    public void resolveAllAlerts() {
+        alertService.resolveAll();
     }
 
     @Transactional
