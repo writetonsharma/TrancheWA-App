@@ -52,7 +52,6 @@ public class WebhookHandler {
                         log.info("Message {} status={}", statusId, statusVal);
                     }
                 }
-                
 
                 for (JsonNode message : value.path("messages")) {
                     String messageId = message.path("id").asText("");

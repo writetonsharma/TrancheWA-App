@@ -38,6 +38,9 @@ public class Order {
     @Column(nullable = false)
     private boolean cutoffWarned = false;
 
+    @Column(unique = true, length = 20)
+    private String orderNumber;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 

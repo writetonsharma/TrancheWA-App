@@ -24,7 +24,7 @@ public class CutoffJob {
             "⏰ A gentle note — it's 6 PM and your order is still incomplete, so it has been set aside for today.\n\n" +
             "Whenever you're ready, simply send *hi* to start fresh. We'd love to bake for you! 🥖";
 
-    @Scheduled(cron = "0 0 18 * * *")
+    @Scheduled(cron = "0 0 18 * * *", zone = "Asia/Kolkata")
     @Transactional
     public void cancelUnfinishedOrders() {
         List<Order> expiredOrders = orderRepository.findAllByStatusIn(
