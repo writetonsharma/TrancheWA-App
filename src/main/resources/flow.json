@@ -150,7 +150,7 @@
     "PAYMENT_PENDING": {
       "entryMessage": {
         "type": "text",
-        "body": "💳 *You're almost there!*\n\nTo complete your order, please make a UPI payment and share a screenshot right here.\n\n*UPI ID:* bakery@upi\n\nWe'll verify and confirm your order promptly. Thank you for your patience! 🙏"
+        "body": "💳 *You're almost there!*\n\nTo complete your order, please make a UPI payment and share a screenshot right here.\n\n*UPI ID:* 9811843373@ptsbi\n\nWe'll verify and confirm your order promptly. Thank you for your patience! 🙏"
       },
       "transitions": [
         { "matchType": "image", "nextState": "PAYMENT_RECEIVED", "action": "SAVE_PAYMENT_SCREENSHOT" }
