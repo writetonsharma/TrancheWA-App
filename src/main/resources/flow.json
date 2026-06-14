@@ -3,7 +3,7 @@
   "states": {
 
     "IDLE": {
-      "defaultResponse": "Send *hi* to begin your Tranché Bakery experience. 🥖",
+      "defaultResponse": "Send *hi* to begin your Tranché Bakery order.",
       "transitions": [
         { "match": "hi", "ignoreCase": true, "nextState": "MAIN_MENU" }
       ]
@@ -12,7 +12,7 @@
     "MAIN_MENU": {
       "entryMessage": {
         "type": "buttons",
-        "body": "Welcome to Tranché Bakery! 🥖\n\nFreshly baked, just for you. We kindly suggest placing your order before *6 PM* for next-day delivery.\n\nHow can we help you today?\n\n_Send *hi* anytime to start over._",
+        "body": "Welcome to Tranché Bakery. 🥖\n\nSmall-batch, European-inspired breads baked fresh for each day's orders. Orders placed before *6 PM* are usually prepared for next-day delivery.\n\nHow can we help you today?\n\n_Send *hi* anytime to return to the main menu._",
         "buttons": [
           { "id": "order",   "title": "Order" },
           { "id": "message", "title": "Message Us" },
@@ -30,7 +30,7 @@
     "HOURS_INFO": {
       "entryMessage": {
         "type": "text",
-        "body": "🕐 *Bake Days:* Tuesday to Sunday\n🕖 *Order Cutoff:* 6 PM\n\nWe bake fresh every morning. Orders placed after 6 PM will be lovingly prepared for the following bake day."
+        "body": "*Bake Days:* Tuesday to Sunday\n*Order Cutoff:* 6 PM\n\nWe bake in small batches, closer to order, without commercial improvers or preservatives.\n\nOrders placed by *6 PM* are usually baked the next morning. Orders placed after *6 PM* are scheduled for the following bake day."
       },
       "autoTransition": "MAIN_MENU"
     },
@@ -38,7 +38,7 @@
     "AREA_SELECT": {
       "entryMessage": {
         "type": "text",
-        "body": "👋 Hello! We currently deliver to select areas in Gurgaon.\n\nPlease share your *pincode* and we'll let you know if we can bring freshness to your door:"
+        "body": "Hello. We currently deliver to select areas in Gurgaon.\n\nPlease share your *pincode* so we can confirm delivery availability:"
       },
       "transitions": [
         { "match": "*", "nextState": "NAME_COLLECT", "saveContext": "pincode", "action": "SAVE_AREA" }
@@ -48,7 +48,7 @@
     "NAME_COLLECT": {
       "entryMessage": {
         "type": "text",
-        "body": "Wonderful, we deliver to your area! 🎉\n\nMay we know your name? We'd love to make your experience a little more personal."
+        "body": "Good news — we deliver to your area.\n\nMay we have your name for the order?"
       },
       "transitions": [
         { "match": "*", "nextState": "MAIN_MENU", "saveContext": "customerName", "action": "SAVE_NAME" }
@@ -58,7 +58,7 @@
     "ORDER_SELECT_CATEGORY": {
       "entryMessage": {
         "type": "list",
-        "body": "What are you in the mood for today? Browse our categories below:",
+        "body": "Please choose a category to begin your order:",
         "buttonLabel": "View Categories",
         "dataSource": "MENU_CATEGORIES"
       },
@@ -70,7 +70,7 @@
     "ORDER_SELECT_ITEM": {
       "entryMessage": {
         "type": "list",
-        "body": "Here's what we have in this category — take your pick:",
+        "body": "Please select an item from this category:",
         "buttonLabel": "View Items",
         "dataSource": "MENU_ITEMS"
       },
@@ -82,7 +82,7 @@
     "ORDER_SELECT_QUANTITY": {
       "entryMessage": {
         "type": "buttons",
-        "body": "How many would you like? Tap a button or type *4* or *5* for larger quantities:",
+        "body": "How many would you like? Tap a button, or type *4* or *5* for a larger quantity:",
         "buttons": [
           { "id": "1", "title": "1" },
           { "id": "2", "title": "2" },
@@ -102,7 +102,7 @@
     "ORDER_ADD_MORE": {
       "entryMessage": {
         "type": "buttons",
-        "body": "Lovely choice! 🧡 Would you like to add anything else, or shall we review your order?",
+        "body": "Added to your order.\n\nWould you like to add anything else, or review your order?",
         "buttons": [
           { "id": "add_item",   "title": "Add Another" },
           { "id": "view_order", "title": "View Order" }
@@ -122,7 +122,7 @@
     "ADDRESS_COLLECT": {
       "entryMessage": {
         "type": "text",
-        "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_This will be saved as your permanent delivery address for all future orders, so please choose carefully._"
+        "body": "Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_We'll save this address for future orders. You can change it anytime._"
       },
       "transitions": [
         { "match": "*", "nextState": "LOCATION_SHARE", "saveContext": "deliveryAddress", "action": "SAVE_DELIVERY_ADDRESS" }
@@ -141,7 +141,7 @@
     "ADDRESS_COLLECT_TEMP": {
       "entryMessage": {
         "type": "text",
-        "body": "📍 Please share the delivery address for this order:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_"
+        "body": "Please share the delivery address for this order:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_"
       },
       "transitions": [
         { "match": "*", "nextState": "LOCATION_SHARE_TEMP", "saveContext": "deliveryAddress", "action": "SAVE_DELIVERY_ADDRESS_TEMP" }
@@ -151,7 +151,7 @@
     "LOCATION_SHARE": {
       "entryMessage": {
         "type": "text",
-        "body": "📌 Almost done! Please drop a location pin so our delivery team can find you easily.\n\nTap the 📎 paperclip → *Location* → send a *pinned location* (kindly avoid live location)."
+        "body": "Almost done — please share a pinned location so our delivery team can find you easily.\n\nTap the paperclip icon → *Location* → send a *pinned location*.\n\nPlease avoid live location."
       },
       "transitions": [
         { "matchType": "location", "nextState": "ORDER_CONFIRM", "action": "SAVE_LOCATION" }
@@ -161,7 +161,7 @@
     "LOCATION_SHARE_TEMP": {
       "entryMessage": {
         "type": "text",
-        "body": "📌 Almost done! Please drop a location pin for this delivery address.\n\nTap the 📎 paperclip → *Location* → send a *pinned location* (kindly avoid live location)."
+        "body": "Almost done — please share a pinned location for this delivery address.\n\nTap the paperclip icon → *Location* → send a *pinned location*.\n\nPlease avoid live location."
       },
       "transitions": [
         { "matchType": "location", "nextState": "ORDER_CONFIRM", "action": "SAVE_LOCATION_TEMP" }
@@ -192,7 +192,7 @@
     "MESSAGE_AWAITING_TEXT": {
       "entryMessage": {
         "type": "text",
-        "body": "💬 We'd love to hear from you! Whether it's a question, feedback, or a special request — please share and we'll get back to you personally."
+        "body": "Please share your question, feedback, or special request. We'll get back to you personally."
       },
       "transitions": [
         { "match": "*", "nextState": "MESSAGE_DONE", "action": "SAVE_FEEDBACK" }
@@ -202,7 +202,7 @@
     "MESSAGE_DONE": {
       "entryMessage": {
         "type": "text",
-        "body": "Thank you so much for writing in! We've noted your message and will be in touch soon. Have a wonderful day! 😊"
+        "body": "Thank you for writing to us. We've received your message and will get back to you soon."
       },
       "autoTransition": "IDLE"
     }

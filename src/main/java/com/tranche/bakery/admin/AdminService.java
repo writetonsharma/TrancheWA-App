@@ -81,8 +81,8 @@ public class AdminService {
             });
             try {
                 whatsAppClient.sendText(order.getCustomer().getPhone(),
-                        "✅ Your payment has been verified and your order is confirmed! " +
-                        "We'll deliver to you on the next bake day. Thank you for ordering from Tranché Bakery! 🥖");
+                        "Your payment has been verified and your order is confirmed. " +
+                        "Your bake will be scheduled for the next available slot. Thank you for ordering from Tranché Bakery.");
             } catch (Exception e) {
                 log.warn("Could not notify customer after payment approval: {}", e.getMessage());
             }

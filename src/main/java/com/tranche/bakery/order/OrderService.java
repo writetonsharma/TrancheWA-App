@@ -85,7 +85,7 @@ public class OrderService {
 
         boolean afterCutoff = java.time.LocalTime.now().getHour() >= 18;
         if (afterCutoff) {
-            sb.append("\n\n⚠️ _You're ordering after 6 PM — this will be prepared for the next available bake day._");
+            sb.append("\n\n_After 6 PM: this order will not be baked tomorrow morning. It will be scheduled for the following bake day._");
         }
         return sb.toString();
     }

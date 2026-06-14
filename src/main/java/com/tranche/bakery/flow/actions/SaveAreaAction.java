@@ -28,9 +28,9 @@ public class SaveAreaAction implements FlowAction {
 
         if (area == null) {
             whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                    "Thank you for your interest! Unfortunately, we're not yet delivering to pincode *" + pincode + "*.\n\n" +
-                    "We currently serve: " + deliveryAreaLoader.areaNamesSummary() + ".\n\n" +
-                    "Please try a different pincode, or send *hi* to go back.");
+                    "Thank you for checking. We do not currently deliver to pincode *" + pincode + "*.\n\n" +
+                    "At the moment, we serve: " + deliveryAreaLoader.areaNamesSummary() + ".\n\n" +
+                    "You may try another pincode, or send *hi* to return to the main menu.");
             ctx.setRedirectState("AREA_SELECT");
             return;
         }

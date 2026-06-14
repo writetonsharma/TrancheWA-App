@@ -43,11 +43,11 @@ public class AutoConfirmOrderAction implements FlowAction {
         String orderNumber = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
 
         whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                "✅ *Your order is confirmed!* 🥖\n\n" +
+                "*Order received*\n\n" +
                 "Your order reference is *" + orderNumber + "*.\n\n" +
-                "We've received your payment screenshot and your order is all set. " +
-                "We'll verify the payment when we begin preparing your order.\n\n" +
-                "Thank you for choosing Tranché Bakery — we can't wait to bake for you! 🧡");
+                "We've received your payment screenshot and will verify it shortly. " +
+                "Once verified, your bake will be scheduled for the next available slot.\n\n" +
+                "Thank you for ordering from Tranché Bakery.");
 
         log.info("Order {} auto-confirmed for customer {}", orderNumber, ctx.getCustomer().getPhone());
     }

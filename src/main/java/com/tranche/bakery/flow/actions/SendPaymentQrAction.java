@@ -46,14 +46,14 @@ public class SendPaymentQrAction implements FlowAction {
         String orderIdStr = ctx.contextValue("orderId");
         if (orderIdStr == null) {
             whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                    "We couldn't find your order. Please send *hi* to start over.");
+                    "We couldn't find your order. Send *hi* to return to the main menu.");
             return;
         }
 
         Order order = orderRepository.findById(Long.parseLong(orderIdStr)).orElse(null);
         if (order == null) {
             whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                    "We couldn't find your order. Please send *hi* to start over.");
+                    "We couldn't find your order. Send *hi* to return to the main menu.");
             return;
         }
 
@@ -83,9 +83,9 @@ public class SendPaymentQrAction implements FlowAction {
             String mediaId = whatsAppClient.uploadMedia(qrPng, "payment-qr.png");
             log.info("Media uploaded, mediaId={}", mediaId);
             String caption = String.format(
-                    "💳 *Please pay ₹%.2f to complete your order.*%n%n" +
+                    "*Please complete payment of ₹%.2f to confirm your order.*%n%n" +
                     "Scan the QR code above with any UPI app, or pay manually to *%s*.%n%n" +
-                    "Once paid, please share a screenshot here and we'll confirm your order promptly. 🙏",
+                    "Once paid, please share the screenshot here. We'll confirm your order shortly.",
                     amount, upiId);
             whatsAppClient.sendImage(ctx.getCustomer().getPhone(), mediaId, caption);
             log.info("sendImage called for order {}", order.getId());
@@ -95,15 +95,15 @@ public class SendPaymentQrAction implements FlowAction {
                     "Payment QR failed for order " + order.getId() + ": " + e.getMessage(),
                     order.getId(), ctx.getCustomer().getPhone());
             whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                    String.format("💳 *Please pay ₹%.2f to complete your order.*%n%n" +
+                    String.format("*Please complete payment of ₹%.2f to confirm your order.*%n%n" +
                             "*UPI ID:* %s%n%n" +
-                            "Once paid, please share a screenshot here and we'll confirm your order promptly. 🙏",
+                            "Once paid, please share the screenshot here. We'll confirm your order shortly.",
                             amount, upiId));
         }
 
         try {
             whatsAppClient.sendButtons(ctx.getCustomer().getPhone(),
-                    "Changed your mind? You can cancel this order below.",
+                    "Need to cancel this order? You can do so below.",
                     List.of(new WhatsAppMessage.Button("cancel_order", "Cancel Order")));
         } catch (Exception e) {
             log.error("Failed to send cancel button for order {}: {}", order.getId(), e.getMessage());

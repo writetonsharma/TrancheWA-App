@@ -29,13 +29,13 @@ public class ShowOrderSummaryAction implements FlowAction {
     public void execute(ActionContext ctx) {
         String orderIdStr = ctx.contextValue("orderId");
         if (orderIdStr == null) {
-            whatsAppClient.sendText(ctx.getCustomer().getPhone(), "No active order found. Send *hi* to start over.");
+            whatsAppClient.sendText(ctx.getCustomer().getPhone(), "We couldn't find an active order. Send *hi* to return to the main menu.");
             return;
         }
 
         Order order = orderRepository.findById(Long.parseLong(orderIdStr)).orElse(null);
         if (order == null) {
-            whatsAppClient.sendText(ctx.getCustomer().getPhone(), "Order not found. Send *hi* to start over.");
+            whatsAppClient.sendText(ctx.getCustomer().getPhone(), "We couldn't find this order. Send *hi* to return to the main menu.");
             return;
         }
 
@@ -43,14 +43,15 @@ public class ShowOrderSummaryAction implements FlowAction {
         if ("Your order is empty.".equals(summary)) {
             whatsAppClient.sendButtons(
                     ctx.getCustomer().getPhone(),
-                    "Your basket is empty. Please cancel and send *hi* to start a fresh order.",
+                    "Your basket is empty. Please cancel and send *hi* to begin a fresh order.",
                     List.of(new WhatsAppMessage.Button("cancel", "Cancel"))
             );
             return;
         }
+        whatsAppClient.sendText(ctx.getCustomer().getPhone(), summary);
         whatsAppClient.sendButtons(
                 ctx.getCustomer().getPhone(),
-                summary + "\n\nShall we place this order?",
+                "Would you like us to confirm this order?",
                 List.of(
                         new WhatsAppMessage.Button("confirm", "Confirm Order"),
                         new WhatsAppMessage.Button("cancel",  "Cancel")

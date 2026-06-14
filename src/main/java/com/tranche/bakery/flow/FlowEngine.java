@@ -40,7 +40,7 @@ public class FlowEngine {
         if (!SUPPORTED_TYPES.contains(messageType)) {
             log.debug("Unsupported message type={} from {}", messageType, phone);
             whatsAppClient.sendText(phone,
-                    "I can only understand text messages and button selections.\nSend *hi* to start or continue your order.");
+                    "Please send a text message or use the available buttons.\nSend *hi* to return to the main menu.");
             return;
         }
 
@@ -159,7 +159,7 @@ public class FlowEngine {
                         : List.of();
                 if (sections.isEmpty() || sections.stream().allMatch(s -> s.getRows().isEmpty())) {
                     whatsAppClient.sendText(phone,
-                            "Sorry, nothing is available right now. Send *hi* to start over.");
+                            "Nothing is available right now. Send *hi* to return to the main menu.");
                     return;
                 }
                 whatsAppClient.sendList(phone, msg.getBody(), msg.getButtonLabel(), sections);
