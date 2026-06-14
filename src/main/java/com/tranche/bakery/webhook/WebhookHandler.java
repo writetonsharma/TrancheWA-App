@@ -40,6 +40,20 @@ public class WebhookHandler {
                 if (!"messages".equals(change.path("field").asText())) continue;
 
                 JsonNode value = change.path("value");
+
+                // Log delivery status updates (sent/delivered/read/failed)
+                for (JsonNode status : value.path("statuses")) {
+                    String statusId  = status.path("id").asText();
+                    String statusVal = status.path("status").asText();
+                    JsonNode errors  = status.path("errors");
+                    if (!errors.isMissingNode() && errors.isArray() && !errors.isEmpty()) {
+                        log.error("Message {} status={} errors={}", statusId, statusVal, errors);
+                    } else {
+                        log.info("Message {} status={}", statusId, statusVal);
+                    }
+                }
+                
+
                 for (JsonNode message : value.path("messages")) {
                     String messageId = message.path("id").asText("");
                     if (!messageId.isEmpty() && !processedMessageIds.add(messageId)) {
