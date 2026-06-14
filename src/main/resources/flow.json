@@ -179,7 +179,8 @@
     "PAYMENT_PENDING": {
       "entryAction": "SEND_PAYMENT_QR",
       "transitions": [
-        { "matchType": "image", "nextState": "PAYMENT_RECEIVED", "action": "SAVE_PAYMENT_SCREENSHOT" }
+        { "matchType": "image", "nextState": "PAYMENT_RECEIVED", "action": "SAVE_PAYMENT_SCREENSHOT" },
+        { "match": "cancel_order", "nextState": "MAIN_MENU", "action": "CANCEL_ORDER" }
       ]
     },
 

@@ -93,5 +93,10 @@ public class SendPaymentQrAction implements FlowAction {
                             "Once paid, please share a screenshot here and we'll confirm your order promptly. 🙏",
                             amount, upiId));
         }
+
+        whatsAppClient.sendButtons(ctx.getCustomer().getPhone(),
+                "Changed your mind? You can cancel this order below.",
+                java.util.List.of(new com.tranche.bakery.whatsapp.WhatsAppMessage.Button("cancel_order", "Cancel Order")));
+    }
     }
 }
