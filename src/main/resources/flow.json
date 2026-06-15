@@ -16,21 +16,52 @@
         "buttons": [
           { "id": "order",   "title": "Order" },
           { "id": "message", "title": "Message Us" },
-          { "id": "hours",   "title": "Hours & Info" }
+          { "id": "info",    "title": "Info" }
         ]
       },
       "transitions": [
-        { "match": "order",   "nextState": "ORDER_SELECT_CATEGORY" },
+        { "match": "order",   "nextState": "ORDER_GATE" },
         { "match": "message", "nextState": "MESSAGE_AWAITING_TEXT" },
-        { "match": "hours",   "nextState": "HOURS_INFO" },
+        { "match": "info",    "nextState": "INFO_MENU" },
         { "match": "*",       "nextState": "MAIN_MENU" }
+      ]
+    },
+
+    "INFO_MENU": {
+      "entryMessage": {
+        "type": "buttons",
+        "body": "What would you like to know?",
+        "buttons": [
+          { "id": "hours",        "title": "Hours & Delivery" },
+          { "id": "order_status", "title": "My Order Status" },
+          { "id": "about",        "title": "About Us" }
+        ]
+      },
+      "transitions": [
+        { "match": "hours",        "nextState": "HOURS_INFO" },
+        { "match": "order_status", "nextState": "ORDER_STATUS" },
+        { "match": "about",        "nextState": "ABOUT" },
+        { "match": "*",            "nextState": "INFO_MENU" }
       ]
     },
 
     "HOURS_INFO": {
       "entryMessage": {
         "type": "text",
-        "body": "*Bake Days:* Tuesday to Sunday\n*Order Cutoff:* 6 PM\n\nWe bake in small batches, closer to order, without commercial improvers or preservatives.\n\nOrders placed by *6 PM* are usually baked the next morning. Orders placed after *6 PM* are scheduled for the following bake day."
+        "body": "🕐 *Hours & Delivery*\n\n*Bake Days:* Monday to Saturday\n*Delivery Days:* Tuesday to Sunday\n_(We rest on Sundays — no baking, so no Monday deliveries)_\n\n*Order Cutoff:* 6 PM daily\nOrders placed before 6 PM are baked fresh overnight and delivered next morning between *6–8 AM*.\n\n*Messaging Hours:* 8 AM – 5 PM\nYou can place orders anytime — we read and respond to messages between 8 AM and 5 PM."
+      },
+      "autoTransition": "MAIN_MENU"
+    },
+
+    "ORDER_STATUS": {
+      "entryAction": "SHOW_ORDER_STATUS",
+      "autoTransition": "MAIN_MENU"
+    },
+
+    "ABOUT": {
+      "entryMessage": {
+        "type": "text",
+        "body": "🥖 *About Tranché Bakery*\n\nWe're a small-batch bakery in Gurgaon focused on European-style breads baked fresh to order.\n\nOur breads are slow-fermented for better flavour and texture, made without preservatives or commercial improvers, and baked in small batches so every loaf reaches you fresh.\n\nFlour is sourced from established Delhi mills. Dairy from local sources. Ingredients are chosen for how the bread actually eats — not for shelf life or label marketing.\n\nEvery order is baked close to delivery. What you order is what gets baked. 🧡"
       },
       "autoTransition": "MAIN_MENU"
     },
@@ -52,6 +83,19 @@
       },
       "transitions": [
         { "match": "*", "nextState": "MAIN_MENU", "saveContext": "customerName", "action": "SAVE_NAME" }
+      ]
+    },
+
+    "ORDER_GATE": {
+      "entryAction": "ROUTE_TO_REORDER_OR_BROWSE"
+    },
+
+    "ORDER_SUGGEST_REORDER": {
+      "entryAction": "SHOW_LAST_ORDER_SUGGESTION",
+      "transitions": [
+        { "match": "reorder",     "nextState": "ADDRESS_GATE", "action": "COPY_LAST_ORDER" },
+        { "match": "browse_menu", "nextState": "ORDER_SELECT_CATEGORY" },
+        { "match": "*",           "nextState": "ORDER_SUGGEST_REORDER" }
       ]
     },
 
@@ -122,7 +166,7 @@
     "ADDRESS_COLLECT": {
       "entryMessage": {
         "type": "text",
-        "body": "Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_We'll save this address for future orders. You can change it anytime._"
+        "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_This will be saved as your permanent delivery address for all future orders, so please choose carefully._"
       },
       "transitions": [
         { "match": "*", "nextState": "LOCATION_SHARE", "saveContext": "deliveryAddress", "action": "SAVE_DELIVERY_ADDRESS" }
@@ -132,16 +176,16 @@
     "ADDRESS_CONFIRM": {
       "entryAction": "SHOW_SAVED_ADDRESS",
       "transitions": [
-        { "match": "use_address",    "nextState": "ORDER_CONFIRM",        "action": "COPY_ADDRESS_TO_ORDER" },
-        { "match": "change_address", "nextState": "ADDRESS_COLLECT_TEMP"  },
-        { "match": "*",              "nextState": "ADDRESS_CONFIRM"        }
+        { "match": "use_address",    "nextState": "ORDER_CONFIRM",       "action": "COPY_ADDRESS_TO_ORDER" },
+        { "match": "change_address", "nextState": "ADDRESS_COLLECT_TEMP" },
+        { "match": "*",              "nextState": "ADDRESS_CONFIRM"       }
       ]
     },
 
     "ADDRESS_COLLECT_TEMP": {
       "entryMessage": {
         "type": "text",
-        "body": "Please share the delivery address for this order:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_"
+        "body": "📍 Please share the delivery address for this order:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_"
       },
       "transitions": [
         { "match": "*", "nextState": "LOCATION_SHARE_TEMP", "saveContext": "deliveryAddress", "action": "SAVE_DELIVERY_ADDRESS_TEMP" }
@@ -151,7 +195,7 @@
     "LOCATION_SHARE": {
       "entryMessage": {
         "type": "text",
-        "body": "Almost done — please share a pinned location so our delivery team can find you easily.\n\nTap the paperclip icon → *Location* → send a *pinned location*.\n\nPlease avoid live location."
+        "body": "📌 Almost done — please share a pinned location so our delivery team can find you easily.\n\nTap the paperclip icon → *Location* → send a *pinned location*.\n\nPlease avoid live location."
       },
       "transitions": [
         { "matchType": "location", "nextState": "ORDER_CONFIRM", "action": "SAVE_LOCATION" }
@@ -161,7 +205,7 @@
     "LOCATION_SHARE_TEMP": {
       "entryMessage": {
         "type": "text",
-        "body": "Almost done — please share a pinned location for this delivery address.\n\nTap the paperclip icon → *Location* → send a *pinned location*.\n\nPlease avoid live location."
+        "body": "📌 Almost done — please share a pinned location for this delivery address.\n\nTap the paperclip icon → *Location* → send a *pinned location*.\n\nPlease avoid live location."
       },
       "transitions": [
         { "matchType": "location", "nextState": "ORDER_CONFIRM", "action": "SAVE_LOCATION_TEMP" }

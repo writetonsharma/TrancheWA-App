@@ -52,6 +52,13 @@ public class AdminController {
         return "redirect:/admin";
     }
 
+    @PostMapping("/orders/{id}/mark-baking")
+    public String markInBaking(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        adminService.markInBaking(id);
+        redirectAttributes.addFlashAttribute("flash", "Order marked as In Baking — customer notified.");
+        return "redirect:/admin";
+    }
+
     @PostMapping("/alerts/resolve-all")
     public String resolveAllAlerts(RedirectAttributes redirectAttributes) {
         adminService.resolveAllAlerts();

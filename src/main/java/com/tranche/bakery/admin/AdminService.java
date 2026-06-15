@@ -104,6 +104,24 @@ public class AdminService {
         log.info("Admin sent message to {}", phone);
     }
 
+    @Transactional
+    public void markInBaking(Long orderId) {
+        orderRepository.findById(orderId).ifPresent(order -> {
+            order.setStatus(OrderStatus.IN_BAKING);
+            orderRepository.save(order);
+            try {
+                String ref = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
+                whatsAppClient.sendText(order.getCustomer().getPhone(),
+                        "🔥 *Great news — your order is being baked right now!*\n\n" +
+                        "Order *" + ref + "* is in the oven. " +
+                        "We'll deliver between 6–8 AM tomorrow morning. 🥖");
+            } catch (Exception e) {
+                log.warn("Could not notify customer after marking in baking: {}", e.getMessage());
+            }
+            log.info("Admin marked order {} as IN_BAKING", orderId);
+        });
+    }
+
     public byte[] getQrImage(Long orderId) {
         return orderRepository.findById(orderId)
                 .flatMap(paymentRepository::findByOrder)
