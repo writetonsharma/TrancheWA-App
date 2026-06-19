@@ -20,34 +20,34 @@
       "name": "Buns & Rolls",
       "displayOrder": 2,
       "items": [
-        { "name": "Whole Wheat Rolls",     "price": 240.00, "displayOrder": 1 },
-        { "name": "Multi Seed Rolls",      "price": 260.00, "displayOrder": 2 },
-        { "name": "Milk Buns",             "price": 250.00, "displayOrder": 3 },
-        { "name": "Sesame Burger Buns",    "price": 260.00, "displayOrder": 4 },
-        { "name": "Potato Buns",           "price": 280.00, "displayOrder": 5 },
-        { "name": "Eggless Brioche Buns",  "price": 300.00, "displayOrder": 6 },
-        { "name": "Pretzel Buns",          "price": 280.00, "displayOrder": 7 },
-        { "name": "Kaiser Rolls",          "price": 260.00, "displayOrder": 8 }
+        { "name": "Whole Wheat Rolls",     "price": 240.00, "displayOrder": 1, "description": "Set of 6 rolls" },
+        { "name": "Multi Seed Rolls",      "price": 260.00, "displayOrder": 2, "description": "Set of 6 rolls" },
+        { "name": "Milk Buns",             "price": 250.00, "displayOrder": 3, "description": "Set of 6 buns" },
+        { "name": "Sesame Burger Buns",    "price": 260.00, "displayOrder": 4, "description": "Set of 6 buns" },
+        { "name": "Potato Buns",           "price": 280.00, "displayOrder": 5, "description": "Set of 6 buns" },
+        { "name": "Eggless Brioche Buns",  "price": 300.00, "displayOrder": 6, "description": "Set of 6 buns" },
+        { "name": "Pretzel Buns",          "price": 280.00, "displayOrder": 7, "description": "Set of 6 buns" },
+        { "name": "Kaiser Rolls",          "price": 260.00, "displayOrder": 8, "description": "Set of 6 rolls" }
       ]
     },
     {
       "name": "Breakfast & Specialty",
       "displayOrder": 3,
       "items": [
-        { "name": "Plain Bagel",                    "price": 260.00, "displayOrder": 1 },
-        { "name": "Caramelized Onion Bagel",        "price": 280.00, "displayOrder": 2 },
+        { "name": "Plain Bagel",                 "price": 260.00, "displayOrder": 1, "description": "Set of 6 bagels" },
+        { "name": "Caramelized Onion Bagel",     "price": 280.00, "displayOrder": 2, "description": "Set of 6 bagels" },
         { "name": "Rosemary Focaccia",           "price": 360.00, "displayOrder": 3 },
-        { "name": "Olive & Tomato Focaccia",        "price": 380.00, "displayOrder": 4 },
-        { "name": "Garlic Knots",                   "price": 220.00, "displayOrder": 5 }
+        { "name": "Olive & Tomato Focaccia",     "price": 380.00, "displayOrder": 4 },
+        { "name": "Garlic Knots",                "price": 220.00, "displayOrder": 5, "description": "Set of 6 knots" }
       ]
     },
     {
       "name": "Sweet Bakes",
       "displayOrder": 4,
       "items": [
-        { "name": "Cinnamon Rolls",   "price": 300.00, "displayOrder": 1 },
-        { "name": "Chocolate Rolls",  "price": 320.00, "displayOrder": 2 },
-        { "name": "Cardamom Buns",    "price": 300.00, "displayOrder": 3 }
+        { "name": "Cinnamon Rolls",   "price": 300.00, "displayOrder": 1, "description": "Set of 6 rolls" },
+        { "name": "Chocolate Rolls",  "price": 320.00, "displayOrder": 2, "description": "Set of 6 rolls" },
+        { "name": "Cardamom Buns",    "price": 300.00, "displayOrder": 3, "description": "Set of 6 buns" }
       ]
     }
   ]

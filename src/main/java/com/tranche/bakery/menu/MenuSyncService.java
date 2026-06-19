@@ -49,6 +49,9 @@ public class MenuSyncService implements ApplicationRunner {
                         });
                 item.setPrice(itemJson.getPrice());
                 item.setDisplayOrder(itemJson.getDisplayOrder());
+                if (itemJson.getDescription() != null) {
+                    item.setDescription(itemJson.getDescription());
+                }
                 item.setActive(true);
                 itemRepository.save(item);
             }
@@ -72,6 +75,7 @@ public class MenuSyncService implements ApplicationRunner {
             private String name;
             private BigDecimal price;
             private int displayOrder;
+            private String description;
         }
     }
 }

@@ -83,9 +83,8 @@ public class SendPaymentQrAction implements FlowAction {
             String mediaId = whatsAppClient.uploadMedia(qrPng, "payment-qr.png");
             log.info("Media uploaded, mediaId={}", mediaId);
             String caption = String.format(
-                    "*Please complete payment of ₹%.2f to confirm your order.*%n%n" +
-                    "Scan the QR code above with any UPI app, or pay manually to *%s*.%n%n" +
-                    "Once paid, please share the screenshot here. We'll confirm your order shortly.",
+                    "*Order %s — ₹%.2f*%n%nScan the QR code above with any UPI app, or pay manually to *%s*.%n%nOnce paid, please share the screenshot here. We'll confirm your order shortly.",
+                    order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId(),
                     amount, upiId);
             whatsAppClient.sendImage(ctx.getCustomer().getPhone(), mediaId, caption);
             log.info("sendImage called for order {}", order.getId());
@@ -95,9 +94,10 @@ public class SendPaymentQrAction implements FlowAction {
                     "Payment QR failed for order " + order.getId() + ": " + e.getMessage(),
                     order.getId(), ctx.getCustomer().getPhone());
             whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                    String.format("*Please complete payment of ₹%.2f to confirm your order.*%n%n" +
+                    String.format("*Order %s — please complete payment of ₹%.2f.*%n%n" +
                             "*UPI ID:* %s%n%n" +
                             "Once paid, please share the screenshot here. We'll confirm your order shortly.",
+                            order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId(),
                             amount, upiId));
         }
 

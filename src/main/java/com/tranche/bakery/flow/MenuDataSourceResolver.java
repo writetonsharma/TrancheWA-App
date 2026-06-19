@@ -56,10 +56,13 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         List<WhatsAppMessage.Row> rows = itemRepository
                 .findAllByCategoryAndActiveTrueOrderByDisplayOrderAsc(category)
                 .stream()
-                .map(i -> new WhatsAppMessage.Row(
-                        i.getId().toString(),
-                        i.getName(),
-                        String.format("₹%.0f", i.getPrice())))
+                .map(i -> {
+                    String price = String.format("₹%.0f", i.getPrice());
+                    String desc = (i.getDescription() != null && !i.getDescription().isBlank())
+                            ? price + " · " + i.getDescription()
+                            : price;
+                    return new WhatsAppMessage.Row(i.getId().toString(), i.getName(), desc);
+                })
                 .toList();
         return List.of(new WhatsAppMessage.Section(category.getName(), rows));
     }
