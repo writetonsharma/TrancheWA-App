@@ -59,6 +59,13 @@ public class AdminController {
         return "redirect:/admin";
     }
 
+    @PostMapping("/orders/{id}/cancel")
+    public String cancelOrder(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        adminService.cancelOrder(id);
+        redirectAttributes.addFlashAttribute("flash", "Order #" + id + " cancelled.");
+        return "redirect:/admin";
+    }
+
     @PostMapping("/alerts/resolve-all")
     public String resolveAllAlerts(RedirectAttributes redirectAttributes) {
         adminService.resolveAllAlerts();

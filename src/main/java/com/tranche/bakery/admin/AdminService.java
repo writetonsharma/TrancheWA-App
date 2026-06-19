@@ -118,6 +118,15 @@ public class AdminService {
         });
     }
 
+    @Transactional
+    public void cancelOrder(Long orderId) {
+        orderRepository.findById(orderId).ifPresent(order -> {
+            order.setStatus(OrderStatus.CANCELLED);
+            orderRepository.save(order);
+            log.info("Admin cancelled order {}", orderId);
+        });
+    }
+
     public byte[] getQrImage(Long orderId) {
         return orderRepository.findById(orderId)
                 .flatMap(paymentRepository::findByOrder)

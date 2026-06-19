@@ -233,6 +233,12 @@
                         th:data-phone="${v.order.customer.phone}">
                   💬 Message
                 </button>
+                <form th:action="@{/admin/orders/{id}/cancel(id=${v.order.id})}" method="post" class="d-inline ms-1">
+                  <button type="submit" class="btn btn-sm btn-outline-danger"
+                          th:onclick="|return confirm('Cancel order ${v.order.orderNumber ?: v.order.id}?')|">
+                    🗑 Cancel
+                  </button>
+                </form>
               </td>
             </tr>
           </tbody>
@@ -262,6 +268,12 @@
                         th:data-phone="${v.order.customer.phone}">
                   💬 Message
                 </button>
+                <form th:action="@{/admin/orders/{id}/cancel(id=${v.order.id})}" method="post" class="d-inline ms-1">
+                  <button type="submit" class="btn btn-sm btn-outline-danger"
+                          th:onclick="|return confirm('Cancel order ${v.order.orderNumber ?: v.order.id}?')|">
+                    🗑 Cancel
+                  </button>
+                </form>
               </td>
             </tr>
           </tbody>
