@@ -235,7 +235,8 @@
                 </button>
                 <form th:action="@{/admin/orders/{id}/cancel(id=${v.order.id})}" method="post" class="d-inline ms-1">
                   <button type="submit" class="btn btn-sm btn-outline-danger"
-                          th:onclick="|return confirm('Cancel order ${v.order.orderNumber ?: v.order.id}?')|">
+                          th:attr="data-ref=${v.order.orderNumber ?: v.order.id}"
+                          onclick="return confirm('Cancel order ' + this.dataset.ref + '?')">
                     🗑 Cancel
                   </button>
                 </form>
@@ -270,7 +271,8 @@
                 </button>
                 <form th:action="@{/admin/orders/{id}/cancel(id=${v.order.id})}" method="post" class="d-inline ms-1">
                   <button type="submit" class="btn btn-sm btn-outline-danger"
-                          th:onclick="|return confirm('Cancel order ${v.order.orderNumber ?: v.order.id}?')|">
+                          th:attr="data-ref=${v.order.orderNumber ?: v.order.id}"
+                          onclick="return confirm('Cancel order ' + this.dataset.ref + '?')">
                     🗑 Cancel
                   </button>
                 </form>
