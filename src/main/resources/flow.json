@@ -262,6 +262,13 @@
       "autoTransition": "IDLE"
     },
 
+    "PAYMENT_ORDER_SELECT": {
+      "entryAction": "SHOW_PAYMENT_ORDER_SELECT",
+      "transitions": [
+        { "match": "*", "nextState": "PAYMENT_RECEIVED", "action": "APPLY_PAYMENT_SCREENSHOT" }
+      ]
+    },
+
     "MESSAGE_AWAITING_TEXT": {
       "entryMessage": {
         "type": "text",
