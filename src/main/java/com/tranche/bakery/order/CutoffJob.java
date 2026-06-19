@@ -8,8 +8,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
@@ -27,9 +28,20 @@ public class CutoffJob {
     @Scheduled(cron = "0 0 18 * * *", zone = "Asia/Kolkata")
     @Transactional
     public void cancelUnfinishedOrders() {
-        List<Order> expiredOrders = orderRepository.findAllByStatusIn(
-                Set.of(OrderStatus.DRAFT, OrderStatus.PENDING_CONFIRMATION)
-        );
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+
+        // All unconfirmed drafts — always cancel at cutoff
+        List<Order> drafts = orderRepository.findAllByStatusIn(List.of(OrderStatus.DRAFT));
+
+        // Confirmed but unpaid — only cancel if delivery date is tomorrow or earlier (cutoff passed)
+        List<Order> pendingPayment = orderRepository.findAllByStatusIn(
+                List.of(OrderStatus.PENDING_CONFIRMATION)).stream()
+                .filter(o -> o.getDeliveryDate() == null || !o.getDeliveryDate().isAfter(tomorrow))
+                .toList();
+
+        List<Order> expiredOrders = new ArrayList<>();
+        expiredOrders.addAll(drafts);
+        expiredOrders.addAll(pendingPayment);
 
         if (expiredOrders.isEmpty()) {
             log.info("Cutoff job: no unfinished orders to cancel.");
