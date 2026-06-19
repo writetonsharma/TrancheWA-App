@@ -9,6 +9,11 @@ import com.tranche.bakery.whatsapp.WhatsAppMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +31,7 @@ public class MenuDataSourceResolver implements DataSourceResolver {
             case "MENU_CATEGORIES" -> resolveCategories();
             case "MENU_ITEMS"      -> resolveItems(context);
             case "DELIVERY_AREAS"  -> resolveDeliveryAreas();
+            case "DELIVERY_DATES"  -> resolveDeliveryDates();
             default -> throw new IllegalArgumentException("Unknown dataSource: " + dataSource);
         };
     }
@@ -63,5 +69,25 @@ public class MenuDataSourceResolver implements DataSourceResolver {
                 .map(a -> new WhatsAppMessage.Row(a.id(), a.name()))
                 .toList();
         return List.of(new WhatsAppMessage.Section("Delivery Areas", rows));
+    }
+
+    private List<WhatsAppMessage.Section> resolveDeliveryDates() {
+        // Start from tomorrow; if after 6 PM, start from day after tomorrow
+        LocalDate start = LocalDate.now().plusDays(
+                LocalTime.now().getHour() >= 18 ? 2 : 1);
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("EEEE, d MMMM");
+        List<WhatsAppMessage.Row> rows = new ArrayList<>();
+        LocalDate candidate = start;
+        while (rows.size() < 7) {
+            // Skip Mondays — no delivery (nothing baked on Sunday)
+            if (candidate.getDayOfWeek() != DayOfWeek.MONDAY) {
+                rows.add(new WhatsAppMessage.Row(
+                        candidate.toString(),          // id: "2026-06-21"
+                        candidate.format(fmt)));       // title: "Saturday, 21 June"
+            }
+            candidate = candidate.plusDays(1);
+        }
+        return List.of(new WhatsAppMessage.Section("Choose Delivery Date", rows));
     }
 }

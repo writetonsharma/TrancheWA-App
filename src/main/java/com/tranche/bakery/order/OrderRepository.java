@@ -29,4 +29,6 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findConfirmedBetween(@Param("status") OrderStatus status,
                                      @Param("from") LocalDateTime from,
                                      @Param("to") LocalDateTime to);
+
+    List<Order> findAllByStatusAndDeliveryDateOrderByDeliveryDateAsc(OrderStatus status, java.time.LocalDate deliveryDate);
 }

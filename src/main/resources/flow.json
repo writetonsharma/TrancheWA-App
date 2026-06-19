@@ -34,15 +34,23 @@
         "buttons": [
           { "id": "hours",        "title": "Hours & Delivery" },
           { "id": "order_status", "title": "My Order Status" },
-          { "id": "about",        "title": "About Us" }
+          { "id": "view_menu",    "title": "View Menu" }
         ]
       },
       "transitions": [
         { "match": "hours",        "nextState": "HOURS_INFO" },
         { "match": "order_status", "nextState": "ORDER_STATUS" },
-        { "match": "about",        "nextState": "ABOUT" },
+        { "match": "view_menu",    "nextState": "VIEW_MENU" },
         { "match": "*",            "nextState": "INFO_MENU" }
       ]
+    },
+
+    "VIEW_MENU": {
+      "entryMessage": {
+        "type": "text",
+        "body": "🛍️ *Browse our full range with photos and prices:*\n\nhttps://tranchebakery.in/breads.html\n\nEuropean-style breads, rolls, buns, and seasonal bakes — all made to order in small batches."
+      },
+      "autoTransition": "MAIN_MENU"
     },
 
     "HOURS_INFO": {
@@ -154,8 +162,20 @@
       },
       "transitions": [
         { "match": "add_item",   "nextState": "ORDER_SELECT_CATEGORY" },
-        { "match": "view_order", "nextState": "ADDRESS_GATE" },
+        { "match": "view_order", "nextState": "ORDER_SELECT_DATE" },
         { "match": "*",          "nextState": "ORDER_ADD_MORE" }
+      ]
+    },
+
+    "ORDER_SELECT_DATE": {
+      "entryMessage": {
+        "type": "list",
+        "body": "When would you like your order delivered? 🗓️\n\nWe deliver between *6–8 AM*. Choose your preferred morning below:",
+        "buttonLabel": "Choose Date",
+        "dataSource": "DELIVERY_DATES"
+      },
+      "transitions": [
+        { "match": "*", "nextState": "ADDRESS_GATE", "saveContext": "deliveryDate", "action": "SAVE_DELIVERY_DATE" }
       ]
     },
 

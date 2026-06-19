@@ -41,6 +41,9 @@ public class Order {
     @Column(unique = true, length = 20)
     private String orderNumber;
 
+    @Column(name = "delivery_date")
+    private java.time.LocalDate deliveryDate;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 

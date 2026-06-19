@@ -34,16 +34,12 @@ public class AdminService {
         LocalDate today = LocalDate.now();
 
         List<AdminOrderView> deliveringToday = loadViews(
-                orderRepository.findConfirmedBetween(
-                        OrderStatus.CONFIRMED,
-                        today.minusDays(1).atStartOfDay(),
-                        today.atStartOfDay()));
+                orderRepository.findAllByStatusAndDeliveryDateOrderByDeliveryDateAsc(
+                        OrderStatus.CONFIRMED, today));
 
         List<AdminOrderView> deliveringTomorrow = loadViews(
-                orderRepository.findConfirmedBetween(
-                        OrderStatus.CONFIRMED,
-                        today.atStartOfDay(),
-                        today.plusDays(1).atStartOfDay()));
+                orderRepository.findAllByStatusAndDeliveryDateOrderByDeliveryDateAsc(
+                        OrderStatus.CONFIRMED, today.plusDays(1)));
 
         List<AdminOrderView> paymentReview = loadViews(
                 orderRepository.findAllByStatusIn(
