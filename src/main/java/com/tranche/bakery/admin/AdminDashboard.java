@@ -14,5 +14,8 @@ public record AdminDashboard(
         List<AdminOrderView> stuckDrafts,
         List<AdminOrderView> awaitingScreenshot,
         List<Feedback> messages,
-        List<Alert> alerts
+        List<Alert> alerts,
+        List<BakeListItem> bakeListTomorrow,
+        List<AdminOrderView> orderHistory,
+        List<AdminOrderView> futureDeliveries
 ) {}

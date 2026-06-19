@@ -16,8 +16,12 @@ public class AdminController {
     private final AdminService adminService;
 
     @GetMapping
-    public String dashboard(Model model) {
+    public String dashboard(@RequestParam(required = false) String search, Model model) {
         model.addAttribute("dashboard", adminService.buildDashboard());
+        if (search != null && !search.isBlank()) {
+            model.addAttribute("searchQuery", search);
+            model.addAttribute("searchResults", adminService.searchOrders(search));
+        }
         return "admin/dashboard";
     }
 
@@ -59,6 +63,13 @@ public class AdminController {
         return "redirect:/admin";
     }
 
+    @PostMapping("/orders/{id}/complete")
+    public String markCompleted(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        adminService.markCompleted(id);
+        redirectAttributes.addFlashAttribute("flash", "Order #" + id + " marked as delivered — customer notified.");
+        return "redirect:/admin";
+    }
+
     @PostMapping("/orders/{id}/cancel")
     public String cancelOrder(@PathVariable Long id, RedirectAttributes redirectAttributes) {
         adminService.cancelOrder(id);
@@ -71,5 +82,24 @@ public class AdminController {
         adminService.resolveAllAlerts();
         redirectAttributes.addFlashAttribute("flash", "All alerts marked as resolved.");
         return "redirect:/admin";
+    }
+
+    @GetMapping("/conversation/{phone}")
+    public String viewConversation(@PathVariable String phone, Model model) {
+        ConversationThread thread = adminService.getConversation(phone);
+        if (thread == null) {
+            return "redirect:/admin";
+        }
+        model.addAttribute("thread", thread);
+        return "admin/conversation";
+    }
+
+    @PostMapping("/conversation/{phone}/send")
+    public String sendConversationMessage(@PathVariable String phone,
+                                          @RequestParam String message,
+                                          RedirectAttributes redirectAttributes) {
+        adminService.sendMessage(phone, message);
+        redirectAttributes.addFlashAttribute("flash", "Message sent.");
+        return "redirect:/admin/conversation/" + phone;
     }
 }

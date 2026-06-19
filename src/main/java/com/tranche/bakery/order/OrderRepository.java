@@ -32,7 +32,15 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findAllByStatusAndDeliveryDateOrderByDeliveryDateAsc(OrderStatus status, java.time.LocalDate deliveryDate);
 
+    List<Order> findAllByStatusInAndDeliveryDateOrderByDeliveryDateAsc(Collection<OrderStatus> statuses, java.time.LocalDate deliveryDate);
+
     List<Order> findAllByCustomerIdAndStatus(Long customerId, OrderStatus status);
 
     Optional<Order> findTopByCustomerIdAndStatusAndDeliveryDate(Long customerId, OrderStatus status, java.time.LocalDate deliveryDate);
+
+    List<Order> findAllByStatusInAndDeliveryDateBetweenOrderByDeliveryDateAsc(Collection<OrderStatus> statuses, java.time.LocalDate from, java.time.LocalDate to);
+
+    List<Order> findAllByStatusInAndUpdatedAtAfterOrderByUpdatedAtDesc(Collection<OrderStatus> statuses, LocalDateTime after);
+
+    List<Order> findAllByCustomerIdInOrderByCreatedAtDesc(Collection<Long> customerIds);
 }

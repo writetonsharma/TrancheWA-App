@@ -2,6 +2,8 @@ package com.tranche.bakery.admin;
 
 import com.tranche.bakery.alert.AlertRepository;
 import com.tranche.bakery.alert.AlertService;
+import com.tranche.bakery.customer.Customer;
+import com.tranche.bakery.customer.CustomerRepository;
 import com.tranche.bakery.feedback.FeedbackRepository;
 import com.tranche.bakery.order.*;
 import com.tranche.bakery.payment.PaymentRepository;
@@ -13,8 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -28,18 +30,20 @@ public class AdminService {
     private final AlertRepository alertRepository;
     private final AlertService alertService;
     private final WhatsAppClient whatsAppClient;
+    private final CustomerRepository customerRepository;
+    private final AdminMessageRepository adminMessageRepository;
 
     @Transactional(readOnly = true)
     public AdminDashboard buildDashboard() {
         LocalDate today = LocalDate.now();
 
         List<AdminOrderView> deliveringToday = loadViews(
-                orderRepository.findAllByStatusAndDeliveryDateOrderByDeliveryDateAsc(
-                        OrderStatus.CONFIRMED, today));
+                orderRepository.findAllByStatusInAndDeliveryDateOrderByDeliveryDateAsc(
+                        Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING), today));
 
         List<AdminOrderView> deliveringTomorrow = loadViews(
-                orderRepository.findAllByStatusAndDeliveryDateOrderByDeliveryDateAsc(
-                        OrderStatus.CONFIRMED, today.plusDays(1)));
+                orderRepository.findAllByStatusInAndDeliveryDateOrderByDeliveryDateAsc(
+                        Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING), today.plusDays(1)));
 
         List<AdminOrderView> paymentReview = loadViews(
                 orderRepository.findAllByStatusIn(
@@ -54,11 +58,24 @@ public class AdminService {
                 orderRepository.findAllByStatusOrderByCreatedAtDesc(
                         OrderStatus.PENDING_CONFIRMATION));
 
+        List<BakeListItem> bakeListTomorrow = buildBakeList(today.plusDays(1));
+
+        List<AdminOrderView> orderHistory = loadViews(
+                orderRepository.findAllByStatusInAndUpdatedAtAfterOrderByUpdatedAtDesc(
+                        Set.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED),
+                        LocalDateTime.now().minusDays(7)));
+
+        List<AdminOrderView> futureDeliveries = loadViews(
+                orderRepository.findAllByStatusInAndDeliveryDateBetweenOrderByDeliveryDateAsc(
+                        Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING),
+                        today.plusDays(2), today.plusDays(6)));
+
         return new AdminDashboard(
                 today, deliveringToday, deliveringTomorrow,
                 paymentReview, stuckDrafts, awaitingScreenshot,
                 feedbackRepository.findAllByOrderByCreatedAtDesc(),
-                alertRepository.findAllByResolvedFalseOrderByCreatedAtDesc());
+                alertRepository.findAllByResolvedFalseOrderByCreatedAtDesc(),
+                bakeListTomorrow, orderHistory, futureDeliveries);
     }
 
     @Transactional
@@ -95,8 +112,16 @@ public class AdminService {
         });
     }
 
+    @Transactional
     public void sendMessage(String phone, String message) {
         whatsAppClient.sendText(phone, message);
+        customerRepository.findByPhone(phone).ifPresent(customer -> {
+            AdminMessage msg = new AdminMessage();
+            msg.setCustomer(customer);
+            msg.setDirection(AdminMessage.Direction.OUTBOUND);
+            msg.setMessage(message);
+            adminMessageRepository.save(msg);
+        });
         log.info("Admin sent message to {}", phone);
     }
 
@@ -119,10 +144,36 @@ public class AdminService {
     }
 
     @Transactional
+    public void markCompleted(Long orderId) {
+        orderRepository.findById(orderId).ifPresent(order -> {
+            order.setStatus(OrderStatus.COMPLETED);
+            orderRepository.save(order);
+            try {
+                String ref = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
+                whatsAppClient.sendText(order.getCustomer().getPhone(),
+                        "✅ Your order *" + ref + "* has been delivered! " +
+                        "Thank you for choosing Tranché Bakery. We hope you enjoy it! 🥖\n\n" +
+                        "Send *hi* to place a new order anytime.");
+            } catch (Exception e) {
+                log.warn("Could not notify customer after marking order completed: {}", e.getMessage());
+            }
+            log.info("Admin marked order {} as COMPLETED", orderId);
+        });
+    }
+
+    @Transactional
     public void cancelOrder(Long orderId) {
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.CANCELLED);
             orderRepository.save(order);
+            try {
+                String ref = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
+                whatsAppClient.sendText(order.getCustomer().getPhone(),
+                        "Your order *" + ref + "* has been cancelled. " +
+                        "If you have any questions, please message us.\n\nSend *hi* to place a new order. 🥖");
+            } catch (Exception e) {
+                log.warn("Could not notify customer after order cancellation: {}", e.getMessage());
+            }
             log.info("Admin cancelled order {}", orderId);
         });
     }
@@ -132,6 +183,45 @@ public class AdminService {
                 .flatMap(paymentRepository::findByOrder)
                 .map(p -> p.getQrImageData())
                 .orElse(null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminOrderView> searchOrders(String query) {
+        if (query == null || query.isBlank()) return List.of();
+        String q = query.trim();
+        List<Customer> customers = customerRepository.findByPhoneContainingOrNameContainingIgnoreCase(q, q);
+        if (customers.isEmpty()) return List.of();
+        List<Long> customerIds = customers.stream().map(Customer::getId).toList();
+        return loadViews(orderRepository.findAllByCustomerIdInOrderByCreatedAtDesc(customerIds));
+    }
+
+    @Transactional(readOnly = true)
+    public ConversationThread getConversation(String phone) {
+        Customer customer = customerRepository.findByPhone(phone).orElse(null);
+        if (customer == null) return null;
+        List<AdminMessage> messages = adminMessageRepository.findAllByCustomerIdOrderByCreatedAtAsc(customer.getId());
+        return new ConversationThread(customer, messages);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BakeListItem> buildBakeList(LocalDate date) {
+        List<Order> orders = orderRepository.findAllByStatusInAndDeliveryDateOrderByDeliveryDateAsc(
+                Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING), date);
+
+        Map<String, int[]> aggregation = new LinkedHashMap<>();
+        for (Order order : orders) {
+            for (OrderItem item : orderItemRepository.findAllByOrderId(order.getId())) {
+                String name = item.getMenuItem().getName();
+                aggregation.computeIfAbsent(name, k -> new int[]{0, 0});
+                aggregation.get(name)[0] += item.getQuantity();
+                aggregation.get(name)[1] += 1;
+            }
+        }
+
+        return aggregation.entrySet().stream()
+                .map(e -> new BakeListItem(e.getKey(), e.getValue()[0], e.getValue()[1]))
+                .sorted(Comparator.comparingInt(BakeListItem::totalQuantity).reversed())
+                .toList();
     }
 
     private List<AdminOrderView> loadViews(List<Order> orders) {
