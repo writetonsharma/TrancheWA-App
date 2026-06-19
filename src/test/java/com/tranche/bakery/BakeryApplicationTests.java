@@ -1,12 +1,12 @@
 package com.tranche.bakery;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-public class BakeryApplicationTests {
+public class BakeryApplicationTests extends FlowScenarioBase {
 
     @Test
     public void contextLoads() {
+        // Verifies that the full Spring context (Flyway, JPA, menu sync) starts cleanly
+        // against the TestContainers Postgres — inherited from FlowScenarioBase.
     }
 }

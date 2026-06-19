@@ -1,5 +1,6 @@
 package com.tranche.bakery.flow.actions;
 
+import com.tranche.bakery.alert.AlertService;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
@@ -25,6 +26,7 @@ public class AutoConfirmOrderAction implements FlowAction {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final WhatsAppClient whatsAppClient;
+    private final AlertService alertService;
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("EEE, d MMM", Locale.ENGLISH);
@@ -76,6 +78,19 @@ public class AutoConfirmOrderAction implements FlowAction {
         }
 
         whatsAppClient.sendText(ctx.getCustomer().getPhone(), msg.toString());
+
+        // Notify admin
+        String customerName = ctx.getCustomer().getName() != null
+                ? ctx.getCustomer().getName() : ctx.getCustomer().getPhone();
+        String amtPart = order.getTotalAmount() != null
+                ? " · ₹" + order.getTotalAmount().setScale(0, BigDecimal.ROUND_DOWN) : "";
+        String dateStr = order.getDeliveryDate() != null
+                ? order.getDeliveryDate().format(DATE_FMT) : "date TBD";
+        alertService.raise("PAYMENT_RECEIVED",
+                "📸 Payment received & order confirmed\n\n" +
+                "Order: *" + orderNumber + "* · " + dateStr + amtPart + "\n" +
+                "Customer: " + customerName + " (" + ctx.getCustomer().getPhone() + ")",
+                order.getId(), ctx.getCustomer().getPhone());
 
         log.info("Order {} auto-confirmed for customer {}", orderNumber, ctx.getCustomer().getPhone());
     }
