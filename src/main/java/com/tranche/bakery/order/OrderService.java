@@ -72,13 +72,25 @@ public class OrderService {
         MenuItem menuItem = menuItemRepository.findById(menuItemId)
                 .orElseThrow(() -> new IllegalArgumentException("Menu item not found: " + menuItemId));
 
-        OrderItem item = new OrderItem();
-        item.setOrder(order);
-        item.setMenuItem(menuItem);
-        item.setQuantity(quantity);
-        item.setUnitPrice(menuItem.getPrice());
-        item.setSubtotal(menuItem.getPrice().multiply(BigDecimal.valueOf(quantity)));
-        orderItemRepository.save(item);
+        List<OrderItem> existingItems = orderItemRepository.findAllByOrderId(order.getId());
+        OrderItem existing = existingItems.stream()
+                .filter(i -> i.getMenuItem().getId().equals(menuItemId))
+                .findFirst().orElse(null);
+
+        if (existing != null) {
+            int newQty = existing.getQuantity() + quantity;
+            existing.setQuantity(newQty);
+            existing.setSubtotal(existing.getUnitPrice().multiply(BigDecimal.valueOf(newQty)));
+            orderItemRepository.save(existing);
+        } else {
+            OrderItem item = new OrderItem();
+            item.setOrder(order);
+            item.setMenuItem(menuItem);
+            item.setQuantity(quantity);
+            item.setUnitPrice(menuItem.getPrice());
+            item.setSubtotal(menuItem.getPrice().multiply(BigDecimal.valueOf(quantity)));
+            orderItemRepository.save(item);
+        }
 
         recalculateTotal(order);
     }
@@ -118,6 +130,16 @@ public class OrderService {
                     item.getSubtotal()));
         }
         sb.append(String.format("\n*Total: ₹%.0f*", order.getTotalAmount()));
+
+        if (order.getDeliveryPreference() != null) {
+            String prefLabel = switch (order.getDeliveryPreference()) {
+                case "GATE" -> "At apartment gate";
+                case "DOOR" -> "Leave at door";
+                case "IN_PERSON" -> "Deliver in person";
+                default -> order.getDeliveryPreference();
+            };
+            sb.append("\n📦 Delivery: ").append(prefLabel);
+        }
 
         boolean afterCutoff = java.time.LocalTime.now().getHour() >= 18;
         if (afterCutoff) {

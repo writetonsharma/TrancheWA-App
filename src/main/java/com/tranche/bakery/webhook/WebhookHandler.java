@@ -25,12 +25,12 @@ public class WebhookHandler {
 
     // Deduplication: track last 500 processed message IDs in memory
     private final Set<String> processedMessageIds = Collections.newSetFromMap(
-            new LinkedHashMap<>() {
+            Collections.synchronizedMap(new LinkedHashMap<>() {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
                     return size() > 500;
                 }
-            }
+            })
     );
 
     public void handle(JsonNode payload) {

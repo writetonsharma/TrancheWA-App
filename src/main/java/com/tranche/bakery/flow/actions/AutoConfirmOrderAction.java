@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -70,7 +71,7 @@ public class AutoConfirmOrderAction implements FlowAction {
                 String ref  = r.getOrderNumber() != null ? r.getOrderNumber() : "#" + r.getId();
                 String date = r.getDeliveryDate() != null ? r.getDeliveryDate().format(DATE_FMT) : "date TBD";
                 String amt  = r.getTotalAmount() != null
-                        ? "₹" + r.getTotalAmount().setScale(0, BigDecimal.ROUND_DOWN)
+                        ? "₹" + r.getTotalAmount().setScale(0, RoundingMode.DOWN)
                         : "—";
                 msg.append("• *").append(ref).append("* — ").append(date).append(" — ").append(amt).append("\n");
             }
@@ -83,7 +84,7 @@ public class AutoConfirmOrderAction implements FlowAction {
         String customerName = ctx.getCustomer().getName() != null
                 ? ctx.getCustomer().getName() : ctx.getCustomer().getPhone();
         String amtPart = order.getTotalAmount() != null
-                ? " · ₹" + order.getTotalAmount().setScale(0, BigDecimal.ROUND_DOWN) : "";
+                ? " · ₹" + order.getTotalAmount().setScale(0, RoundingMode.DOWN) : "";
         String dateStr = order.getDeliveryDate() != null
                 ? order.getDeliveryDate().format(DATE_FMT) : "date TBD";
         alertService.raise("PAYMENT_RECEIVED",

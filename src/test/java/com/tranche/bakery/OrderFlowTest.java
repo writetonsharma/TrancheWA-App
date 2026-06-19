@@ -1,12 +1,21 @@
 package com.tranche.bakery;
 
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderItem;
 import com.tranche.bakery.order.OrderStatus;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
+import com.tranche.bakery.admin.AdminService;
+import com.tranche.bakery.order.OrderItemRepository;
+
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 /**
  * End-to-end scenario tests for the WhatsApp ordering flow.
@@ -16,6 +25,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * No actual WhatsApp API calls are made.
  */
 class OrderFlowTest extends FlowScenarioBase {
+
+    @Autowired private AdminService adminService;
+    @Autowired private OrderItemRepository orderItemRepository;
 
     // ── 1. Happy path: single order from hi → payment screenshot ─────────────
 
@@ -83,6 +95,7 @@ class OrderFlowTest extends FlowScenarioBase {
         send(catId); send(itemId); send("1"); send("view_order");
         send(date);
         send("use_address");
+        send("pref_gate");
         send("confirm");    // order 1 → PENDING_CONFIRMATION
 
         List<Order> after1 = orderRepository.findAllByCustomerIdAndStatus(
@@ -130,7 +143,8 @@ class OrderFlowTest extends FlowScenarioBase {
         send(catId); send(itemId); send("1"); send("view_order");
         send(date2);                // ORDER_CONFIRM_SEPARATE
         send("continue_order");     // ADDRESS_GATE → ADDRESS_CONFIRM
-        send("use_address");        // ORDER_CONFIRM
+        send("use_address");        // DELIVERY_PREFERENCE
+        send("pref_gate");          // ORDER_CONFIRM
         send("confirm");            // PAYMENT_PENDING
 
         List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(
@@ -176,5 +190,102 @@ class OrderFlowTest extends FlowScenarioBase {
         List<Order> drafts = orderRepository.findAllByCustomerIdAndStatus(
                 customer.getId(), OrderStatus.DRAFT);
         assertThat(drafts).as("draft should be cancelled when customer declines separate order").isEmpty();
+    }
+
+    // ── 7. Admin cancel notifies customer via WhatsApp ──────────────────────────
+
+    @Test
+    void adminCancelOrder_notifiesCustomer() {
+        Long orderId = driveToPaymentQr();
+
+        sentTexts.clear();
+        adminService.cancelOrder(orderId);
+
+        assertOrderStatus(orderId, OrderStatus.CANCELLED);
+        assertThat(sentTexts).anyMatch(t -> t.contains("cancelled"));
+        verify(whatsAppClient).sendText(eq(customer.getPhone()),
+                org.mockito.ArgumentMatchers.contains("cancelled"));
+    }
+
+    // ── 8. Same item added twice consolidates into a single line ────────────────
+
+    @Test
+    void addSameItemTwice_consolidatesQuantity() {
+        String catId  = firstCategoryId();
+        String itemId = firstItemId(catId);
+
+        send("hi");
+        send("order");
+        send(catId); send(itemId); send("2");   // 2 × item
+        send("add_item");                        // add another
+        send(catId); send(itemId); send("1");   // 1 × same item
+
+        List<Order> drafts = orderRepository.findAllByCustomerIdAndStatus(
+                customer.getId(), OrderStatus.DRAFT);
+        assertThat(drafts).hasSize(1);
+
+        List<OrderItem> items = orderItemRepository.findAllByOrderId(drafts.get(0).getId());
+        assertThat(items).as("same item should be one consolidated line").hasSize(1);
+        assertThat(items.get(0).getQuantity()).as("quantity should be 2 + 1 = 3").isEqualTo(3);
+    }
+
+    // ── 9. Max 3 pending orders — 4th order is blocked ──────────────────────────
+
+    @Test
+    void maxPendingOrders_fourthOrderBlocked() {
+        String catId  = firstCategoryId();
+        String itemId = firstItemId(catId);
+
+        // Place 3 orders on 3 different dates
+        String date1 = nextDeliveryDate();
+        driveToPaymentQr(date1);
+
+        String date2 = secondDeliveryDate();
+        send("hi");
+        send("order");
+        send(catId); send(itemId); send("1"); send("view_order");
+        send(date2);
+        send("continue_order");
+        send("use_address");
+        send("pref_gate");
+        send("confirm");
+
+        // 3rd date: skip two ahead from date1
+        LocalDate d3 = LocalDate.parse(date2).plusDays(1);
+        if (d3.getDayOfWeek() == DayOfWeek.MONDAY) d3 = d3.plusDays(1);
+        String date3 = d3.toString();
+
+        send("hi");
+        send("order");
+        send(catId); send(itemId); send("1"); send("view_order");
+        send(date3);
+        send("continue_order");
+        send("use_address");
+        send("pref_gate");
+        send("confirm");
+
+        List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(
+                customer.getId(), OrderStatus.PENDING_CONFIRMATION);
+        assertThat(pending).as("should have 3 pending orders").hasSize(3);
+
+        // 4th order attempt — should be blocked
+        LocalDate d4 = d3.plusDays(1);
+        if (d4.getDayOfWeek() == DayOfWeek.MONDAY) d4 = d4.plusDays(1);
+        String date4 = d4.toString();
+
+        sentTexts.clear();
+        send("hi");
+        send("order");
+        send(catId); send(itemId); send("1"); send("view_order");
+        send(date4);
+
+        // Should be redirected to IDLE with a blocking message
+        assertState("IDLE");
+        assertThat(sentTexts).anyMatch(t -> t.contains("3 orders awaiting payment"));
+
+        // Still exactly 3 pending orders — 4th was cancelled
+        List<Order> pendingAfter = orderRepository.findAllByCustomerIdAndStatus(
+                customer.getId(), OrderStatus.PENDING_CONFIRMATION);
+        assertThat(pendingAfter).as("should still have 3 pending orders").hasSize(3);
     }
 }

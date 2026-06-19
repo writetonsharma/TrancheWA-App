@@ -147,7 +147,7 @@
         { "match": "3", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
         { "match": "4", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
         { "match": "5", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
-        { "match": "*", "errorMessage": "We can do between 1 and 5 per item. Please tap a button or type a number." }
+        { "match": "*", "errorMessage": "We can do between 1 and 5 per item. Please tap a button or type a number.\n\n_For larger or bulk orders, please reach out via *Message Us* from the main menu._" }
       ]
     },
 
@@ -205,7 +205,7 @@
     "ADDRESS_CONFIRM": {
       "entryAction": "SHOW_SAVED_ADDRESS",
       "transitions": [
-        { "match": "use_address",    "nextState": "ORDER_CONFIRM",       "action": "COPY_ADDRESS_TO_ORDER" },
+        { "match": "use_address",    "nextState": "DELIVERY_PREFERENCE", "action": "COPY_ADDRESS_TO_ORDER" },
         { "match": "change_address", "nextState": "ADDRESS_COLLECT_TEMP" },
         { "match": "*",              "nextState": "ADDRESS_CONFIRM"       }
       ]
@@ -223,21 +223,47 @@
 
     "LOCATION_SHARE": {
       "entryMessage": {
-        "type": "text",
-        "body": "📌 Almost done — please share a pinned location so our delivery team can find you easily.\n\nTap the paperclip icon → *Location* → send a *pinned location*.\n\nPlease avoid live location."
+        "type": "buttons",
+        "body": "📌 Almost done — please share a *pinned location* so our delivery team can find you easily.\n\n*How to share:*\nTap the 📎 paperclip → *Location* → search or move the pin → tap *Send*.\n\n_(On Android: tap the + or 📎 icon next to the message box → Location → choose \"Send your current location\" or drag the pin.)_\n\nPlease avoid sharing live location.\n\n_If you're unable to share location, tap Skip — but this helps us deliver faster._",
+        "buttons": [
+          { "id": "skip_location", "title": "Skip" }
+        ]
       },
       "transitions": [
-        { "matchType": "location", "nextState": "ORDER_CONFIRM", "action": "SAVE_LOCATION" }
+        { "matchType": "location", "nextState": "DELIVERY_PREFERENCE", "action": "SAVE_LOCATION" },
+        { "match": "skip_location", "nextState": "DELIVERY_PREFERENCE" }
       ]
     },
 
     "LOCATION_SHARE_TEMP": {
       "entryMessage": {
-        "type": "text",
-        "body": "📌 Almost done — please share a pinned location for this delivery address.\n\nTap the paperclip icon → *Location* → send a *pinned location*.\n\nPlease avoid live location."
+        "type": "buttons",
+        "body": "📌 Almost done — please share a *pinned location* for this delivery address.\n\n*How to share:*\nTap the 📎 paperclip → *Location* → search or move the pin → tap *Send*.\n\n_(On Android: tap the + or 📎 icon next to the message box → Location → choose \"Send your current location\" or drag the pin.)_\n\nPlease avoid sharing live location.\n\n_If you're unable to share location, tap Skip — but this helps us deliver faster._",
+        "buttons": [
+          { "id": "skip_location", "title": "Skip" }
+        ]
       },
       "transitions": [
-        { "matchType": "location", "nextState": "ORDER_CONFIRM", "action": "SAVE_LOCATION_TEMP" }
+        { "matchType": "location", "nextState": "DELIVERY_PREFERENCE", "action": "SAVE_LOCATION_TEMP" },
+        { "match": "skip_location", "nextState": "DELIVERY_PREFERENCE" }
+      ]
+    },
+
+    "DELIVERY_PREFERENCE": {
+      "entryMessage": {
+        "type": "buttons",
+        "body": "🚪 How would you like your order delivered?\n\nPlease choose one:",
+        "buttons": [
+          { "id": "pref_gate", "title": "At apartment gate" },
+          { "id": "pref_door", "title": "Leave at door" },
+          { "id": "pref_person", "title": "Deliver in person" }
+        ]
+      },
+      "transitions": [
+        { "match": "pref_gate",   "nextState": "ORDER_CONFIRM", "action": "SAVE_DELIVERY_PREFERENCE" },
+        { "match": "pref_door",   "nextState": "ORDER_CONFIRM", "action": "SAVE_DELIVERY_PREFERENCE" },
+        { "match": "pref_person", "nextState": "ORDER_CONFIRM", "action": "SAVE_DELIVERY_PREFERENCE" },
+        { "match": "*", "errorMessage": "Please tap one of the buttons above." }
       ]
     },
 

@@ -50,6 +50,9 @@ public class Order {
     @Column(columnDefinition = "TEXT")
     private String deliveryAddress;
 
+    @Column(length = 20)
+    private String deliveryPreference;
+
     @Column(precision = 9, scale = 6)
     private BigDecimal locationLat;
 

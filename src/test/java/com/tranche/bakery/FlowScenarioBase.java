@@ -58,8 +58,8 @@ public abstract class FlowScenarioBase {
     @BeforeEach
     void setUpBase() {
         jdbcTemplate.execute(
-                "TRUNCATE TABLE payment_screenshots, payments, order_items, orders, " +
-                "whatsapp_conversations, feedback, customers RESTART IDENTITY CASCADE");
+                "TRUNCATE TABLE admin_messages, payment_screenshots, payments, order_items, orders, " +
+                "whatsapp_conversations, feedback, alerts, customers RESTART IDENTITY CASCADE");
 
         customer = new Customer();
         customer.setPhone("919000000001");
@@ -147,6 +147,7 @@ public abstract class FlowScenarioBase {
         send("view_order");
         send(deliveryDate);
         send("use_address");
+        send("pref_gate");
         send("confirm");
 
         assertState("PAYMENT_PENDING");
