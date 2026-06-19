@@ -22,7 +22,10 @@
 <nav class="navbar navbar-dark bg-dark mb-4">
   <div class="container-fluid">
     <span class="navbar-brand">🥖 Tranché Bakery — Admin</span>
-    <span class="navbar-text text-white-50" th:text="${#temporals.format(dashboard.today, 'EEEE, d MMMM yyyy')}"></span>
+    <div class="d-flex align-items-center gap-3">
+      <span class="navbar-text text-white-50" th:text="${#temporals.format(dashboard.today, 'EEEE, d MMMM yyyy')}"></span>
+      <button class="btn btn-sm btn-outline-light" onclick="window.location.reload()">🔄 Refresh</button>
+    </div>
   </div>
 </nav>
 
@@ -488,32 +491,5 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-(function() {
-  var refreshInterval = 30000;
-  var timer = null;
-  var paused = false;
-
-  function startRefresh() {
-    timer = setInterval(function() {
-      if (!paused) window.location.reload();
-    }, refreshInterval);
-  }
-
-  document.addEventListener('focusin', function(e) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
-      paused = true;
-    }
-  });
-
-  document.addEventListener('focusout', function(e) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
-      paused = false;
-    }
-  });
-
-  startRefresh();
-})();
-</script>
 </body>
 </html>
