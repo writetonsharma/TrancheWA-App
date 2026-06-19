@@ -101,7 +101,7 @@
     "ORDER_SUGGEST_REORDER": {
       "entryAction": "SHOW_LAST_ORDER_SUGGESTION",
       "transitions": [
-        { "match": "reorder",     "nextState": "ADDRESS_GATE", "action": "COPY_LAST_ORDER" },
+        { "match": "reorder",     "nextState": "ORDER_SELECT_DATE", "action": "COPY_LAST_ORDER" },
         { "match": "browse_menu", "nextState": "ORDER_SELECT_CATEGORY" },
         { "match": "*",           "nextState": "ORDER_SUGGEST_REORDER" }
       ]
@@ -176,6 +176,15 @@
       },
       "transitions": [
         { "match": "*", "nextState": "ADDRESS_GATE", "saveContext": "deliveryDate", "action": "SAVE_DELIVERY_DATE" }
+      ]
+    },
+
+    "ORDER_CONFIRM_SEPARATE": {
+      "entryAction": "SHOW_SEPARATE_ORDER_WARNING",
+      "transitions": [
+        { "match": "continue_order", "nextState": "ADDRESS_GATE" },
+        { "match": "cancel_order",   "nextState": "MAIN_MENU",  "action": "CANCEL_ORDER" },
+        { "match": "*",              "nextState": "ORDER_CONFIRM_SEPARATE" }
       ]
     },
 

@@ -12,6 +12,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Locale;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -20,6 +25,9 @@ public class AutoConfirmOrderAction implements FlowAction {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final WhatsAppClient whatsAppClient;
+
+    private static final DateTimeFormatter DATE_FMT =
+            DateTimeFormatter.ofPattern("EEE, d MMM", Locale.ENGLISH);
 
     @Override
     public String getName() { return "AUTO_CONFIRM_ORDER"; }
@@ -41,13 +49,33 @@ public class AutoConfirmOrderAction implements FlowAction {
         });
 
         String orderNumber = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
+        String datePart = order.getDeliveryDate() != null
+                ? " for *" + order.getDeliveryDate().format(DATE_FMT) + "*"
+                : "";
 
-        whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                "*Order received*\n\n" +
-                "Your order reference is *" + orderNumber + "*.\n\n" +
-                "We've received your payment screenshot and will verify it shortly. " +
-                "Once verified, your bake will be scheduled for the next available slot.\n\n" +
-                "Thank you for ordering from Tranché Bakery.");
+        StringBuilder msg = new StringBuilder();
+        msg.append("✅ *Payment received — order confirmed!*\n\n");
+        msg.append("Order *").append(orderNumber).append("*").append(datePart)
+           .append(" is confirmed. We'll bake fresh and deliver between *6–8 AM*.\n\n");
+        msg.append("Thank you for ordering from Tranché Bakery. 🥖");
+
+        // Show any remaining pending orders so customer knows what still needs payment
+        List<Order> remaining = orderRepository
+                .findAllByCustomerIdAndStatus(ctx.getCustomer().getId(), OrderStatus.PENDING_CONFIRMATION);
+        if (!remaining.isEmpty()) {
+            msg.append("\n\n*Still awaiting payment:*\n");
+            for (Order r : remaining) {
+                String ref  = r.getOrderNumber() != null ? r.getOrderNumber() : "#" + r.getId();
+                String date = r.getDeliveryDate() != null ? r.getDeliveryDate().format(DATE_FMT) : "date TBD";
+                String amt  = r.getTotalAmount() != null
+                        ? "₹" + r.getTotalAmount().setScale(0, BigDecimal.ROUND_DOWN)
+                        : "—";
+                msg.append("• *").append(ref).append("* — ").append(date).append(" — ").append(amt).append("\n");
+            }
+            msg.append("\n_Send *hi* to pay for another order._");
+        }
+
+        whatsAppClient.sendText(ctx.getCustomer().getPhone(), msg.toString());
 
         log.info("Order {} auto-confirmed for customer {}", orderNumber, ctx.getCustomer().getPhone());
     }

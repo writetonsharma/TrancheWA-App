@@ -31,8 +31,7 @@ public class OrderService {
     @Transactional
     public Order getOrCreateDraft(Customer customer, WhatsappConversation conversation) {
         return orderRepository
-                .findTopByCustomerIdAndStatusInOrderByCreatedAtDesc(
-                        customer.getId(), List.of(OrderStatus.DRAFT, OrderStatus.PENDING_CONFIRMATION))
+                .findTopByCustomerIdAndStatusOrderByCreatedAtDesc(customer.getId(), OrderStatus.DRAFT)
                 .orElseGet(() -> {
                     Order o = new Order();
                     o.setCustomer(customer);
@@ -40,6 +39,32 @@ public class OrderService {
                     o.setStatus(OrderStatus.DRAFT);
                     return orderRepository.save(o);
                 });
+    }
+
+    @Transactional
+    public void mergeItems(Order source, Order target) {
+        List<OrderItem> sourceItems = orderItemRepository.findAllByOrderId(source.getId());
+        List<OrderItem> targetItems = orderItemRepository.findAllByOrderId(target.getId());
+        for (OrderItem si : sourceItems) {
+            OrderItem existing = targetItems.stream()
+                    .filter(ti -> ti.getMenuItem().getId().equals(si.getMenuItem().getId()))
+                    .findFirst().orElse(null);
+            if (existing != null) {
+                int newQty = existing.getQuantity() + si.getQuantity();
+                existing.setQuantity(newQty);
+                existing.setSubtotal(existing.getUnitPrice().multiply(java.math.BigDecimal.valueOf(newQty)));
+                orderItemRepository.save(existing);
+            } else {
+                OrderItem copy = new OrderItem();
+                copy.setOrder(target);
+                copy.setMenuItem(si.getMenuItem());
+                copy.setQuantity(si.getQuantity());
+                copy.setUnitPrice(si.getUnitPrice());
+                copy.setSubtotal(si.getSubtotal());
+                orderItemRepository.save(copy);
+            }
+        }
+        recalculateTotal(target);
     }
 
     @Transactional
