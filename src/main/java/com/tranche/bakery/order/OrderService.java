@@ -95,6 +95,17 @@ public class OrderService {
         orderRepository.save(order);
     }
 
+    @Transactional
+    public boolean cancelByIdForCustomer(Long orderId, Long customerId) {
+        Order order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) return false;
+        if (!order.getCustomer().getId().equals(customerId)) return false;
+        if (order.getStatus() != OrderStatus.DRAFT && order.getStatus() != OrderStatus.PENDING_CONFIRMATION) return false;
+        order.setStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
+        return true;
+    }
+
     public String formatSummary(Order order) {
         List<OrderItem> items = orderItemRepository.findAllByOrderId(order.getId());
         if (items.isEmpty()) return "Your order is empty.";

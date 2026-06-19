@@ -54,6 +54,24 @@ public class FlowEngine {
             return;
         }
 
+        // Global cancel_<id> — cancels a specific order regardless of conversation state
+        if (input.trim().matches("cancel_\\d+")) {
+            long targetId = Long.parseLong(input.trim().substring("cancel_".length()));
+            boolean cancelled = orderService.cancelByIdForCustomer(targetId, customer.getId());
+            if (cancelled) {
+                conversation.setContext(new HashMap<>());
+                conversationRepository.save(conversation);
+                whatsAppClient.sendText(phone,
+                        "✅ Order cancelled. Send *hi* whenever you'd like to place a new order. 🥖");
+                enterState(customer, conversation, "IDLE", input, messageType, rawMessage);
+            } else {
+                whatsAppClient.sendText(phone,
+                        "This order can no longer be cancelled — it may have already been confirmed or delivered. " +
+                        "Send *hi* to return to the main menu.");
+            }
+            return;
+        }
+
         String currentStateName = conversation.getState();
         StateConfig stateConfig = flowLoader.getState(currentStateName);
 

@@ -104,7 +104,7 @@ public class SendPaymentQrAction implements FlowAction {
         try {
             whatsAppClient.sendButtons(ctx.getCustomer().getPhone(),
                     "Need to cancel this order? You can do so below.",
-                    List.of(new WhatsAppMessage.Button("cancel_order", "Cancel Order")));
+                    List.of(new WhatsAppMessage.Button("cancel_" + order.getId(), "Cancel Order")));
         } catch (Exception e) {
             log.error("Failed to send cancel button for order {}: {}", order.getId(), e.getMessage());
         }
