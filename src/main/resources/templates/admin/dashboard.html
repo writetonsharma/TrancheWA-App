@@ -94,8 +94,8 @@
         </thead>
         <tbody>
           <tr th:each="a : ${dashboard.alerts}"
-              th:class="${a.type == 'STUCK_ORDER'} ? 'table-warning' : 'table-danger'">
-            <td><span th:class="${a.type == 'STUCK_ORDER'} ? 'badge bg-warning text-dark' : 'badge bg-danger'"
+              th:class="${a.type == 'DRAFT_REMINDER'} ? 'table-warning' : 'table-danger'">
+            <td><span th:class="${a.type == 'DRAFT_REMINDER'} ? 'badge bg-warning text-dark' : 'badge bg-danger'"
                       th:text="${a.type}"></span></td>
             <td th:text="${a.message}"></td>
             <td th:text="${a.customerPhone ?: '—'}"></td>
