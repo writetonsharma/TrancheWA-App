@@ -8,4 +8,4 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=builder /app/target/*.jar app.jar
 EXPOSE 8080
-CMD ["java", "-Djava.awt.headless=true", "-jar", "app.jar"]
+CMD ["java", "-Xmx256m", "-Xms128m", "-XX:+UseSerialGC", "-Djava.awt.headless=true", "-jar", "app.jar"]
