@@ -134,7 +134,7 @@
     "ORDER_SELECT_QUANTITY": {
       "entryMessage": {
         "type": "buttons",
-        "body": "How many would you like? Tap a button, or type *4* or *5* for a larger quantity:",
+        "body": "How many would you like? Tap a button, or type *4* or *5*.\n\n_Need more than 5? Send us a message via *Message Us* on the main menu for bulk orders._",
         "buttons": [
           { "id": "1", "title": "1" },
           { "id": "2", "title": "2" },
@@ -147,7 +147,7 @@
         { "match": "3", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
         { "match": "4", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
         { "match": "5", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
-        { "match": "*", "errorMessage": "We can do between 1 and 5 per item. Please tap a button or type a number.\n\n_For larger or bulk orders, please reach out via *Message Us* from the main menu._" }
+        { "match": "*", "errorMessage": "We can do between 1 and 5 per item. Please tap a button or type a number.\n\n_For bulk orders, send us a message via *Message Us* on the main menu._" }
       ]
     },
 
@@ -224,7 +224,7 @@
     "LOCATION_SHARE": {
       "entryMessage": {
         "type": "buttons",
-        "body": "📌 Almost done — please share a *pinned location* so our delivery team can find you easily.\n\n*How to share:*\nTap the 📎 paperclip → *Location* → search or move the pin → tap *Send*.\n\n_(On Android: tap the + or 📎 icon next to the message box → Location → choose \"Send your current location\" or drag the pin.)_\n\nPlease avoid sharing live location.\n\n_If you're unable to share location, tap Skip — but this helps us deliver faster._",
+        "body": "📌 Almost done — please share a *pinned location* so our delivery team can find you easily.\n\n*How to share:*\n📱 *iPhone:* Tap *+* (bottom left) → *Location* → *Send Your Current Location*\n📱 *Android:* Tap *📎* (paperclip) → *Location* → *Send your current location*\n\n⚠️ _Please do not share live location._\n\n_If you're unable to share, tap Skip — but this helps us deliver faster._",
         "buttons": [
           { "id": "skip_location", "title": "Skip" }
         ]
@@ -238,7 +238,7 @@
     "LOCATION_SHARE_TEMP": {
       "entryMessage": {
         "type": "buttons",
-        "body": "📌 Almost done — please share a *pinned location* for this delivery address.\n\n*How to share:*\nTap the 📎 paperclip → *Location* → search or move the pin → tap *Send*.\n\n_(On Android: tap the + or 📎 icon next to the message box → Location → choose \"Send your current location\" or drag the pin.)_\n\nPlease avoid sharing live location.\n\n_If you're unable to share location, tap Skip — but this helps us deliver faster._",
+        "body": "📌 Almost done — please share a *pinned location* for this delivery address.\n\n*How to share:*\n📱 *iPhone:* Tap *+* (bottom left) → *Location* → *Send Your Current Location*\n📱 *Android:* Tap *📎* (paperclip) → *Location* → *Send your current location*\n\n⚠️ _Please do not share live location._\n\n_If you're unable to share, tap Skip — but this helps us deliver faster._",
         "buttons": [
           { "id": "skip_location", "title": "Skip" }
         ]

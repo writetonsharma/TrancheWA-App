@@ -6,6 +6,7 @@ import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
+import com.tranche.bakery.whatsapp.WhatsAppMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +31,7 @@ public class ShowOrderStatusAction implements FlowAction {
     @Override
     public void execute(ActionContext ctx) {
         Long customerId = ctx.getCustomer().getId();
+        String phone = ctx.getCustomer().getPhone();
 
         List<Order> active = new ArrayList<>();
         active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.IN_BAKING));
@@ -37,33 +39,49 @@ public class ShowOrderStatusAction implements FlowAction {
         active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PENDING_CONFIRMATION));
 
         if (active.isEmpty()) {
-            // Fall back to most recent completed order
             orderRepository.findTopByCustomerIdAndStatusInOrderByCreatedAtDesc(
                     customerId, List.of(OrderStatus.COMPLETED))
                     .ifPresentOrElse(
-                            o -> whatsAppClient.sendText(ctx.getCustomer().getPhone(),
+                            o -> whatsAppClient.sendText(phone,
                                     "🎉 *Last order delivered!*\n\nOrder *" + ref(o) + "* was delivered. " +
                                     "Send *hi* to place your next order."),
-                            () -> whatsAppClient.sendText(ctx.getCustomer().getPhone(),
+                            () -> whatsAppClient.sendText(phone,
                                     "You don't have any active orders at the moment.\n\nSend *hi* to place a new order. 🥖"));
             return;
         }
 
+        List<Order> pendingPayment = active.stream()
+                .filter(o -> o.getStatus() == OrderStatus.PENDING_CONFIRMATION)
+                .toList();
+
         if (active.size() == 1) {
             Order o = active.get(0);
-            whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                    "*Order " + ref(o) + dateLine(o) + "*\n\n" + statusLine(o.getStatus()));
+            String text = "*Order " + ref(o) + dateLine(o) + "*\n\n" + statusLine(o.getStatus());
+            if (o.getStatus() == OrderStatus.PENDING_CONFIRMATION) {
+                whatsAppClient.sendButtons(phone, text, List.of(
+                        new WhatsAppMessage.Button("cancel_" + o.getId(), "Cancel Order")));
+            } else {
+                whatsAppClient.sendText(phone, text);
+            }
             return;
         }
 
-        // Multiple active orders — show a list
         StringBuilder sb = new StringBuilder("*Your active orders:*\n\n");
         for (Order o : active) {
             sb.append("• *").append(ref(o)).append("*").append(dateLine(o))
               .append(" — ").append(statusEmoji(o.getStatus()))
               .append("\n");
         }
-        whatsAppClient.sendText(ctx.getCustomer().getPhone(), sb.toString().trim());
+
+        if (!pendingPayment.isEmpty() && pendingPayment.size() <= 3) {
+            List<WhatsAppMessage.Button> buttons = pendingPayment.stream()
+                    .map(o -> new WhatsAppMessage.Button("cancel_" + o.getId(),
+                            "Cancel " + ref(o)))
+                    .toList();
+            whatsAppClient.sendButtons(phone, sb.toString().trim(), buttons);
+        } else {
+            whatsAppClient.sendText(phone, sb.toString().trim());
+        }
     }
 
     private String ref(Order o) {
