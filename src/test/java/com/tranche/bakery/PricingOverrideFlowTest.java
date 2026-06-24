@@ -16,16 +16,23 @@ class PricingOverrideFlowTest extends FlowScenarioBase {
     @Autowired private PaymentRepository paymentRepository;
 
     @Test
-    void pricingOverride_customerPaysOverrideAmountInsteadOfOrderTotal() {
+    void pricingOverride_perItemFlatRate() {
         customer.setPricingOverride(new BigDecimal("150.00"));
+        customer.setFreeDelivery(true);
         customer.setOverrideExpiresAt(null);
         customer = customerRepository.save(customer);
 
         Long orderId = driveToPaymentQr();
 
-        Payment payment = paymentRepository.findByOrder(
-                orderRepository.findById(orderId).orElseThrow()).orElseThrow();
-        assertThat(payment.getAmount()).as("payment should use override amount")
+        Order order = orderRepository.findById(orderId).orElseThrow();
+        // 1 item × ₹150 per-item rate + ₹0 delivery = ₹150
+        assertThat(order.getTotalAmount()).as("total should be qty × override rate")
+                .isEqualByComparingTo(new BigDecimal("150.00"));
+        assertThat(order.getDeliveryCharge()).as("free delivery")
+                .isEqualByComparingTo(BigDecimal.ZERO);
+
+        Payment payment = paymentRepository.findByOrder(order).orElseThrow();
+        assertThat(payment.getAmount()).as("QR amount matches order total")
                 .isEqualByComparingTo(new BigDecimal("150.00"));
     }
 

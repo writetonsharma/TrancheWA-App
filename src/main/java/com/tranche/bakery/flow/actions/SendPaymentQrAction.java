@@ -7,8 +7,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.tranche.bakery.alert.AlertService;
-import com.tranche.bakery.customer.Customer;
-import com.tranche.bakery.customer.CustomerRepository;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
@@ -32,7 +30,6 @@ public class SendPaymentQrAction implements FlowAction {
     private final QrCodeService qrCodeService;
     private final WhatsAppClient whatsAppClient;
     private final AlertService alertService;
-    private final CustomerRepository customerRepository;
 
     @Value("${bakery.payment.upi-id}")
     private String upiId;
@@ -62,18 +59,9 @@ public class SendPaymentQrAction implements FlowAction {
             return;
         }
 
-        BigDecimal amount;
-        if (testMode) {
-            amount = BigDecimal.valueOf(1.0 + (int)(Math.random() * 99) / 100.0).setScale(2, java.math.RoundingMode.HALF_UP);
-        } else {
-            Customer customer = customerRepository.findById(ctx.getCustomer().getId()).orElse(ctx.getCustomer());
-            if (customer.hasActiveOverride()) {
-                amount = customer.getPricingOverride();
-                log.info("Customer {} has active pricing override: ₹{}", customer.getPhone(), amount);
-            } else {
-                amount = order.getTotalAmount();
-            }
-        }
+        BigDecimal amount = testMode
+                ? BigDecimal.valueOf(1.0 + (int)(Math.random() * 99) / 100.0).setScale(2, java.math.RoundingMode.HALF_UP)
+                : order.getTotalAmount();
         String note = "Tranche Bakery Order #" + order.getId();
         log.info("Sending payment QR for order {} amount {}", order.getId(), amount);
 

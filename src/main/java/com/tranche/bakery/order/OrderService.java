@@ -128,18 +128,29 @@ public class OrderService {
         List<OrderItem> items = orderItemRepository.findAllByOrderId(order.getId());
         if (items.isEmpty()) return "Your order is empty.";
 
+        Customer customer = order.getCustomer();
+        boolean hasOverride = customer != null && customer.hasActiveOverride();
+
         StringBuilder sb = new StringBuilder("🧾 *Your Order*\n\n");
         for (OrderItem item : items) {
-            sb.append(String.format("• %s × %d — ₹%.0f\n",
-                    item.getMenuItem().getName(),
-                    item.getQuantity(),
-                    item.getSubtotal()));
+            if (hasOverride) {
+                BigDecimal discountedSubtotal = customer.getPricingOverride()
+                        .multiply(BigDecimal.valueOf(item.getQuantity()));
+                sb.append(String.format("• %s × %d — ₹%.0f _(special rate)_\n",
+                        item.getMenuItem().getName(),
+                        item.getQuantity(),
+                        discountedSubtotal));
+            } else {
+                sb.append(String.format("• %s × %d — ₹%.0f\n",
+                        item.getMenuItem().getName(),
+                        item.getQuantity(),
+                        item.getSubtotal()));
+            }
         }
 
         if (order.getDeliveryCharge() != null && order.getDeliveryCharge().compareTo(BigDecimal.ZERO) > 0) {
             sb.append(String.format("• Delivery — ₹%.0f\n", order.getDeliveryCharge()));
-        } else if (order.getDeliveryCharge() != null && order.getDeliveryCharge().compareTo(BigDecimal.ZERO) == 0
-                   && order.getCustomer() != null && order.getCustomer().isFreeDelivery()) {
+        } else if (order.getCustomer() != null && order.getCustomer().isFreeDelivery()) {
             sb.append("• Delivery — _Free_ ✨\n");
         }
 
@@ -164,11 +175,19 @@ public class OrderService {
 
     private void recalculateTotal(Order order) {
         List<OrderItem> items = orderItemRepository.findAllByOrderId(order.getId());
-        BigDecimal itemsTotal = items.stream()
-                .map(OrderItem::getSubtotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        boolean waiveFee = order.getCustomer() != null && order.getCustomer().isFreeDelivery();
+        Customer customer = order.getCustomer();
+        BigDecimal itemsTotal;
+        if (customer != null && customer.hasActiveOverride()) {
+            int totalQty = items.stream().mapToInt(OrderItem::getQuantity).sum();
+            itemsTotal = customer.getPricingOverride().multiply(BigDecimal.valueOf(totalQty));
+        } else {
+            itemsTotal = items.stream()
+                    .map(OrderItem::getSubtotal)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+
+        boolean waiveFee = customer != null && customer.isFreeDelivery();
         BigDecimal fee = waiveFee ? BigDecimal.ZERO : deliveryCharge;
         order.setDeliveryCharge(fee);
         order.setTotalAmount(itemsTotal.add(fee));
