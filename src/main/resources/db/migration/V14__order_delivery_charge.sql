@@ -1,0 +1,2 @@
+ALTER TABLE orders
+    ADD COLUMN delivery_charge DECIMAL(10, 2) NOT NULL DEFAULT 0;

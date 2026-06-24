@@ -1,12 +1,29 @@
 package com.tranche.bakery.order;
 
-import com.tranche.bakery.customer.Customer;
-import com.tranche.bakery.conversation.WhatsappConversation;
-import jakarta.persistence.*;
-import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+
+import com.tranche.bakery.conversation.WhatsappConversation;
+import com.tranche.bakery.customer.Customer;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "orders")
@@ -34,6 +51,9 @@ public class Order {
 
     @Column(precision = 10, scale = 2)
     private BigDecimal totalAmount;
+
+    @Column(precision = 10, scale = 2, nullable = false)
+    private BigDecimal deliveryCharge = BigDecimal.ZERO;
 
     @Column(nullable = false)
     private boolean cutoffWarned = false;

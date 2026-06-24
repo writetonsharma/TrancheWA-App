@@ -24,6 +24,7 @@
     <span class="navbar-brand">🥖 Tranché Bakery — Admin</span>
     <div class="d-flex align-items-center gap-3">
       <span class="navbar-text text-white-50" th:text="${#temporals.format(dashboard.today, 'EEEE, d MMMM yyyy')}"></span>
+      <a href="/admin/pricing" class="btn btn-sm btn-outline-warning">💰 Pricing</a>
       <button class="btn btn-sm btn-outline-light" onclick="window.location.reload()">🔄 Refresh</button>
     </div>
   </div>
@@ -58,7 +59,7 @@
       <div th:unless="${searchResults.isEmpty()}" class="table-responsive">
         <table class="table table-sm table-hover mb-0">
           <thead class="table-light">
-            <tr><th>Order #</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Delivery</th><th>Created</th></tr>
+            <tr><th>Order #</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Delivery</th><th>Created</th><th>Location</th></tr>
           </thead>
           <tbody>
             <tr th:each="v : ${searchResults}">
@@ -72,6 +73,10 @@
               <td><span class="badge bg-secondary" th:text="${v.order.status.name()}"></span></td>
               <td th:text="${v.order.deliveryDate != null ? #temporals.format(v.order.deliveryDate, 'EEE, d MMM') : '—'}"></td>
               <td th:text="${#temporals.format(v.order.createdAt, 'dd MMM HH:mm')}"></td>
+              <td>
+                <a th:if="${v.mapsUrl != null}" th:href="${v.mapsUrl}" target="_blank" class="btn btn-sm btn-outline-primary">📍 Maps</a>
+                <span th:unless="${v.mapsUrl != null}" class="text-muted">—</span>
+              </td>
             </tr>
           </tbody>
         </table>

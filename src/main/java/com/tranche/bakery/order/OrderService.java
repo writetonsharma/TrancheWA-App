@@ -1,15 +1,18 @@
 package com.tranche.bakery.order;
 
+import java.math.BigDecimal;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.tranche.bakery.conversation.WhatsappConversation;
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.menu.MenuItem;
 import com.tranche.bakery.menu.MenuItemRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +21,9 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final MenuItemRepository menuItemRepository;
+
+    @Value("${bakery.order.delivery-charge:50}")
+    private BigDecimal deliveryCharge;
 
     @Transactional
     public void cancelDraftIfExists(Customer customer) {
@@ -129,6 +135,14 @@ public class OrderService {
                     item.getQuantity(),
                     item.getSubtotal()));
         }
+
+        if (order.getDeliveryCharge() != null && order.getDeliveryCharge().compareTo(BigDecimal.ZERO) > 0) {
+            sb.append(String.format("• Delivery — ₹%.0f\n", order.getDeliveryCharge()));
+        } else if (order.getDeliveryCharge() != null && order.getDeliveryCharge().compareTo(BigDecimal.ZERO) == 0
+                   && order.getCustomer() != null && order.getCustomer().isFreeDelivery()) {
+            sb.append("• Delivery — _Free_ ✨\n");
+        }
+
         sb.append(String.format("\n*Total: ₹%.0f*", order.getTotalAmount()));
 
         if (order.getDeliveryPreference() != null) {
@@ -150,10 +164,14 @@ public class OrderService {
 
     private void recalculateTotal(Order order) {
         List<OrderItem> items = orderItemRepository.findAllByOrderId(order.getId());
-        BigDecimal total = items.stream()
+        BigDecimal itemsTotal = items.stream()
                 .map(OrderItem::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        order.setTotalAmount(total);
+
+        boolean waiveFee = order.getCustomer() != null && order.getCustomer().isFreeDelivery();
+        BigDecimal fee = waiveFee ? BigDecimal.ZERO : deliveryCharge;
+        order.setDeliveryCharge(fee);
+        order.setTotalAmount(itemsTotal.add(fee));
         orderRepository.save(order);
     }
 }

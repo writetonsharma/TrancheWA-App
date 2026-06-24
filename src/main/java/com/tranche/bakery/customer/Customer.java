@@ -1,9 +1,18 @@
 package com.tranche.bakery.customer;
 
-import jakarta.persistence.*;
-import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "customers")
@@ -31,6 +40,17 @@ public class Customer {
     @Column(precision = 9, scale = 6)
     private BigDecimal locationLng;
 
+    @Column(precision = 10, scale = 2)
+    private BigDecimal pricingOverride;
+
+    @Column(nullable = false)
+    private boolean freeDelivery = false;
+
+    private LocalDateTime overrideExpiresAt;
+
+    @Column(columnDefinition = "TEXT")
+    private String overrideNote;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -39,4 +59,10 @@ public class Customer {
 
     @PreUpdate
     void onUpdate() { this.updatedAt = LocalDateTime.now(); }
+
+    public boolean hasActiveOverride() {
+        if (pricingOverride == null) return false;
+        if (overrideExpiresAt != null && overrideExpiresAt.isBefore(LocalDateTime.now())) return false;
+        return true;
+    }
 }
