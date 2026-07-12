@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +24,12 @@ import java.util.Set;
 public class FlowEngine {
 
     private static final Set<String> SUPPORTED_TYPES = Set.of("text", "interactive", "image", "location");
+
+    // Matches a message that starts with the word "hi" (case-insensitive), optionally
+    // followed by more text — e.g. "hi", "Hi there", "Hi TRANCHÉ, I want to order the milk buns".
+    // The word boundary prevents false matches like "high" or "Hitech City".
+    private static final Pattern GREETING_PATTERN =
+            Pattern.compile("hi\\b.*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     private final FlowLoader flowLoader;
     private final DataSourceResolver dataSourceResolver;
@@ -44,8 +51,8 @@ public class FlowEngine {
             return;
         }
 
-        // Global "hi" — cancel draft, reset conversation
-        if ("hi".equalsIgnoreCase(input.trim())) {
+        // Global greeting — "hi" (optionally followed by more text) cancels draft, resets conversation
+        if (GREETING_PATTERN.matcher(input.trim()).matches()) {
             orderService.cancelDraftIfExists(customer);
             conversation.setContext(new HashMap<>());
             // First-time customers must select their delivery area before anything else
