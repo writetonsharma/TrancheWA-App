@@ -1,13 +1,13 @@
 package com.tranche.bakery.order;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
@@ -37,6 +37,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findAllByCustomerIdAndStatus(Long customerId, OrderStatus status);
 
     Optional<Order> findTopByCustomerIdAndStatusAndDeliveryDate(Long customerId, OrderStatus status, java.time.LocalDate deliveryDate);
+
+    List<Order> findAllByCustomerIdAndStatusAndCutoffCancelledTrueOrderByUpdatedAtDesc(Long customerId, OrderStatus status);
 
     List<Order> findAllByStatusInAndDeliveryDateBetweenOrderByDeliveryDateAsc(Collection<OrderStatus> statuses, java.time.LocalDate from, java.time.LocalDate to);
 

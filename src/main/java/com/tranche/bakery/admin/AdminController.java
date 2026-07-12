@@ -102,4 +102,17 @@ public class AdminController {
         redirectAttributes.addFlashAttribute("flash", "Message sent.");
         return "redirect:/admin/conversation/" + phone;
     }
+
+    @PostMapping("/conversation/{phone}/update-details")
+    public String updateCustomerDetails(@PathVariable String phone,
+                                        @RequestParam(required = false) String name,
+                                        @RequestParam(required = false) String deliveryArea,
+                                        @RequestParam(required = false) String deliveryAddress,
+                                        @RequestParam(required = false) String locationLat,
+                                        @RequestParam(required = false) String locationLng,
+                                        RedirectAttributes redirectAttributes) {
+        adminService.updateCustomerDetails(phone, name, deliveryArea, deliveryAddress, locationLat, locationLng);
+        redirectAttributes.addFlashAttribute("flash", "Customer details updated.");
+        return "redirect:/admin/conversation/" + phone;
+    }
 }

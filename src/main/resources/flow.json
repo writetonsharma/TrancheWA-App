@@ -288,6 +288,18 @@
       "autoTransition": "IDLE"
     },
 
+    "LATE_PAYMENT_DATE": {
+      "entryMessage": {
+        "type": "list",
+        "body": "We received your payment — thank you! 🙏\n\nYour earlier order was set aside at our *6 PM* cutoff, so there is no active order for tomorrow. Not to worry — we will honour this payment on our next bake day.\n\nWhich morning would you like it delivered?",
+        "buttonLabel": "Choose Date",
+        "dataSource": "DELIVERY_DATES"
+      },
+      "transitions": [
+        { "match": "*", "nextState": "PAYMENT_RECEIVED", "saveContext": "deliveryDate", "action": "REVIVE_LATE_PAYMENT" }
+      ]
+    },
+
     "PAYMENT_ORDER_SELECT": {
       "entryAction": "SHOW_PAYMENT_ORDER_SELECT",
       "transitions": [

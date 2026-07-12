@@ -58,6 +58,9 @@ public class Order {
     @Column(nullable = false)
     private boolean cutoffWarned = false;
 
+    @Column(name = "cutoff_cancelled", nullable = false)
+    private boolean cutoffCancelled = false;
+
     @Column(unique = true, length = 20)
     private String orderNumber;
 

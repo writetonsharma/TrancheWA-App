@@ -1,22 +1,32 @@
 package com.tranche.bakery.admin;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.tranche.bakery.alert.AlertRepository;
 import com.tranche.bakery.alert.AlertService;
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.customer.CustomerRepository;
 import com.tranche.bakery.feedback.FeedbackRepository;
-import com.tranche.bakery.order.*;
+import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderItem;
+import com.tranche.bakery.order.OrderItemRepository;
+import com.tranche.bakery.order.OrderRepository;
+import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.payment.PaymentRepository;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -123,6 +133,33 @@ public class AdminService {
             adminMessageRepository.save(msg);
         });
         log.info("Admin sent message to {}", phone);
+    }
+
+    @Transactional
+    public void updateCustomerDetails(String phone, String name, String deliveryArea,
+                                      String deliveryAddress, String locationLat, String locationLng) {
+        customerRepository.findByPhone(phone).ifPresent(customer -> {
+            customer.setName(blankToNull(name));
+            customer.setDeliveryArea(blankToNull(deliveryArea));
+            customer.setDeliveryAddress(blankToNull(deliveryAddress));
+            customer.setLocationLat(parseDecimal(locationLat));
+            customer.setLocationLng(parseDecimal(locationLng));
+            customerRepository.save(customer);
+            log.info("Admin updated customer details for {}", phone);
+        });
+    }
+
+    private String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value.trim();
+    }
+
+    private BigDecimal parseDecimal(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return new BigDecimal(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     @Transactional

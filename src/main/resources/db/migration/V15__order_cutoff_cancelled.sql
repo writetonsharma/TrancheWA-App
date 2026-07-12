@@ -1,0 +1,2 @@
+ALTER TABLE orders
+    ADD COLUMN cutoff_cancelled BOOLEAN NOT NULL DEFAULT FALSE;

@@ -52,6 +52,48 @@
           </div>
         </div>
       </div>
+      <!-- Edit customer details (admin correction for one-off cases) -->
+      <div class="card-header bg-white border-bottom py-2">
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                data-bs-toggle="collapse" data-bs-target="#editDetails">
+          &#9998; Edit details
+        </button>
+        <div class="collapse mt-3" id="editDetails">
+          <form th:action="@{/admin/conversation/{phone}/update-details(phone=${thread.customer().phone})}" method="post">
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="form-label mb-1 small">Name</label>
+                <input type="text" name="name" class="form-control form-control-sm"
+                       th:value="${thread.customer().name}">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label mb-1 small">Pincode / Area</label>
+                <input type="text" name="deliveryArea" class="form-control form-control-sm"
+                       th:value="${thread.customer().deliveryArea}">
+              </div>
+              <div class="col-12">
+                <label class="form-label mb-1 small">Delivery address</label>
+                <textarea name="deliveryAddress" rows="2"
+                          class="form-control form-control-sm" th:text="${thread.customer().deliveryAddress}"></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label mb-1 small">Location latitude</label>
+                <input type="text" name="locationLat" class="form-control form-control-sm"
+                       th:value="${thread.customer().locationLat}">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label mb-1 small">Location longitude</label>
+                <input type="text" name="locationLng" class="form-control form-control-sm"
+                       th:value="${thread.customer().locationLng}">
+              </div>
+            </div>
+            <div class="mt-2 d-flex align-items-center gap-2">
+              <button type="submit" class="btn btn-sm btn-primary">Save details</button>
+              <small class="text-muted">Leave a field blank to clear it.</small>
+            </div>
+          </form>
+        </div>
+      </div>
       <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
         <span>
           💬 Conversation with

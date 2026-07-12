@@ -1,7 +1,9 @@
 package com.tranche.bakery.order;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -171,6 +173,20 @@ public class OrderService {
             sb.append("\n\n_After 6 PM: this order will not be baked tomorrow morning. It will be scheduled for the following bake day._");
         }
         return sb.toString();
+    }
+
+    public boolean hasPendingPayment(Long customerId) {
+        return !orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PENDING_CONFIRMATION).isEmpty();
+    }
+
+    public Optional<Order> findRevivableLatePayment(Long customerId) {
+        LocalDate today = LocalDate.now();
+        return orderRepository
+                .findAllByCustomerIdAndStatusAndCutoffCancelledTrueOrderByUpdatedAtDesc(customerId, OrderStatus.CANCELLED)
+                .stream()
+                .filter(o -> o.getDeliveryDate() != null)
+                .filter(o -> o.getUpdatedAt() != null && o.getUpdatedAt().toLocalDate().equals(today))
+                .findFirst();
     }
 
     private void recalculateTotal(Order order) {

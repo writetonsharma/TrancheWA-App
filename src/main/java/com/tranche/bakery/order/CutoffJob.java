@@ -43,6 +43,9 @@ public class CutoffJob {
         expiredOrders.addAll(drafts);
         expiredOrders.addAll(pendingPayment);
 
+        // Mark confirmed-but-unpaid cancellations so a late payment against the old QR can revive them.
+        pendingPayment.forEach(o -> o.setCutoffCancelled(true));
+
         if (expiredOrders.isEmpty()) {
             log.info("Cutoff job: no unfinished orders to cancel.");
             return;

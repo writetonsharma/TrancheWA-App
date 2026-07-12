@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.tranche.bakery.conversation.ConversationRepository;
 import com.tranche.bakery.conversation.WhatsappConversation;
 import com.tranche.bakery.customer.Customer;
+import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderService;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import com.tranche.bakery.whatsapp.WhatsAppMessage;
@@ -30,6 +31,19 @@ public class FlowEngine {
     // The word boundary prevents false matches like "high" or "Hitech City".
     private static final Pattern GREETING_PATTERN =
             Pattern.compile("hi\\b.*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
+    // Website "Message us on WhatsApp" links prefill this exact phrase. It routes the
+    // customer straight into the free-text message flow instead of the order menu.
+    private static final Pattern CONTACT_PATTERN =
+            Pattern.compile("i have a question for the bakery\\.?", Pattern.CASE_INSENSITIVE);
+
+    // States where the customer has no in-progress order, so the contact shortcut may safely take over.
+    private static final Set<String> RESTING_STATES = Set.of("IDLE", "MAIN_MENU");
+
+    // Appended when a mid-order customer types something unexpected, so the way to reach
+    // a person (or restart) is always one tap away without disrupting the current step.
+    private static final String HELP_HINT =
+            "\n\n_Have a question? Send *hi*, then tap *Message Us* to reach a person._";
 
     private final FlowLoader flowLoader;
     private final DataSourceResolver dataSourceResolver;
@@ -61,6 +75,16 @@ public class FlowEngine {
             return;
         }
 
+        // Global contact shortcut — from the website "Message us" link. Jump straight into
+        // the free-text message flow so the customer can just type their question.
+        // Only fires from a resting point (idle / main menu); if the customer is mid-order,
+        // the phrase falls through to normal handling so their in-progress order is never wiped.
+        if (CONTACT_PATTERN.matcher(input.trim()).matches() && isAtRestingPoint(conversation)) {
+            conversation.setContext(new HashMap<>());
+            enterState(customer, conversation, "MESSAGE_AWAITING_TEXT", input, messageType, rawMessage);
+            return;
+        }
+
         // Global cancel_<id> — cancels a specific order regardless of conversation state
         if (input.trim().matches("cancel_\\d+")) {
             long targetId = Long.parseLong(input.trim().substring("cancel_".length()));
@@ -79,6 +103,24 @@ public class FlowEngine {
             return;
         }
 
+        // Global late-payment recovery: an image arrives but there is no active order awaiting
+        // payment. This happens when the customer's order was cancelled at the 6 PM cutoff yet they
+        // still pay against the old QR afterwards. Offer to revive that order on a valid bake day.
+        if ("image".equals(messageType) && !orderService.hasPendingPayment(customer.getId())) {
+            Order revivable = orderService.findRevivableLatePayment(customer.getId()).orElse(null);
+            if (revivable != null) {
+                String mediaId = rawMessage.path("image").path("id").asText(null);
+                if (mediaId != null) {
+                    Map<String, Object> recoveryCtx = new HashMap<>();
+                    recoveryCtx.put("orderId", revivable.getId().toString());
+                    recoveryCtx.put("lateScreenshotMediaId", mediaId);
+                    conversation.setContext(recoveryCtx);
+                    enterState(customer, conversation, "LATE_PAYMENT_DATE", input, messageType, rawMessage);
+                    return;
+                }
+            }
+        }
+
         String currentStateName = conversation.getState();
         StateConfig stateConfig = flowLoader.getState(currentStateName);
 
@@ -92,7 +134,7 @@ public class FlowEngine {
 
         if (transition == null) {
             if (stateConfig.getDefaultResponse() != null) {
-                whatsAppClient.sendText(phone, stateConfig.getDefaultResponse());
+                whatsAppClient.sendText(phone, stateConfig.getDefaultResponse() + helpHintFor(conversation));
             }
             resendCurrentState(phone, customer, stateConfig, conversation);
             return;
@@ -100,7 +142,7 @@ public class FlowEngine {
 
         // Error transition — send message and stay in current state
         if (transition.getErrorMessage() != null) {
-            whatsAppClient.sendText(phone, transition.getErrorMessage());
+            whatsAppClient.sendText(phone, transition.getErrorMessage() + helpHintFor(conversation));
             resendCurrentState(phone, customer, stateConfig, conversation);
             return;
         }
@@ -126,6 +168,17 @@ public class FlowEngine {
         }
 
         enterState(customer, conversation, nextStateName, input, messageType, rawMessage);
+    }
+
+    private boolean isAtRestingPoint(WhatsappConversation conversation) {
+        String state = conversation.getState();
+        return state == null || RESTING_STATES.contains(state);
+    }
+
+    // Only nudges customers who are mid-order; at a resting point (IDLE/MAIN_MENU)
+    // the "Message Us" option is already on screen, so the hint would be noise.
+    private String helpHintFor(WhatsappConversation conversation) {
+        return isAtRestingPoint(conversation) ? "" : HELP_HINT;
     }
 
     /**
