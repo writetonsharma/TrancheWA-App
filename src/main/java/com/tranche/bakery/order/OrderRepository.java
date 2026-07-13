@@ -6,10 +6,11 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface OrderRepository extends JpaRepository<Order, Long> {
+public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecificationExecutor<Order> {
 
     Optional<Order> findTopByCustomerIdAndStatusOrderByCreatedAtDesc(Long customerId, OrderStatus status);
 
@@ -45,4 +46,6 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findAllByStatusInAndUpdatedAtAfterOrderByUpdatedAtDesc(Collection<OrderStatus> statuses, LocalDateTime after);
 
     List<Order> findAllByCustomerIdInOrderByCreatedAtDesc(Collection<Long> customerIds);
+
+    List<Order> findAllByCustomerIdOrderByCreatedAtDesc(Long customerId);
 }

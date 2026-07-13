@@ -3,14 +3,23 @@ package com.tranche.bakery.admin;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.StringJoiner;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import jakarta.persistence.criteria.Predicate;
 
 import com.tranche.bakery.alert.AlertRepository;
 import com.tranche.bakery.alert.AlertService;
@@ -233,11 +242,89 @@ public class AdminService {
     }
 
     @Transactional(readOnly = true)
-    public ConversationThread getConversation(String phone) {
+    public ConversationThread getConversation(String phone, OrderStatus status, LocalDate from, LocalDate to) {
         Customer customer = customerRepository.findByPhone(phone).orElse(null);
         if (customer == null) return null;
         List<AdminMessage> messages = adminMessageRepository.findAllByCustomerIdOrderByCreatedAtAsc(customer.getId());
-        return new ConversationThread(customer, messages);
+        List<AdminOrderView> orders = loadViews(orderRepository.findAll(
+                buildCustomerOrderFilterSpec(customer.getId(), status, from, to), orderSort()));
+        return new ConversationThread(customer, messages, orders);
+    }
+
+    @Transactional(readOnly = true)
+    public OrderPage findOrders(LocalDate from, LocalDate to, OrderStatus status,
+                                String customer, int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), size, orderSort());
+        Page<Order> result = orderRepository.findAll(buildOrderFilterSpec(from, to, status, customer), pageable);
+
+        return new OrderPage(loadViews(result.getContent()),
+                result.getNumber(), result.getTotalPages(), result.getTotalElements(), size);
+    }
+
+    @Transactional(readOnly = true)
+    public String exportOrdersCsv(LocalDate from, LocalDate to, OrderStatus status, String customer) {
+        List<Order> orders = orderRepository.findAll(buildOrderFilterSpec(from, to, status, customer), orderSort());
+        List<AdminOrderView> views = loadViews(orders);
+
+        StringJoiner csv = new StringJoiner("\n");
+        csv.add("Order Number,Order Id,Phone,Customer Name,Status,Delivery Date,Created At,Total Amount,Items,Delivery Address");
+
+        for (AdminOrderView v : views) {
+            Order o = v.order();
+            csv.add(String.join(",",
+                    csvCell(o.getOrderNumber() != null ? o.getOrderNumber() : ""),
+                    csvCell(o.getId() != null ? o.getId().toString() : ""),
+                    csvCell(o.getCustomer() != null ? o.getCustomer().getPhone() : ""),
+                    csvCell(o.getCustomer() != null ? o.getCustomer().getName() : ""),
+                    csvCell(o.getStatus() != null ? o.getStatus().name() : ""),
+                    csvCell(o.getDeliveryDate() != null ? o.getDeliveryDate().toString() : ""),
+                    csvCell(o.getCreatedAt() != null ? o.getCreatedAt().toString() : ""),
+                    csvCell(o.getTotalAmount() != null ? o.getTotalAmount().toPlainString() : ""),
+                    csvCell(v.itemsSummary()),
+                    csvCell(o.getDeliveryAddress())
+            ));
+        }
+
+        return csv.toString() + "\n";
+    }
+
+    private Specification<Order> buildOrderFilterSpec(LocalDate from, LocalDate to, OrderStatus status, String customer) {
+        return (root, query, cb) -> {
+            List<Predicate> preds = new ArrayList<>();
+            if (from != null) preds.add(cb.greaterThanOrEqualTo(root.get("deliveryDate"), from));
+            if (to != null) preds.add(cb.lessThanOrEqualTo(root.get("deliveryDate"), to));
+            if (status != null) preds.add(cb.equal(root.get("status"), status));
+            if (customer != null && !customer.isBlank()) {
+                String like = "%" + customer.trim().toLowerCase() + "%";
+                var cust = root.join("customer");
+                preds.add(cb.or(
+                        cb.like(cb.lower(cust.get("phone")), like),
+                        cb.like(cb.lower(cust.get("name")), like)));
+            }
+            return cb.and(preds.toArray(new Predicate[0]));
+        };
+    }
+
+    private Specification<Order> buildCustomerOrderFilterSpec(Long customerId, OrderStatus status,
+                                                              LocalDate from, LocalDate to) {
+        return (root, query, cb) -> {
+            List<Predicate> preds = new ArrayList<>();
+            preds.add(cb.equal(root.get("customer").get("id"), customerId));
+            if (status != null) preds.add(cb.equal(root.get("status"), status));
+            if (from != null) preds.add(cb.greaterThanOrEqualTo(root.get("deliveryDate"), from));
+            if (to != null) preds.add(cb.lessThanOrEqualTo(root.get("deliveryDate"), to));
+            return cb.and(preds.toArray(new Predicate[0]));
+        };
+    }
+
+    private Sort orderSort() {
+        return Sort.by(Sort.Order.desc("deliveryDate"), Sort.Order.desc("createdAt"));
+    }
+
+    private String csvCell(String raw) {
+        if (raw == null) return "\"\"";
+        String escaped = raw.replace("\"", "\"\"");
+        return "\"" + escaped + "\"";
     }
 
     @Transactional(readOnly = true)

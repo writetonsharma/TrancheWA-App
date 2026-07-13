@@ -21,7 +21,7 @@
       },
       "transitions": [
         { "match": "order",   "nextState": "ORDER_GATE" },
-        { "match": "message", "nextState": "MESSAGE_AWAITING_TEXT" },
+        { "match": "message", "nextState": "MESSAGE_CONTACT" },
         { "match": "info",    "nextState": "INFO_MENU" },
         { "match": "*",       "nextState": "MAIN_MENU" }
       ]
@@ -307,20 +307,10 @@
       ]
     },
 
-    "MESSAGE_AWAITING_TEXT": {
+    "MESSAGE_CONTACT": {
       "entryMessage": {
         "type": "text",
-        "body": "Please share your question, feedback, or special request. We'll get back to you personally."
-      },
-      "transitions": [
-        { "match": "*", "nextState": "MESSAGE_DONE", "action": "SAVE_FEEDBACK" }
-      ]
-    },
-
-    "MESSAGE_DONE": {
-      "entryMessage": {
-        "type": "text",
-        "body": "Thank you for writing to us. We've received your message and will get back to you soon."
+        "body": "For questions, feedback, or a quick call, chat with our team directly here:\n\nhttps://wa.me/910000000000\n\nTap the link to open a chat. 🍞\n\n_Send *hi* anytime to place an order._"
       },
       "autoTransition": "IDLE"
     }

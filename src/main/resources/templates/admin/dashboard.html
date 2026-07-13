@@ -24,6 +24,7 @@
     <span class="navbar-brand">🥖 Tranché Bakery — Admin</span>
     <div class="d-flex align-items-center gap-3">
       <span class="navbar-text text-white-50" th:text="${#temporals.format(dashboard.today, 'EEEE, d MMMM yyyy')}"></span>
+      <a href="/admin/orders" class="btn btn-sm btn-outline-info">📋 Orders</a>
       <a href="/admin/pricing" class="btn btn-sm btn-outline-warning">💰 Pricing</a>
       <button class="btn btn-sm btn-outline-light" onclick="window.location.reload()">🔄 Refresh</button>
     </div>

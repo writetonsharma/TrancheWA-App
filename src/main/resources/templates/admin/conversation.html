@@ -94,6 +94,54 @@
           </form>
         </div>
       </div>
+      <div class="card-header bg-white border-bottom py-2">
+        <button class="btn btn-sm btn-outline-dark" type="button"
+                data-bs-toggle="collapse" data-bs-target="#customerOrders">
+          📋 Order history (<span th:text="${thread.orders().size()}"></span>)
+        </button>
+        <div class="collapse mt-3" id="customerOrders" th:classappend="${historyFiltered} ? ' show' : ''">
+          <form th:action="@{/admin/conversation/{phone}(phone=${thread.customer().phone})}" method="get" class="row g-2 mb-3">
+            <div class="col-auto">
+              <label class="form-label mb-1 small text-muted">Status</label>
+              <select name="orderStatus" class="form-select form-select-sm">
+                <option value="">All statuses</option>
+                <option th:each="s : ${allStatuses}" th:value="${s.name()}" th:text="${s.name()}"
+                        th:selected="${s.name() == historyStatus}"></option>
+              </select>
+            </div>
+            <div class="col-auto">
+              <label class="form-label mb-1 small text-muted">Delivery from</label>
+              <input type="date" name="from" class="form-control form-control-sm" th:value="${historyFrom}">
+            </div>
+            <div class="col-auto">
+              <label class="form-label mb-1 small text-muted">Delivery to</label>
+              <input type="date" name="to" class="form-control form-control-sm" th:value="${historyTo}">
+            </div>
+            <div class="col-auto d-flex align-items-end gap-2">
+              <button type="submit" class="btn btn-sm btn-outline-primary">Apply</button>
+              <a th:href="@{/admin/conversation/{phone}(phone=${thread.customer().phone})}" class="btn btn-sm btn-outline-secondary">Clear</a>
+            </div>
+          </form>
+          <div th:if="${thread.orders().isEmpty()}" class="text-muted small">No orders match this filter.</div>
+          <div th:unless="${thread.orders().isEmpty()}" class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+              <thead class="table-light">
+                <tr><th>Order #</th><th>Status</th><th>Delivery</th><th>Total</th><th>Items</th><th>Created</th></tr>
+              </thead>
+              <tbody>
+                <tr th:each="v : ${thread.orders()}">
+                  <td th:text="${v.order.orderNumber ?: v.order.id}"></td>
+                  <td><span class="badge bg-secondary" th:text="${v.order.status.name()}"></span></td>
+                  <td th:text="${v.order.deliveryDate != null ? #temporals.format(v.order.deliveryDate, 'EEE, d MMM') : '—'}"></td>
+                  <td th:text="${v.order.totalAmount != null ? '₹' + v.order.totalAmount : '—'}"></td>
+                  <td class="text-muted" th:text="${v.itemsSummary}"></td>
+                  <td th:text="${#temporals.format(v.order.createdAt, 'dd MMM HH:mm')}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
       <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
         <span>
           💬 Conversation with

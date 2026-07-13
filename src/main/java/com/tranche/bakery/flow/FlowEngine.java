@@ -1,5 +1,14 @@
 package com.tranche.bakery.flow;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tranche.bakery.conversation.ConversationRepository;
 import com.tranche.bakery.conversation.WhatsappConversation;
@@ -8,16 +17,9 @@ import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderService;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import com.tranche.bakery.whatsapp.WhatsAppMessage;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -32,8 +34,8 @@ public class FlowEngine {
     private static final Pattern GREETING_PATTERN =
             Pattern.compile("hi\\b.*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
-    // Website "Message us on WhatsApp" links prefill this exact phrase. It routes the
-    // customer straight into the free-text message flow instead of the order menu.
+    // Legacy website "Message us" deep-links (and older saved links) prefill this exact
+    // phrase. It routes the customer to the contact handoff instead of the order menu.
     private static final Pattern CONTACT_PATTERN =
             Pattern.compile("i have a question for the bakery\\.?", Pattern.CASE_INSENSITIVE);
 
@@ -75,13 +77,13 @@ public class FlowEngine {
             return;
         }
 
-        // Global contact shortcut — from the website "Message us" link. Jump straight into
-        // the free-text message flow so the customer can just type their question.
+        // Global contact shortcut — catches legacy/saved website "Message us" links and hands
+        // the customer the human contact number (MESSAGE_CONTACT) instead of the order menu.
         // Only fires from a resting point (idle / main menu); if the customer is mid-order,
         // the phrase falls through to normal handling so their in-progress order is never wiped.
         if (CONTACT_PATTERN.matcher(input.trim()).matches() && isAtRestingPoint(conversation)) {
             conversation.setContext(new HashMap<>());
-            enterState(customer, conversation, "MESSAGE_AWAITING_TEXT", input, messageType, rawMessage);
+            enterState(customer, conversation, "MESSAGE_CONTACT", input, messageType, rawMessage);
             return;
         }
 
