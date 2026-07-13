@@ -30,6 +30,15 @@
 
 <div class="container-fluid px-4">
 
+  <div class="mb-3 d-flex flex-wrap gap-2">
+    <a class="btn btn-sm btn-outline-dark" th:href="@{/admin/orders(from=${today},to=${today})}">Today</a>
+    <a class="btn btn-sm btn-outline-dark" th:href="@{/admin/orders(from=${tomorrow},to=${tomorrow})}">Tomorrow</a>
+    <a class="btn btn-sm btn-outline-secondary" th:href="@{/admin/orders(from=${tomorrow},to=${tomorrow},status='CONFIRMED')}">Tomorrow confirmed</a>
+    <a class="btn btn-sm btn-outline-secondary" th:href="@{/admin/orders(status='PAYMENT_REVIEW_REQUIRED')}">Payment review</a>
+    <a class="btn btn-sm btn-outline-secondary" th:href="@{/admin/orders(from=${today},to=${weekEnd})}">This week</a>
+    <a class="btn btn-sm btn-outline-secondary" th:href="@{/admin/orders}">All</a>
+  </div>
+
   <!-- Filter bar -->
   <form th:action="@{/admin/orders}" method="get" class="filter-bar">
     <div class="row g-3 align-items-end">
@@ -77,7 +86,7 @@
           <thead class="table-light">
             <tr>
               <th>Order #</th><th>Customer</th><th>Items</th><th>Total</th>
-              <th>Status</th><th>Delivery</th><th>Created</th><th>Location</th>
+              <th>Status</th><th>Delivery</th><th>Created</th><th>Location</th><th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -96,6 +105,35 @@
               <td>
                 <a th:if="${v.mapsUrl != null}" th:href="${v.mapsUrl}" target="_blank" class="btn btn-sm btn-outline-primary">Maps</a>
                 <span th:unless="${v.mapsUrl != null}" class="text-muted">—</span>
+              </td>
+              <td class="text-nowrap">
+                <form th:if="${v.order.status.name() == 'PAYMENT_SCREENSHOT_RECEIVED' or v.order.status.name() == 'PAYMENT_REVIEW_REQUIRED'}"
+                      th:action="@{/admin/orders/{id}/approve-payment(id=${v.order.id})}" method="post" class="d-inline">
+                  <input type="hidden" name="returnTo" th:value="@{/admin/orders(from=${fFrom},to=${fTo},status=${fStatus},customer=${fCustomer},page=${orderPage.page})}">
+                  <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                </form>
+                <form th:if="${v.order.status.name() == 'PAYMENT_SCREENSHOT_RECEIVED'}"
+                      th:action="@{/admin/orders/{id}/flag-payment(id=${v.order.id})}" method="post" class="d-inline">
+                  <input type="hidden" name="returnTo" th:value="@{/admin/orders(from=${fFrom},to=${fTo},status=${fStatus},customer=${fCustomer},page=${orderPage.page})}">
+                  <button type="submit" class="btn btn-sm btn-outline-warning">Flag</button>
+                </form>
+                <form th:if="${v.order.status.name() == 'CONFIRMED'}"
+                      th:action="@{/admin/orders/{id}/mark-baking(id=${v.order.id})}" method="post" class="d-inline">
+                  <input type="hidden" name="returnTo" th:value="@{/admin/orders(from=${fFrom},to=${fTo},status=${fStatus},customer=${fCustomer},page=${orderPage.page})}">
+                  <button type="submit" class="btn btn-sm btn-outline-primary">In Baking</button>
+                </form>
+                <form th:if="${v.order.status.name() == 'IN_BAKING'}"
+                      th:action="@{/admin/orders/{id}/complete(id=${v.order.id})}" method="post" class="d-inline">
+                  <input type="hidden" name="returnTo" th:value="@{/admin/orders(from=${fFrom},to=${fTo},status=${fStatus},customer=${fCustomer},page=${orderPage.page})}">
+                  <button type="submit" class="btn btn-sm btn-primary"
+                          onclick="return confirm('Mark this order as completed?')">Complete</button>
+                </form>
+                <form th:if="${v.order.status.name() != 'CANCELLED' and v.order.status.name() != 'COMPLETED'}"
+                      th:action="@{/admin/orders/{id}/cancel(id=${v.order.id})}" method="post" class="d-inline">
+                  <input type="hidden" name="returnTo" th:value="@{/admin/orders(from=${fFrom},to=${fTo},status=${fStatus},customer=${fCustomer},page=${orderPage.page})}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger"
+                          onclick="return confirm('Cancel this order? This cannot be undone from the dashboard.')">Cancel</button>
+                </form>
               </td>
             </tr>
           </tbody>

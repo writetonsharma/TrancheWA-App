@@ -20,6 +20,13 @@ public class AdminController {
 
     private final AdminService adminService;
 
+    private String redirectTo(String returnTo, String fallback) {
+        if (returnTo != null && !returnTo.isBlank() && returnTo.startsWith("/admin")) {
+            return "redirect:" + returnTo;
+        }
+        return "redirect:" + fallback;
+    }
+
     @GetMapping
     public String dashboard(@RequestParam(required = false) String search, Model model) {
         model.addAttribute("dashboard", adminService.buildDashboard());
@@ -45,7 +52,10 @@ public class AdminController {
 
         model.addAttribute("orderPage",
                 adminService.findOrders(fromDate, toDate, statusFilter, customer, page, ORDERS_PAGE_SIZE));
-        model.addAttribute("today", LocalDate.now());
+        LocalDate today = LocalDate.now();
+        model.addAttribute("today", today);
+        model.addAttribute("tomorrow", today.plusDays(1));
+        model.addAttribute("weekEnd", today.plusDays(6));
         model.addAttribute("allStatuses", OrderStatus.values());
         // Echo filters back so the form keeps its values and paging links carry them
         model.addAttribute("fFrom", from);
@@ -99,17 +109,21 @@ public class AdminController {
     }
 
     @PostMapping("/orders/{id}/approve-payment")
-    public String approvePayment(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+    public String approvePayment(@PathVariable Long id,
+                                 @RequestParam(required = false) String returnTo,
+                                 RedirectAttributes redirectAttributes) {
         adminService.approvePayment(id);
         redirectAttributes.addFlashAttribute("flash", "Payment approved and customer notified.");
-        return "redirect:/admin";
+        return redirectTo(returnTo, "/admin");
     }
 
     @PostMapping("/orders/{id}/flag-payment")
-    public String flagPayment(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+    public String flagPayment(@PathVariable Long id,
+                              @RequestParam(required = false) String returnTo,
+                              RedirectAttributes redirectAttributes) {
         adminService.flagForReview(id);
         redirectAttributes.addFlashAttribute("flash", "Order flagged for review.");
-        return "redirect:/admin";
+        return redirectTo(returnTo, "/admin");
     }
 
     @PostMapping("/message/send")
@@ -122,24 +136,30 @@ public class AdminController {
     }
 
     @PostMapping("/orders/{id}/mark-baking")
-    public String markInBaking(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+    public String markInBaking(@PathVariable Long id,
+                                @RequestParam(required = false) String returnTo,
+                                RedirectAttributes redirectAttributes) {
         adminService.markInBaking(id);
         redirectAttributes.addFlashAttribute("flash", "Order marked as In Baking — customer notified.");
-        return "redirect:/admin";
+        return redirectTo(returnTo, "/admin");
     }
 
     @PostMapping("/orders/{id}/complete")
-    public String markCompleted(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+    public String markCompleted(@PathVariable Long id,
+                                 @RequestParam(required = false) String returnTo,
+                                 RedirectAttributes redirectAttributes) {
         adminService.markCompleted(id);
         redirectAttributes.addFlashAttribute("flash", "Order #" + id + " marked as delivered — customer notified.");
-        return "redirect:/admin";
+        return redirectTo(returnTo, "/admin");
     }
 
     @PostMapping("/orders/{id}/cancel")
-    public String cancelOrder(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+    public String cancelOrder(@PathVariable Long id,
+                               @RequestParam(required = false) String returnTo,
+                               RedirectAttributes redirectAttributes) {
         adminService.cancelOrder(id);
         redirectAttributes.addFlashAttribute("flash", "Order #" + id + " cancelled.");
-        return "redirect:/admin";
+        return redirectTo(returnTo, "/admin");
     }
 
     @PostMapping("/alerts/resolve-all")
