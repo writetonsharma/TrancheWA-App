@@ -89,12 +89,16 @@ public class AdminService {
                         Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING),
                         today.plusDays(2), today.plusDays(6)));
 
+        List<AdminOrderView> noDeliveryDate = loadViews(
+                orderRepository.findAllByStatusInAndDeliveryDateIsNullOrderByCreatedAtDesc(
+                        Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING)));
+
         return new AdminDashboard(
                 today, deliveringToday, deliveringTomorrow,
                 paymentReview, stuckDrafts, awaitingScreenshot,
                 feedbackRepository.findAllByOrderByCreatedAtDesc(),
                 alertRepository.findAllByResolvedFalseOrderByCreatedAtDesc(),
-                bakeListTomorrow, orderHistory, futureDeliveries);
+                bakeListTomorrow, orderHistory, futureDeliveries, noDeliveryDate);
     }
 
     @Transactional
@@ -346,6 +350,15 @@ public class AdminService {
                 .map(e -> new BakeListItem(e.getKey(), e.getValue()[0], e.getValue()[1]))
                 .sorted(Comparator.comparingInt(BakeListItem::totalQuantity).reversed())
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public BakeSheet buildBakeSheet(LocalDate date) {
+        List<Order> orders = orderRepository.findAllByStatusInAndDeliveryDateOrderByDeliveryDateAsc(
+                Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING), date);
+        List<BakeListItem> aggregate = buildBakeList(date);
+        int totalItems = aggregate.stream().mapToInt(BakeListItem::totalQuantity).sum();
+        return new BakeSheet(date, aggregate, loadViews(orders), totalItems);
     }
 
     private List<AdminOrderView> loadViews(List<Order> orders) {

@@ -106,7 +106,7 @@ public class FlowEngine {
         }
 
         // Global late-payment recovery: an image arrives but there is no active order awaiting
-        // payment. This happens when the customer's order was cancelled at the 6 PM cutoff yet they
+        // payment. This happens when the customer's order was cancelled at the 5 PM cutoff yet they
         // still pay against the old QR afterwards. Offer to revive that order on a valid bake day.
         if ("image".equals(messageType) && !orderService.hasPendingPayment(customer.getId())) {
             Order revivable = orderService.findRevivableLatePayment(customer.getId()).orElse(null);

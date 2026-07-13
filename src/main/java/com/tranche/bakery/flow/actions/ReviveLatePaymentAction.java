@@ -1,19 +1,21 @@
 package com.tranche.bakery.flow.actions;
 
+import java.time.LocalDate;
+
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDate;
 
 /**
- * Recovers a payment that arrives after the 6 PM cutoff has already cancelled the customer's order.
+ * Recovers a payment that arrives after the 5 PM cutoff has already cancelled the customer's order.
  * The order's items and amount are preserved; the customer only picks a fresh (valid) bake day and
  * the previously-sent screenshot is carried over — they are never asked to pay again.
  */

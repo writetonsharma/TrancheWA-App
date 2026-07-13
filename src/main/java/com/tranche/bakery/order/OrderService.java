@@ -27,6 +27,9 @@ public class OrderService {
     @Value("${bakery.order.delivery-charge:50}")
     private BigDecimal deliveryCharge;
 
+    @Value("${bakery.order.cutoff-hour}")
+    private int cutoffHour;
+
     @Transactional
     public void cancelDraftIfExists(Customer customer) {
         orderRepository.findTopByCustomerIdAndStatusOrderByCreatedAtDesc(customer.getId(), OrderStatus.DRAFT)
@@ -168,9 +171,9 @@ public class OrderService {
             sb.append("\n📦 Delivery: ").append(prefLabel);
         }
 
-        boolean afterCutoff = java.time.LocalTime.now().getHour() >= 18;
+        boolean afterCutoff = java.time.LocalTime.now().getHour() >= cutoffHour;
         if (afterCutoff) {
-            sb.append("\n\n_After 6 PM: this order will not be baked tomorrow morning. It will be scheduled for the following bake day._");
+            sb.append("\n\n_After 5 PM: this order will not be baked tomorrow morning. It will be scheduled for the following bake day._");
         }
         return sb.toString();
     }

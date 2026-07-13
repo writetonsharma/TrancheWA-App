@@ -1,14 +1,5 @@
 package com.tranche.bakery.flow;
 
-import com.tranche.bakery.delivery.DeliveryAreaLoader;
-import com.tranche.bakery.menu.MenuCategory;
-import com.tranche.bakery.menu.MenuCategoryRepository;
-import com.tranche.bakery.menu.MenuItem;
-import com.tranche.bakery.menu.MenuItemRepository;
-import com.tranche.bakery.whatsapp.WhatsAppMessage;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -17,6 +8,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.stereotype.Component;
+
+import com.tranche.bakery.delivery.DeliveryAreaLoader;
+import com.tranche.bakery.menu.MenuCategory;
+import com.tranche.bakery.menu.MenuCategoryRepository;
+import com.tranche.bakery.menu.MenuItemRepository;
+import com.tranche.bakery.whatsapp.WhatsAppMessage;
+
+import lombok.RequiredArgsConstructor;
+
 @Component
 @RequiredArgsConstructor
 public class MenuDataSourceResolver implements DataSourceResolver {
@@ -24,6 +25,9 @@ public class MenuDataSourceResolver implements DataSourceResolver {
     private final MenuCategoryRepository categoryRepository;
     private final MenuItemRepository itemRepository;
     private final DeliveryAreaLoader deliveryAreaLoader;
+
+    @org.springframework.beans.factory.annotation.Value("${bakery.order.cutoff-hour}")
+    private int cutoffHour;
 
     @Override
     public List<WhatsAppMessage.Section> resolve(String dataSource, Map<String, Object> context) {
@@ -75,9 +79,9 @@ public class MenuDataSourceResolver implements DataSourceResolver {
     }
 
     private List<WhatsAppMessage.Section> resolveDeliveryDates() {
-        // Start from tomorrow; if after 6 PM, start from day after tomorrow
+        // Start from tomorrow; if after cutoff, start from day after tomorrow
         LocalDate start = LocalDate.now().plusDays(
-                LocalTime.now().getHour() >= 18 ? 2 : 1);
+                LocalTime.now().getHour() >= cutoffHour ? 2 : 1);
 
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("EEEE, d MMMM");
         List<WhatsAppMessage.Row> rows = new ArrayList<>();

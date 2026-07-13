@@ -1,10 +1,10 @@
 package com.tranche.bakery.admin;
 
-import com.tranche.bakery.alert.Alert;
-import com.tranche.bakery.feedback.Feedback;
-
 import java.time.LocalDate;
 import java.util.List;
+
+import com.tranche.bakery.alert.Alert;
+import com.tranche.bakery.feedback.Feedback;
 
 public record AdminDashboard(
         LocalDate today,
@@ -17,5 +17,6 @@ public record AdminDashboard(
         List<Alert> alerts,
         List<BakeListItem> bakeListTomorrow,
         List<AdminOrderView> orderHistory,
-        List<AdminOrderView> futureDeliveries
+        List<AdminOrderView> futureDeliveries,
+        List<AdminOrderView> noDeliveryDate
 ) {}

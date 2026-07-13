@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tranche Bakery &#8212; Bake List</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f8f5f0; }
+    .navbar-brand { font-weight: 700; letter-spacing: 1px; }
+    .section-card { background: white; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
+    .section-card .card-header { border-radius: 8px 8px 0 0; font-weight: 600; }
+    .date-bar { background: white; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+    .qty-big { font-size: 1.05rem; font-weight: 700; }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white; }
+      .section-card { box-shadow: none; border: 1px solid #ddd; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark mb-4 no-print">
+  <div class="container-fluid">
+    <span class="navbar-brand">&#127838; Tranche Bakery &#8212; Bake List</span>
+    <div class="d-flex align-items-center gap-3">
+      <a href="/admin" class="btn btn-sm btn-outline-light">&#8592; Dashboard</a>
+      <a href="/admin/orders" class="btn btn-sm btn-outline-info">Orders</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container-fluid px-4">
+
+  <div class="date-bar no-print d-flex flex-wrap align-items-center gap-2">
+    <a class="btn btn-sm btn-outline-secondary" th:href="@{/admin/bake-list(date=${prevDate})}">&#8592; Previous day</a>
+    <form th:action="@{/admin/bake-list}" method="get" class="d-inline">
+      <input type="date" name="date" th:value="${sheet.date}" class="form-control form-control-sm d-inline"
+             style="width:auto" onchange="this.form.submit()">
+    </form>
+    <a class="btn btn-sm btn-outline-secondary" th:href="@{/admin/bake-list(date=${nextDate})}">Next day &#8594;</a>
+    <span class="mx-2 text-muted">|</span>
+    <a class="btn btn-sm btn-outline-dark" th:href="@{/admin/bake-list(date=${today})}">Today</a>
+    <a class="btn btn-sm btn-outline-dark" th:href="@{/admin/bake-list(date=${tomorrow})}">Tomorrow</a>
+    <button class="btn btn-sm btn-outline-primary ms-auto" onclick="window.print()">&#128424; Print</button>
+  </div>
+
+  <h4 class="mb-3">
+    Bake list for
+    <span th:text="${#temporals.format(sheet.date, 'EEEE, d MMMM yyyy')}"></span>
+  </h4>
+
+  <div th:if="${sheet.aggregate.isEmpty()}" class="alert alert-info">
+    No confirmed orders for this date yet.
+  </div>
+
+  <div th:unless="${sheet.aggregate.isEmpty()}">
+    <div class="section-card">
+      <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+        <span>What to bake (totals)</span>
+        <span class="badge bg-white text-dark" th:text="${sheet.totalItems} + ' items · ' + ${sheet.aggregate.size()} + ' varieties'"></span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr><th>Product</th><th>Total Quantity</th><th># Orders</th></tr>
+          </thead>
+          <tbody>
+            <tr th:each="b : ${sheet.aggregate}">
+              <td th:text="${b.itemName}"></td>
+              <td class="qty-big" th:text="${b.totalQuantity}"></td>
+              <td th:text="${b.orderCount}"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+        <span>Order details (for packing & delivery)</span>
+        <span class="badge bg-white text-dark" th:text="${sheet.orders.size()} + ' orders'"></span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Order #</th><th>Customer</th><th>Items</th><th>Delivery</th><th>Address</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr th:each="v : ${sheet.orders}">
+              <td th:text="${v.order.orderNumber ?: v.order.id}"></td>
+              <td>
+                <div th:text="${v.order.customer.name}"></div>
+                <small class="text-muted" th:text="${v.order.customer.phone}"></small>
+              </td>
+              <td th:text="${v.itemsSummary}"></td>
+              <td><span th:text="${v.order.deliveryPreference ?: '-'}"></span></td>
+              <td>
+                <span th:text="${v.order.deliveryAddress ?: (v.order.customer.deliveryAddress ?: '-')}"></span>
+                <a th:if="${v.mapsUrl != null}" th:href="${v.mapsUrl}" target="_blank" class="ms-1 no-print">map</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

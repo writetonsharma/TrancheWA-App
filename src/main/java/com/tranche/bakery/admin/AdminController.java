@@ -65,6 +65,18 @@ public class AdminController {
         return "admin/orders";
     }
 
+    @GetMapping("/bake-list")
+    public String bakeList(@RequestParam(required = false) String date, Model model) {
+        LocalDate d = parseDate(date);
+        if (d == null) d = LocalDate.now().plusDays(1);
+        model.addAttribute("sheet", adminService.buildBakeSheet(d));
+        model.addAttribute("today", LocalDate.now());
+        model.addAttribute("tomorrow", LocalDate.now().plusDays(1));
+        model.addAttribute("prevDate", d.minusDays(1));
+        model.addAttribute("nextDate", d.plusDays(1));
+        return "admin/bake-list";
+    }
+
     private LocalDate parseDate(String value) {
         if (value == null || value.isBlank()) return null;
         try {

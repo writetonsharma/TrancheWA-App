@@ -1,16 +1,18 @@
 package com.tranche.bakery.alert;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
-
-import java.time.LocalDateTime;
-import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -25,7 +27,7 @@ public class StuckOrderAlertJob {
     private static final String REMINDER_MESSAGE =
             "👋 Hi! It looks like you started an order but haven't finished yet.\n\n" +
             "If you'd like to continue, just send *hi* and pick up where you left off.\n\n" +
-            "_Orders that aren't completed by 6 PM will be set aside for the day._";
+            "_Orders that aren't completed by 5 PM will be set aside for the day._";
 
     @Scheduled(cron = "0 0 * * * *", zone = "Asia/Kolkata")
     public void checkStuckDrafts() {

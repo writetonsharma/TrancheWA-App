@@ -1,16 +1,18 @@
 package com.tranche.bakery.order;
 
-import com.tranche.bakery.conversation.ConversationRepository;
-import com.tranche.bakery.whatsapp.WhatsAppClient;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
+import com.tranche.bakery.conversation.ConversationRepository;
+import com.tranche.bakery.whatsapp.WhatsAppClient;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Component
 @RequiredArgsConstructor
@@ -22,10 +24,10 @@ public class CutoffJob {
     private final WhatsAppClient whatsAppClient;
 
     private static final String CUTOFF_MESSAGE =
-            "⏰ A gentle note — it's 6 PM and your order is still incomplete, so it has been set aside for today.\n\n" +
+            "⏰ A gentle note — it's 5 PM and your order is still incomplete, so it has been set aside for today.\n\n" +
             "Whenever you're ready, simply send *hi* to start fresh. We'd love to bake for you! 🥖";
 
-    @Scheduled(cron = "0 0 18 * * *", zone = "Asia/Kolkata")
+    @Scheduled(cron = "0 0 ${bakery.order.cutoff-hour} * * *", zone = "Asia/Kolkata")
     @Transactional
     public void cancelUnfinishedOrders() {
         LocalDate tomorrow = LocalDate.now().plusDays(1);

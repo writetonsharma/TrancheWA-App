@@ -25,6 +25,7 @@
     <div class="d-flex align-items-center gap-3">
       <span class="navbar-text text-white-50" th:text="${#temporals.format(dashboard.today, 'EEEE, d MMMM yyyy')}"></span>
       <a href="/admin/orders" class="btn btn-sm btn-outline-info">📋 Orders</a>
+      <a href="/admin/bake-list" class="btn btn-sm btn-outline-light">&#127838; Bake List</a>
       <a href="/admin/pricing" class="btn btn-sm btn-outline-warning">💰 Pricing</a>
       <button class="btn btn-sm btn-outline-light" onclick="window.location.reload()">🔄 Refresh</button>
     </div>
@@ -110,6 +111,34 @@
             <td th:text="${a.customerPhone ?: '—'}"></td>
             <td th:text="${a.orderId ?: '—'}"></td>
             <td th:text="${#temporals.format(a.createdAt, 'dd MMM HH:mm')}"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- No delivery date warning -->
+  <div th:if="${!dashboard.noDeliveryDate.isEmpty()}" class="section-card border border-warning">
+    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+      <span>&#9888; Orders missing a delivery date</span>
+      <span class="badge bg-dark text-white badge-count" th:text="${dashboard.noDeliveryDate.size()} + ' orders'"></span>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+          <tr><th>Order #</th><th>Customer</th><th>Items</th><th>Status</th><th>Created</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr th:each="v : ${dashboard.noDeliveryDate}">
+            <td th:text="${v.order.orderNumber ?: v.order.id}"></td>
+            <td>
+              <a th:href="@{'/admin/conversation/' + ${v.order.customer.phone}}" th:text="${v.order.customer.phone}"></a>
+              <div><small class="text-muted" th:text="${v.order.customer.name}"></small></div>
+            </td>
+            <td class="items-cell" th:text="${v.itemsSummary}"></td>
+            <td><span class="badge bg-secondary" th:text="${v.order.status.name()}"></span></td>
+            <td th:text="${#temporals.format(v.order.createdAt, 'dd MMM HH:mm')}"></td>
+            <td><a th:href="@{'/admin/conversation/' + ${v.order.customer.phone}}" class="btn btn-sm btn-outline-dark">Fix</a></td>
           </tr>
         </tbody>
       </table>
