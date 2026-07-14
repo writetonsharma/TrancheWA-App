@@ -18,5 +18,5 @@ public record AdminDashboard(
         List<BakeListItem> bakeListTomorrow,
         List<AdminOrderView> orderHistory,
         List<AdminOrderView> futureDeliveries,
-        List<AdminOrderView> noDeliveryDate
+        List<AdminOrderView> needingFix
 ) {}

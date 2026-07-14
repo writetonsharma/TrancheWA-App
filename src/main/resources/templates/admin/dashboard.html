@@ -117,19 +117,19 @@
     </div>
   </div>
 
-  <!-- No delivery date warning -->
-  <div th:if="${!dashboard.noDeliveryDate.isEmpty()}" class="section-card border border-warning">
+  <!-- Orders needing a fix (missing delivery date or map pin) -->
+  <div th:if="${!dashboard.needingFix.isEmpty()}" class="section-card border border-warning">
     <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
-      <span>&#9888; Orders missing a delivery date</span>
-      <span class="badge bg-dark text-white badge-count" th:text="${dashboard.noDeliveryDate.size()} + ' orders'"></span>
+      <span>&#9888; Orders needing a fix</span>
+      <span class="badge bg-dark text-white badge-count" th:text="${dashboard.needingFix.size()} + ' orders'"></span>
     </div>
     <div class="card-body p-0">
       <table class="table table-sm table-hover mb-0">
         <thead class="table-light">
-          <tr><th>Order #</th><th>Customer</th><th>Items</th><th>Status</th><th>Created</th><th></th></tr>
+          <tr><th>Order #</th><th>Customer</th><th>Items</th><th>Status</th><th>Needs</th><th>Created</th><th></th></tr>
         </thead>
         <tbody>
-          <tr th:each="v : ${dashboard.noDeliveryDate}">
+          <tr th:each="v : ${dashboard.needingFix}">
             <td th:text="${v.order.orderNumber ?: v.order.id}"></td>
             <td>
               <a th:href="@{'/admin/conversation/' + ${v.order.customer.phone}}" th:text="${v.order.customer.phone}"></a>
@@ -137,8 +137,12 @@
             </td>
             <td class="items-cell" th:text="${v.itemsSummary}"></td>
             <td><span class="badge bg-secondary" th:text="${v.order.status.name()}"></span></td>
+            <td class="text-nowrap">
+              <span th:if="${v.order.deliveryDate == null}" class="badge bg-danger">No date</span>
+              <span th:if="${v.order.fulfillmentType != null and v.order.fulfillmentType.name() == 'DELIVERY' and v.mapsUrl == null}" class="badge bg-warning text-dark">No map pin</span>
+            </td>
             <td th:text="${#temporals.format(v.order.createdAt, 'dd MMM HH:mm')}"></td>
-            <td><a th:href="@{'/admin/conversation/' + ${v.order.customer.phone}}" class="btn btn-sm btn-outline-dark">Fix</a></td>
+            <td><a th:href="@{'/admin/conversation/' + ${v.order.customer.phone}(focus='fix')}" class="btn btn-sm btn-outline-dark">Fix</a></td>
           </tr>
         </tbody>
       </table>

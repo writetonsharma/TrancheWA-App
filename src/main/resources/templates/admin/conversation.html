@@ -50,6 +50,9 @@
             <a th:href="'https://maps.google.com/?q=' + ${thread.customer().locationLat} + ',' + ${thread.customer().locationLng}"
                target="_blank" class="btn btn-sm btn-outline-primary">📍 Open in Maps</a>
           </div>
+          <div class="col-auto" th:unless="${thread.customer().locationLat != null and thread.customer().locationLng != null}">
+            <span class="badge bg-warning text-dark">📍 No map pin — add via Edit details</span>
+          </div>
         </div>
       </div>
       <!-- Edit customer details (admin correction for one-off cases) -->
@@ -99,7 +102,7 @@
                 data-bs-toggle="collapse" data-bs-target="#customerOrders">
           📋 Order history (<span th:text="${thread.orders().size()}"></span>)
         </button>
-        <div class="collapse mt-3" id="customerOrders" th:classappend="${historyFiltered} ? ' show' : ''">
+        <div class="collapse mt-3" id="customerOrders" th:classappend="${historyFiltered or focusOrders} ? ' show' : ''">
           <form th:action="@{/admin/conversation/{phone}(phone=${thread.customer().phone})}" method="get" class="row g-2 mb-3">
             <div class="col-auto">
               <label class="form-label mb-1 small text-muted">Status</label>
@@ -132,7 +135,18 @@
                 <tr th:each="v : ${thread.orders()}">
                   <td th:text="${v.order.orderNumber ?: v.order.id}"></td>
                   <td><span class="badge bg-secondary" th:text="${v.order.status.name()}"></span></td>
-                  <td th:text="${v.order.deliveryDate != null ? #temporals.format(v.order.deliveryDate, 'EEE, d MMM') : '—'}"></td>
+                  <td>
+                    <span th:if="${v.order.status.name() == 'COMPLETED' or v.order.status.name() == 'CANCELLED'}"
+                          th:text="${v.order.deliveryDate != null ? #temporals.format(v.order.deliveryDate, 'EEE, d MMM') : '—'}"></span>
+                    <form th:unless="${v.order.status.name() == 'COMPLETED' or v.order.status.name() == 'CANCELLED'}"
+                          th:action="@{/admin/orders/{id}/set-delivery-date(id=${v.order.id})}" method="post"
+                          class="d-flex align-items-center gap-1">
+                      <input type="hidden" name="returnTo" th:value="@{/admin/conversation/{phone}(phone=${thread.customer().phone},focus='fix')}">
+                      <input type="date" name="deliveryDate" class="form-control form-control-sm" style="width: 150px;"
+                             th:value="${v.order.deliveryDate != null ? #temporals.format(v.order.deliveryDate, 'yyyy-MM-dd') : ''}">
+                      <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                    </form>
+                  </td>
                   <td th:text="${v.order.totalAmount != null ? '₹' + v.order.totalAmount : '—'}"></td>
                   <td class="text-muted" th:text="${v.itemsSummary}"></td>
                   <td th:text="${#temporals.format(v.order.createdAt, 'dd MMM HH:mm')}"></td>

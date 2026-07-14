@@ -19,13 +19,12 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.criteria.Predicate;
-
 import com.tranche.bakery.alert.AlertRepository;
 import com.tranche.bakery.alert.AlertService;
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.customer.CustomerRepository;
 import com.tranche.bakery.feedback.FeedbackRepository;
+import com.tranche.bakery.order.FulfillmentType;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderItem;
 import com.tranche.bakery.order.OrderItemRepository;
@@ -34,6 +33,7 @@ import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.payment.PaymentRepository;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -89,16 +89,28 @@ public class AdminService {
                         Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING),
                         today.plusDays(2), today.plusDays(6)));
 
-        List<AdminOrderView> noDeliveryDate = loadViews(
-                orderRepository.findAllByStatusInAndDeliveryDateIsNullOrderByCreatedAtDesc(
-                        Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING)));
+        LocalDate soonEnd = today.plusDays(6);
+        List<AdminOrderView> needingFix = loadViews(
+                orderRepository.findAllByStatusIn(
+                        Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING)))
+                .stream()
+                .filter(v -> {
+                    LocalDate dd = v.order().getDeliveryDate();
+                    if (dd == null) return true;
+                    boolean missingPin = v.order().getFulfillmentType() == FulfillmentType.DELIVERY
+                            && v.mapsUrl() == null;
+                    boolean soon = !dd.isBefore(today) && !dd.isAfter(soonEnd);
+                    return missingPin && soon;
+                })
+                .sorted(Comparator.comparing((AdminOrderView v) -> v.order().getCreatedAt()).reversed())
+                .toList();
 
         return new AdminDashboard(
                 today, deliveringToday, deliveringTomorrow,
                 paymentReview, stuckDrafts, awaitingScreenshot,
                 feedbackRepository.findAllByOrderByCreatedAtDesc(),
                 alertRepository.findAllByResolvedFalseOrderByCreatedAtDesc(),
-                bakeListTomorrow, orderHistory, futureDeliveries, noDeliveryDate);
+                bakeListTomorrow, orderHistory, futureDeliveries, needingFix);
     }
 
     @Transactional
@@ -159,6 +171,15 @@ public class AdminService {
             customer.setLocationLng(parseDecimal(locationLng));
             customerRepository.save(customer);
             log.info("Admin updated customer details for {}", phone);
+        });
+    }
+
+    @Transactional
+    public void updateOrderDeliveryDate(Long orderId, LocalDate deliveryDate) {
+        orderRepository.findById(orderId).ifPresent(order -> {
+            order.setDeliveryDate(deliveryDate);
+            orderRepository.save(order);
+            log.info("Admin set delivery date {} on order {}", deliveryDate, orderId);
         });
     }
 

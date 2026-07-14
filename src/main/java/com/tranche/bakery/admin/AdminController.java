@@ -174,6 +174,21 @@ public class AdminController {
         return redirectTo(returnTo, "/admin");
     }
 
+    @PostMapping("/orders/{id}/set-delivery-date")
+    public String setDeliveryDate(@PathVariable Long id,
+                                  @RequestParam String deliveryDate,
+                                  @RequestParam(required = false) String returnTo,
+                                  RedirectAttributes redirectAttributes) {
+        LocalDate parsed = parseDate(deliveryDate);
+        if (parsed == null) {
+            redirectAttributes.addFlashAttribute("flash", "Please choose a valid delivery date.");
+        } else {
+            adminService.updateOrderDeliveryDate(id, parsed);
+            redirectAttributes.addFlashAttribute("flash", "Delivery date set for order #" + id + ".");
+        }
+        return redirectTo(returnTo, "/admin");
+    }
+
     @PostMapping("/alerts/resolve-all")
     public String resolveAllAlerts(RedirectAttributes redirectAttributes) {
         adminService.resolveAllAlerts();
@@ -186,6 +201,7 @@ public class AdminController {
                                    @RequestParam(required = false) String orderStatus,
                                    @RequestParam(required = false) String from,
                                    @RequestParam(required = false) String to,
+                                   @RequestParam(required = false) String focus,
                                    Model model) {
         OrderStatus statusFilter = parseStatus(orderStatus);
         LocalDate fromDate = parseDate(from);
@@ -201,6 +217,7 @@ public class AdminController {
         model.addAttribute("historyFrom", from);
         model.addAttribute("historyTo", to);
         model.addAttribute("historyFiltered", statusFilter != null || fromDate != null || toDate != null);
+        model.addAttribute("focusOrders", "fix".equals(focus) || "orders".equals(focus));
         return "admin/conversation";
     }
 
