@@ -171,6 +171,15 @@ public class OrderService {
             sb.append("\n📦 Delivery: ").append(prefLabel);
         }
 
+        if (order.getLoafPreference() != null) {
+            String loafLabel = switch (order.getLoafPreference()) {
+                case "SLICED" -> "Sliced";
+                case "WHOLE" -> "Whole";
+                default -> order.getLoafPreference();
+            };
+            sb.append("\n🍞 Loaves: ").append(loafLabel);
+        }
+
         boolean afterCutoff = java.time.LocalTime.now().getHour() >= cutoffHour;
         if (afterCutoff) {
             sb.append("\n\n_After 5 PM: this order will not be baked tomorrow morning. It will be scheduled for the following bake day._");

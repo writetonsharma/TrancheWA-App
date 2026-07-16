@@ -86,7 +86,7 @@
         <table class="table table-sm table-hover mb-0 align-middle">
           <thead class="table-light">
             <tr>
-              <th>Order #</th><th>Customer</th><th>Items</th><th>Total</th>
+              <th>Order #</th><th>Customer</th><th>Items</th><th>Loaves</th><th>Total</th>
               <th>Status</th><th>Delivery</th><th>Created</th><th>Location</th><th>Actions</th>
             </tr>
           </thead>
@@ -99,6 +99,7 @@
                 <div><small class="text-muted" th:text="${v.order.customer.name}"></small></div>
               </td>
               <td class="items-cell" th:text="${v.itemsSummary}"></td>
+              <td th:text="${v.order.loafPreference == 'SLICED' ? 'Sliced' : (v.order.loafPreference == 'WHOLE' ? 'Whole' : '—')}"></td>
               <td th:text="${v.order.totalAmount != null ? '₹' + v.order.totalAmount : '—'}"></td>
               <td><span class="badge bg-secondary" th:text="${v.order.status.name()}"></span></td>
               <td th:text="${v.order.deliveryDate != null ? #temporals.format(v.order.deliveryDate, 'EEE, d MMM') : '—'}"></td>

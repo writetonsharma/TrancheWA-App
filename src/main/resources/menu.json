@@ -34,8 +34,8 @@
       "name": "Breakfast & Specialty",
       "displayOrder": 3,
       "items": [
-        { "name": "Plain Bagel",                 "price": 260.00, "displayOrder": 1, "description": "Set of 6 bagels" },
-        { "name": "Caramelized Onion Bagel",     "price": 280.00, "displayOrder": 2, "description": "Set of 6 bagels" },
+        { "name": "Classic New York-Style Bagel", "price": 330.00, "displayOrder": 1, "description": "Set of 6; 48 hours' notice" },
+        { "name": "Caramelized Onion Bagel",      "price": 340.00, "displayOrder": 2, "description": "Set of 6; 48 hours' notice" },
         { "name": "Rosemary Focaccia",           "price": 360.00, "displayOrder": 3 },
         { "name": "Olive & Tomato Focaccia",     "price": 380.00, "displayOrder": 4 },
         { "name": "Garlic Knots",                "price": 220.00, "displayOrder": 5, "description": "Set of 6 knots" }

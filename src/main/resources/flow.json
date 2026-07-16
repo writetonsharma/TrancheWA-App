@@ -168,6 +168,7 @@
     },
 
     "ORDER_SELECT_DATE": {
+      "entryAction": "NOTIFY_DATE_CAPACITY",
       "entryMessage": {
         "type": "list",
         "body": "When would you like your order delivered? 🗓️\n\nWe deliver between *6–8 AM*. Choose your preferred morning below:",
@@ -260,10 +261,30 @@
         ]
       },
       "transitions": [
-        { "match": "pref_gate",   "nextState": "ORDER_CONFIRM", "action": "SAVE_DELIVERY_PREFERENCE" },
-        { "match": "pref_door",   "nextState": "ORDER_CONFIRM", "action": "SAVE_DELIVERY_PREFERENCE" },
-        { "match": "pref_person", "nextState": "ORDER_CONFIRM", "action": "SAVE_DELIVERY_PREFERENCE" },
+        { "match": "pref_gate",   "nextState": "LOAF_PREFERENCE_GATE", "action": "SAVE_DELIVERY_PREFERENCE" },
+        { "match": "pref_door",   "nextState": "LOAF_PREFERENCE_GATE", "action": "SAVE_DELIVERY_PREFERENCE" },
+        { "match": "pref_person", "nextState": "LOAF_PREFERENCE_GATE", "action": "SAVE_DELIVERY_PREFERENCE" },
         { "match": "*", "errorMessage": "Please tap one of the buttons above." }
+      ]
+    },
+
+    "LOAF_PREFERENCE_GATE": {
+      "entryAction": "ROUTE_TO_LOAF_PREFERENCE_OR_CONFIRM"
+    },
+
+    "LOAF_PREFERENCE": {
+      "entryMessage": {
+        "type": "buttons",
+        "body": "🍞 How would you like the loaves in this order?",
+        "buttons": [
+          { "id": "loaf_sliced", "title": "Sliced" },
+          { "id": "loaf_whole",  "title": "Whole" }
+        ]
+      },
+      "transitions": [
+        { "match": "loaf_sliced", "nextState": "ORDER_CONFIRM", "action": "SAVE_LOAF_PREFERENCE" },
+        { "match": "loaf_whole",  "nextState": "ORDER_CONFIRM", "action": "SAVE_LOAF_PREFERENCE" },
+        { "match": "*", "errorMessage": "Please choose Sliced or Whole." }
       ]
     },
 
@@ -310,7 +331,7 @@
     "MESSAGE_CONTACT": {
       "entryMessage": {
         "type": "text",
-        "body": "For questions, feedback, or a quick call, chat with our team directly here:\n\nhttps://wa.me/910000000000\n\nTap the link to open a chat. 🍞\n\n_Send *hi* anytime to place an order._"
+        "body": "For questions, feedback, or a quick call, chat with our team directly here:\n\nhttps://wa.me/918796770308\n\nTap the link to open a chat. 🍞\n\n_Send *hi* anytime to place an order._"
       },
       "autoTransition": "IDLE"
     }

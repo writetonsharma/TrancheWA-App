@@ -1,0 +1,1 @@
+ALTER TABLE orders ADD COLUMN loaf_preference VARCHAR(20);

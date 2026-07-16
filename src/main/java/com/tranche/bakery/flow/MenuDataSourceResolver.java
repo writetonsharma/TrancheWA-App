@@ -1,8 +1,6 @@
 package com.tranche.bakery.flow;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +12,7 @@ import com.tranche.bakery.delivery.DeliveryAreaLoader;
 import com.tranche.bakery.menu.MenuCategory;
 import com.tranche.bakery.menu.MenuCategoryRepository;
 import com.tranche.bakery.menu.MenuItemRepository;
+import com.tranche.bakery.order.DeliveryRules;
 import com.tranche.bakery.whatsapp.WhatsAppMessage;
 
 import lombok.RequiredArgsConstructor;
@@ -25,9 +24,7 @@ public class MenuDataSourceResolver implements DataSourceResolver {
     private final MenuCategoryRepository categoryRepository;
     private final MenuItemRepository itemRepository;
     private final DeliveryAreaLoader deliveryAreaLoader;
-
-    @org.springframework.beans.factory.annotation.Value("${bakery.order.cutoff-hour}")
-    private int cutoffHour;
+    private final DeliveryRules deliveryRules;
 
     @Override
     public List<WhatsAppMessage.Section> resolve(String dataSource, Map<String, Object> context) {
@@ -35,7 +32,7 @@ public class MenuDataSourceResolver implements DataSourceResolver {
             case "MENU_CATEGORIES" -> resolveCategories();
             case "MENU_ITEMS"      -> resolveItems(context);
             case "DELIVERY_AREAS"  -> resolveDeliveryAreas();
-            case "DELIVERY_DATES"  -> resolveDeliveryDates();
+            case "DELIVERY_DATES"  -> resolveDeliveryDates(context);
             default -> throw new IllegalArgumentException("Unknown dataSource: " + dataSource);
         };
     }
@@ -78,22 +75,27 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         return List.of(new WhatsAppMessage.Section("Delivery Areas", rows));
     }
 
-    private List<WhatsAppMessage.Section> resolveDeliveryDates() {
-        // Start from tomorrow; if after cutoff, start from day after tomorrow
-        LocalDate start = LocalDate.now().plusDays(
-                LocalTime.now().getHour() >= cutoffHour ? 2 : 1);
+    private List<WhatsAppMessage.Section> resolveDeliveryDates(Map<String, Object> context) {
+        Object orderIdVal = context != null ? context.get("orderId") : null;
+        Long orderId = orderIdVal != null ? Long.parseLong(orderIdVal.toString()) : null;
+        DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(orderId);
+
+        // Earliest date accounts for cutoff + the 48h bagel lead time.
+        LocalDate start = deliveryRules.earliestDate(flags);
 
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("EEEE, d MMMM");
         List<WhatsAppMessage.Row> rows = new ArrayList<>();
         LocalDate candidate = start;
-        while (rows.size() < 7) {
-            // Skip Mondays — no delivery (nothing baked on Sunday)
-            if (candidate.getDayOfWeek() != DayOfWeek.MONDAY) {
+        int scanned = 0;
+        // Scan up to 60 days so weekend-only carts (focaccia) still fill the list.
+        while (rows.size() < 7 && scanned < 60) {
+            if (deliveryRules.isAvailable(candidate, flags)) {
                 rows.add(new WhatsAppMessage.Row(
                         candidate.toString(),          // id: "2026-06-21"
                         candidate.format(fmt)));       // title: "Saturday, 21 June"
             }
             candidate = candidate.plusDays(1);
+            scanned++;
         }
         return List.of(new WhatsAppMessage.Section("Choose Delivery Date", rows));
     }

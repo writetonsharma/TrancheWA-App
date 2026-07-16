@@ -148,12 +148,15 @@ public abstract class FlowScenarioBase {
         send(deliveryDate);
         send("use_address");
         send("pref_gate");
+        send("loaf_sliced");
         send("confirm");
 
         assertState("PAYMENT_PENDING");
         List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(
                 customer.getId(), OrderStatus.PENDING_CONFIRMATION);
         assertThat(pending).as("one PENDING_CONFIRMATION order after confirm").hasSize(1);
+        assertThat(pending.get(0).getLoafPreference()).isEqualTo("SLICED");
+        assertThat(sentTexts).anyMatch(text -> text.contains("Loaves: Sliced"));
         return pending.get(0).getId();
     }
 

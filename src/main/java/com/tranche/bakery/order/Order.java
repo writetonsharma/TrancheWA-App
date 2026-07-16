@@ -76,6 +76,9 @@ public class Order {
     @Column(length = 20)
     private String deliveryPreference;
 
+    @Column(length = 20)
+    private String loafPreference;
+
     @Column(precision = 9, scale = 6)
     private BigDecimal locationLat;
 

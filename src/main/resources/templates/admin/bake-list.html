@@ -86,7 +86,7 @@
         <table class="table table-sm mb-0 align-middle">
           <thead class="table-light">
             <tr>
-              <th>Order #</th><th>Customer</th><th>Items</th><th>Delivery</th><th>Address</th>
+              <th>Order #</th><th>Customer</th><th>Items</th><th>Loaves</th><th>Delivery</th><th>Address</th>
             </tr>
           </thead>
           <tbody>
@@ -97,6 +97,7 @@
                 <small class="text-muted" th:text="${v.order.customer.phone}"></small>
               </td>
               <td th:text="${v.itemsSummary}"></td>
+              <td th:text="${v.order.loafPreference == 'SLICED' ? 'Sliced' : (v.order.loafPreference == 'WHOLE' ? 'Whole' : '—')}"></td>
               <td><span th:text="${v.order.deliveryPreference ?: '-'}"></span></td>
               <td>
                 <span th:text="${v.order.deliveryAddress ?: (v.order.customer.deliveryAddress ?: '-')}"></span>

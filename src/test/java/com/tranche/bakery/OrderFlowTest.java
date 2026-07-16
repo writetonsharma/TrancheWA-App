@@ -1,21 +1,21 @@
 package com.tranche.bakery;
 
-import com.tranche.bakery.order.Order;
-import com.tranche.bakery.order.OrderItem;
-import com.tranche.bakery.order.OrderStatus;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-
-import com.tranche.bakery.admin.AdminService;
-import com.tranche.bakery.order.OrderItemRepository;
-
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import com.tranche.bakery.admin.AdminService;
+import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderItem;
+import com.tranche.bakery.order.OrderItemRepository;
+import com.tranche.bakery.order.OrderStatus;
 
 /**
  * End-to-end scenario tests for the WhatsApp ordering flow.
@@ -39,6 +39,161 @@ class OrderFlowTest extends FlowScenarioBase {
 
         assertState("IDLE");
         assertOrderStatus(orderId, OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    void bunsOnlyOrder_skipsLoafPreference() {
+        var bunsCategory = categoryRepository.findAllByActiveTrueOrderByDisplayOrderAsc().get(1);
+        String itemId = firstItemId(bunsCategory.getId().toString());
+
+        send("hi");
+        send("order");
+        send(bunsCategory.getId().toString());
+        send(itemId);
+        send("1");
+        send("view_order");
+        send(nextDeliveryDate());
+        send("use_address");
+        send("pref_gate");
+
+        assertState("ORDER_CONFIRM");
+        assertThat(sentButtonBodies).noneMatch(text -> text.contains("How would you like the loaves"));
+    }
+
+    // ── Bagel needs 48h lead: too-early dates are rejected ───────────────
+
+    @Test
+    void bagelOrder_rejectsTooEarlyDate() {
+        String catId  = categoryIdByName("Breakfast & Specialty");
+        String itemId = itemIdByNameContains(catId, "bagel");
+
+        send("hi");
+        send("order");
+        send(catId);
+        send(itemId);
+        send("1");
+        send("view_order");
+        assertState("ORDER_SELECT_DATE");
+
+        // Today is always before the bagel earliest date (>= today + 2)
+        send(LocalDate.now().toString());
+        assertState("ORDER_SELECT_DATE");
+        assertThat(sentTexts).anyMatch(t -> t.contains("48-hour"));
+
+        // A valid bagel date advances past date selection
+        send(bagelEarliestDate());
+        assertState("ADDRESS_CONFIRM");
+    }
+
+    // ── Focaccia is weekend-only: weekday dates are rejected ──────────────
+
+    @Test
+    void focacciaOrder_rejectsWeekday() {
+        String catId  = categoryIdByName("Breakfast & Specialty");
+        String itemId = itemIdByNameContains(catId, "focaccia");
+
+        send("hi");
+        send("order");
+        send(catId);
+        send(itemId);
+        send("1");
+        send("view_order");
+        assertState("ORDER_SELECT_DATE");
+
+        // A future Wednesday clears the lead time but is not a weekend -> rejected
+        send(nextWeekday(DayOfWeek.WEDNESDAY).toString());
+        assertState("ORDER_SELECT_DATE");
+        assertThat(sentTexts).anyMatch(t -> t.contains("weekend"));
+
+        // A weekend date is accepted
+        send(nextWeekend(DayOfWeek.SATURDAY).toString());
+        assertState("ADDRESS_CONFIRM");
+    }
+
+    // -- Daily capacity: a fully-booked date is hidden, rejected, and explained ----
+
+    @Test
+    void fullyBookedDate_isHiddenRejectedAndExplained() {
+        // Fill the soonest normal delivery day to the test capacity (3 items)
+        LocalDate full = LocalDate.parse(nextDeliveryDate());
+        fillDateCapacity(full, 3);
+
+        String catId  = firstCategoryId();
+        String itemId = firstItemId(catId);
+
+        send("hi");
+        send("order");
+        send(catId);
+        send(itemId);
+        send("1");
+        send("view_order");
+        assertState("ORDER_SELECT_DATE");
+
+        // Entry note explains why the soonest day is missing
+        assertThat(sentTexts).anyMatch(t -> t.contains("fully booked"));
+
+        // Selecting the full date is rejected and re-prompts
+        send(full.toString());
+        assertState("ORDER_SELECT_DATE");
+        assertThat(sentTexts).anyMatch(t -> t.contains("fully booked"));
+
+        // The next available (non-Monday) date is accepted
+        LocalDate next = full.plusDays(1);
+        while (next.getDayOfWeek() == DayOfWeek.MONDAY) next = next.plusDays(1);
+        send(next.toString());
+        assertState("ADDRESS_CONFIRM");
+    }
+
+    // Seed a CONFIRMED order for another customer that books `qty` items on `date`.
+    private void fillDateCapacity(LocalDate date, int qty) {
+        var item = itemRepository.findAll().get(0);
+        Long custId = jdbcTemplate.queryForObject(
+                "INSERT INTO customers (phone) VALUES (?) RETURNING id",
+                Long.class, "9198" + (System.nanoTime() % 100000000L));
+        Long orderId = jdbcTemplate.queryForObject(
+                "INSERT INTO orders (customer_id, status, fulfillment_type, delivery_charge, delivery_date) "
+                        + "VALUES (?, 'CONFIRMED', 'delivery', 0, ?) RETURNING id",
+                Long.class, custId, java.sql.Date.valueOf(date));
+        jdbcTemplate.update(
+                "INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, subtotal) "
+                        + "VALUES (?, ?, ?, 0, 0)",
+                orderId, item.getId(), qty);
+    }
+
+    private String categoryIdByName(String name) {
+        return categoryRepository.findAllByActiveTrueOrderByDisplayOrderAsc().stream()
+                .filter(cat -> cat.getName().equals(name))
+                .findFirst().orElseThrow()
+                .getId().toString();
+    }
+
+    private String itemIdByNameContains(String categoryId, String needle) {
+        var category = categoryRepository.findById(Long.parseLong(categoryId)).orElseThrow();
+        return itemRepository.findAllByCategoryAndActiveTrueOrderByDisplayOrderAsc(category).stream()
+                .filter(i -> i.getName().toLowerCase().contains(needle))
+                .findFirst().orElseThrow()
+                .getId().toString();
+    }
+
+    // Earliest valid date for a bagel cart: base lead + 1 extra day, skipping Monday.
+    private String bagelEarliestDate() {
+        LocalDate d = LocalDate.now().plusDays(LocalTime.now().getHour() >= 23 ? 3 : 2);
+        while (d.getDayOfWeek() == DayOfWeek.MONDAY) d = d.plusDays(1);
+        return d.toString();
+    }
+
+    // Next occurrence of the given weekday at least a week out (safely past lead time).
+    private LocalDate nextWeekday(DayOfWeek dow) {
+        LocalDate d = LocalDate.now().plusDays(7);
+        while (d.getDayOfWeek() != dow) d = d.plusDays(1);
+        return d;
+    }
+
+    // Next occurrence of the given weekend day that respects the base lead time.
+    private LocalDate nextWeekend(DayOfWeek dow) {
+        LocalDate d = LocalDate.now().plusDays(LocalTime.now().getHour() >= 23 ? 2 : 1);
+        while (d.getDayOfWeek() != dow) d = d.plusDays(1);
+        return d;
     }
 
     // ── 2. Customer cancels via the cancel_<id> button on the QR message ─────
@@ -96,6 +251,7 @@ class OrderFlowTest extends FlowScenarioBase {
         send(date);
         send("use_address");
         send("pref_gate");
+        send("loaf_sliced");
         send("confirm");    // order 1 → PENDING_CONFIRMATION
 
         List<Order> after1 = orderRepository.findAllByCustomerIdAndStatus(
@@ -144,7 +300,8 @@ class OrderFlowTest extends FlowScenarioBase {
         send(date2);                // ORDER_CONFIRM_SEPARATE
         send("continue_order");     // ADDRESS_GATE → ADDRESS_CONFIRM
         send("use_address");        // DELIVERY_PREFERENCE
-        send("pref_gate");          // ORDER_CONFIRM
+        send("pref_gate");          // LOAF_PREFERENCE
+        send("loaf_sliced");        // ORDER_CONFIRM
         send("confirm");            // PAYMENT_PENDING
 
         List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(
@@ -248,6 +405,7 @@ class OrderFlowTest extends FlowScenarioBase {
         send("continue_order");
         send("use_address");
         send("pref_gate");
+        send("loaf_sliced");
         send("confirm");
 
         // 3rd date: skip two ahead from date1
@@ -262,6 +420,7 @@ class OrderFlowTest extends FlowScenarioBase {
         send("continue_order");
         send("use_address");
         send("pref_gate");
+        send("loaf_sliced");
         send("confirm");
 
         List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(

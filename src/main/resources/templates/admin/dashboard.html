@@ -214,7 +214,7 @@
       <div th:unless="${dashboard.deliveringToday.isEmpty()}" class="table-responsive">
         <table class="table table-sm table-hover mb-0">
           <thead class="table-light">
-            <tr><th>Order #</th><th>Customer</th><th>Delivery Date</th><th>Area / Address</th><th>Items</th><th>Total</th><th>Delivery</th><th>Location</th><th>Action</th></tr>
+            <tr><th>Order #</th><th>Customer</th><th>Delivery Date</th><th>Area / Address</th><th>Items</th><th>Loaves</th><th>Total</th><th>Delivery</th><th>Location</th><th>Action</th></tr>
           </thead>
           <tbody>
             <tr th:each="v : ${dashboard.deliveringToday}">
@@ -229,6 +229,7 @@
                 <small class="text-muted" th:text="${v.order.deliveryAddress ?: v.order.customer.deliveryAddress ?: '—'}"></small>
               </td>
               <td class="items-cell" th:text="${v.itemsSummary}"></td>
+              <td th:text="${v.order.loafPreference == 'SLICED' ? 'Sliced' : (v.order.loafPreference == 'WHOLE' ? 'Whole' : '—')}"></td>
               <td th:text="'₹' + ${v.order.totalAmount}"></td>
               <td><span class="badge bg-light text-dark" th:text="${v.order.deliveryPreference ?: '—'}"></span></td>
               <td>
@@ -263,7 +264,7 @@
       <div th:unless="${dashboard.deliveringTomorrow.isEmpty()}" class="table-responsive">
         <table class="table table-sm table-hover mb-0">
           <thead class="table-light">
-            <tr><th>Order #</th><th>Customer</th><th>Delivery Date</th><th>Area / Address</th><th>Items</th><th>Total</th><th>Delivery</th><th>Location</th></tr>
+            <tr><th>Order #</th><th>Customer</th><th>Delivery Date</th><th>Area / Address</th><th>Items</th><th>Loaves</th><th>Total</th><th>Delivery</th><th>Location</th></tr>
           </thead>
           <tbody>
             <tr th:each="v : ${dashboard.deliveringTomorrow}">
@@ -278,6 +279,7 @@
                 <small class="text-muted" th:text="${v.order.deliveryAddress ?: v.order.customer.deliveryAddress ?: '—'}"></small>
               </td>
               <td class="items-cell" th:text="${v.itemsSummary}"></td>
+              <td th:text="${v.order.loafPreference == 'SLICED' ? 'Sliced' : (v.order.loafPreference == 'WHOLE' ? 'Whole' : '—')}"></td>
               <td th:text="'₹' + ${v.order.totalAmount}"></td>
               <td><span class="badge bg-light text-dark" th:text="${v.order.deliveryPreference ?: '—'}"></span></td>
               <td>

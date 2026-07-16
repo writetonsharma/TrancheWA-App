@@ -6,6 +6,7 @@ import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderService;
 import com.tranche.bakery.order.OrderStatus;
+import com.tranche.bakery.order.DeliveryRules;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Component
@@ -23,6 +25,7 @@ public class SaveDeliveryDateAction implements FlowAction {
     private final OrderRepository orderRepository;
     private final OrderService orderService;
     private final WhatsAppClient whatsAppClient;
+    private final DeliveryRules deliveryRules;
 
     private static final int MAX_PENDING_ORDERS = 3;
 
@@ -41,6 +44,21 @@ public class SaveDeliveryDateAction implements FlowAction {
 
         LocalDate deliveryDate = LocalDate.parse(dateStr);
         Long customerId = ctx.getCustomer().getId();
+
+        // Enforce scheduling rules: bagel 48h lead, focaccia weekend-only, no Mondays, daily capacity
+        DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(draft.getId());
+        if (!deliveryRules.isValidDeliveryDate(deliveryDate, flags)) {
+            boolean dayTypeOk = deliveryRules.isDeliverableDay(deliveryDate, flags)
+                    && !deliveryDate.isBefore(deliveryRules.earliestDate(flags));
+            String reason = dayTypeOk
+                    ? fullDateMessage(deliveryDate, deliveryRules.firstAvailableDate(flags))
+                    : invalidDateMessage(flags);
+            whatsAppClient.sendText(ctx.getCustomer().getPhone(), reason);
+            ctx.setRedirectState("ORDER_SELECT_DATE");
+            log.info("Rejected delivery date {} for draft {} (bagel={}, focaccia={}, capacityFull={}) - re-prompting",
+                    deliveryDate, draft.getId(), flags.hasBagel(), flags.hasFocaccia(), dayTypeOk);
+            return;
+        }
 
         // Case 1: customer already has a PENDING_CONFIRMATION order for this exact date → merge into it
         Order existing = orderRepository
@@ -88,5 +106,24 @@ public class SaveDeliveryDateAction implements FlowAction {
         // Case 4: no existing pending orders — normal flow continues to ADDRESS_GATE
         log.info("Delivery date {} saved for draft {} (customer {})",
                 deliveryDate, draft.getId(), ctx.getCustomer().getPhone());
+    }
+    private String invalidDateMessage(DeliveryRules.CartFlags flags) {
+        StringBuilder sb = new StringBuilder("That date isn't available for this order. ");
+        if (flags.hasBagel()) {
+            sb.append("Bagels need a 48-hour head start (18-hour cold fermentation). ");
+        }
+        if (flags.hasFocaccia()) {
+            sb.append("Focaccia is baked for weekends only (Friday to Sunday). ");
+        }
+        sb.append("Please pick one of the dates below.");
+        return sb.toString();
+    }
+
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("EEEE, d MMMM");
+
+    private String fullDateMessage(LocalDate requested, LocalDate earliestAvailable) {
+        return "Sorry, *" + requested.format(DATE_FMT) + "* is fully booked — we've reached our baking limit for that day. "
+                + "The earliest morning we can deliver is *" + earliestAvailable.format(DATE_FMT) + "*. "
+                + "Please pick one of the dates below.";
     }
 }
