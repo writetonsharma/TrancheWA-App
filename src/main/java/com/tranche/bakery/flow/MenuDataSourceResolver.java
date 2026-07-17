@@ -62,7 +62,10 @@ public class MenuDataSourceResolver implements DataSourceResolver {
                     String desc = (i.getDescription() != null && !i.getDescription().isBlank())
                             ? price + " · " + i.getDescription()
                             : price;
-                    return new WhatsAppMessage.Row(i.getId().toString(), i.getName(), desc);
+                    String title = (i.getListTitle() != null && !i.getListTitle().isBlank())
+                            ? i.getListTitle()
+                            : i.getName();
+                    return new WhatsAppMessage.Row(i.getId().toString(), title, desc);
                 })
                 .toList();
         return List.of(new WhatsAppMessage.Section(category.getName(), rows));

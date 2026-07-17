@@ -19,6 +19,12 @@ public class MenuItem {
     @Column(nullable = false, length = 100)
     private String name;
 
+    // Optional short title for WhatsApp interactive-list rows, whose titles
+    // are capped at 24 characters by the WhatsApp Cloud API. When null, the
+    // full name is used (and truncated as a safety net). Synced from menu.json.
+    @Column(name = "list_title", length = 24)
+    private String listTitle;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

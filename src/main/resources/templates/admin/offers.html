@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offers 🏷️ Tranche Bakery Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f8f5f0; }
+    .navbar-brand { font-weight: 700; letter-spacing: 1px; }
+    .section-card { background: white; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
+    .section-card .card-header { border-radius: 8px 8px 0 0; font-weight: 600; }
+    .offer-off { opacity: 0.55; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark mb-4">
+  <div class="container-fluid">
+    <span class="navbar-brand">🥖 Tranche Bakery — Offers</span>
+    <div class="d-flex align-items-center gap-3">
+      <a href="/admin/pricing" class="btn btn-sm btn-outline-warning">₹ Pricing</a>
+      <a href="/admin" class="btn btn-sm btn-outline-light">← Dashboard</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container-fluid px-4">
+
+  <div th:if="${flash}" class="alert alert-success alert-dismissible fade show" role="alert">
+    <span th:text="${flash}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <span th:text="${error}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <div class="section-card">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <span>Current Offers</span>
+      <span class="badge bg-dark text-white" th:text="${offers.size()} + ' offers'"></span>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        Turn an offer on or off instantly — no deploy needed. Changes apply to new orders immediately.
+        Offers stack by group: one discount + one delivery perk + one free gift can all apply to the same order,
+        and within a group the customer always gets the best one. Website Offers section should be kept in step with these.
+      </p>
+      <div th:if="${offers.isEmpty()}" class="text-muted">No offers configured.</div>
+      <div th:unless="${offers.isEmpty()}" class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Offer</th>
+              <th>Kind</th>
+              <th>Group</th>
+              <th>Value</th>
+              <th>Live now</th>
+              <th style="min-width:320px;">Edit</th>
+              <th>On/Off</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr th:each="o : ${offers}" th:classappend="${!o.active} ? 'offer-off' : ''">
+              <td>
+                <strong th:text="${o.label}"></strong>
+                <div class="text-muted small" th:text="${o.code}"></div>
+              </td>
+              <td><span class="badge bg-secondary" th:text="${o.kind}"></span></td>
+              <td><span class="badge bg-info text-dark" th:text="${o.stackGroup}"></span></td>
+              <td>
+                <span th:if="${o.kind.name() == 'PERCENT_OFF'}" th:text="${o.percent} + '%'"></span>
+                <span th:if="${o.kind.name() == 'FREE_DELIVERY_OVER'}" th:text="'over ₹' + ${o.thresholdAmount}"></span>
+                <span th:if="${o.kind.name() == 'FREE_ITEM_OVER'}" th:text="'over ₹' + ${o.thresholdAmount}"></span>
+              </td>
+              <td>
+                <span th:if="${o.isLiveAt(now)}" class="badge bg-success">Live</span>
+                <span th:unless="${o.isLiveAt(now)}" class="badge bg-secondary">Off</span>
+              </td>
+              <td>
+                <form th:action="@{/admin/offers/update/{id}(id=${o.id})}" method="post" class="row g-1">
+                  <div class="col-12 mb-1">
+                    <input type="text" name="label" class="form-control form-control-sm" th:value="${o.label}" placeholder="Label">
+                  </div>
+                  <div class="col-5" th:if="${o.kind.name() == 'PERCENT_OFF'}">
+                    <input type="number" name="percent" step="0.01" min="0" max="100" class="form-control form-control-sm"
+                           th:value="${o.percent}" placeholder="% off">
+                  </div>
+                  <div class="col-5" th:if="${o.kind.name() != 'PERCENT_OFF'}">
+                    <input type="number" name="thresholdAmount" step="1" min="0" class="form-control form-control-sm"
+                           th:value="${o.thresholdAmount}" placeholder="Threshold ₹">
+                  </div>
+                  <div class="col-12 mt-1" th:if="${o.kind.name() == 'FREE_ITEM_OVER'}">
+                    <input type="text" name="giftLabel" class="form-control form-control-sm" th:value="${o.giftLabel}" placeholder="Gift label">
+                  </div>
+                  <div class="col-auto">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                  </div>
+                </form>
+              </td>
+              <td>
+                <form th:action="@{/admin/offers/toggle/{id}(id=${o.id})}" method="post">
+                  <button type="submit"
+                          th:classappend="${o.active} ? 'btn-success' : 'btn-outline-secondary'"
+                          class="btn btn-sm"
+                          th:text="${o.active} ? 'ON' : 'OFF'"></button>
+                </form>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

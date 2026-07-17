@@ -19,7 +19,23 @@ public class WhatsAppMessage {
         return new InteractiveMessage(to, new Interactive("button", body, action));
     }
 
+    // WhatsApp Cloud API rejects interactive-list row titles longer than 24
+    // characters (error 131009). Enforce the cap here so no list send can 400,
+    // regardless of the data source that built the rows.
+    private static final int MAX_ROW_TITLE_LEN = 24;
+
     public static InteractiveMessage listMessage(String to, String bodyText, String buttonLabel, List<Section> sections) {
+        if (sections != null) {
+            for (Section section : sections) {
+                if (section.getRows() == null) continue;
+                for (Row row : section.getRows()) {
+                    String title = row.getTitle();
+                    if (title != null && title.length() > MAX_ROW_TITLE_LEN) {
+                        row.setTitle(title.substring(0, MAX_ROW_TITLE_LEN).trim());
+                    }
+                }
+            }
+        }
         var body = new InteractiveBody(bodyText);
         var action = new ListAction(buttonLabel, sections);
         return new InteractiveMessage(to, new Interactive("list", body, action));

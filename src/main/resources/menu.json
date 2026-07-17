@@ -4,50 +4,173 @@
       "name": "Loaves",
       "displayOrder": 1,
       "items": [
-        { "name": "Everyday Sandwich Loaf",  "price": 280.00, "displayOrder": 1 },
-        { "name": "Whole Wheat Loaf 50%",    "price": 300.00, "displayOrder": 2 },
-        { "name": "Whole Wheat Loaf 80%",    "price": 310.00, "displayOrder": 3 },
-        { "name": "Multi-Seeded Loaf",       "price": 320.00, "displayOrder": 4 },
-        { "name": "Country Loaf",            "price": 290.00, "displayOrder": 5 },
-        { "name": "Enriched White Loaf",     "price": 340.00, "displayOrder": 6 },
-        { "name": "Honey & Walnut Loaf",     "price": 370.00, "displayOrder": 7 },
-        { "name": "Olive Loaf",              "price": 360.00, "displayOrder": 8 },
-        { "name": "Caramelized Onion Loaf",  "price": 350.00, "displayOrder": 9 },
-        { "name": "Honey & Oat Loaf",        "price": 360.00, "displayOrder": 10 }
+        {
+          "name": "Classic Table White",
+          "price": 260.0,
+          "displayOrder": 1
+        },
+        {
+          "name": "Whole Wheat Loaf 50%",
+          "price": 260.0,
+          "displayOrder": 2
+        },
+        {
+          "name": "Whole Wheat Loaf 80%",
+          "price": 260.0,
+          "displayOrder": 3
+        },
+        {
+          "name": "Multi-Seed Loaf",
+          "price": 320.0,
+          "displayOrder": 4
+        },
+        {
+          "name": "Country Loaf",
+          "price": 260.0,
+          "displayOrder": 5
+        },
+        {
+          "name": "Milk & Butter Loaf",
+          "price": 340.0,
+          "displayOrder": 6
+        },
+        {
+          "name": "Honey & Walnut Loaf",
+          "price": 380.0,
+          "displayOrder": 7
+        },
+        {
+          "name": "Olive Grove Loaf",
+          "price": 400.0,
+          "displayOrder": 8
+        },
+        {
+          "name": "Caramelized Onion Loaf",
+          "price": 300.0,
+          "displayOrder": 9
+        },
+        {
+          "name": "Honey & Oat Loaf",
+          "price": 360.0,
+          "displayOrder": 10
+        }
       ]
     },
     {
       "name": "Buns & Rolls",
       "displayOrder": 2,
       "items": [
-        { "name": "Whole Wheat Rolls",     "price": 240.00, "displayOrder": 1, "description": "Set of 6 rolls" },
-        { "name": "Multi Seed Rolls",      "price": 260.00, "displayOrder": 2, "description": "Set of 6 rolls" },
-        { "name": "Milk Buns",             "price": 250.00, "displayOrder": 3, "description": "Set of 6 buns" },
-        { "name": "Sesame Burger Buns",    "price": 260.00, "displayOrder": 4, "description": "Set of 6 buns" },
-        { "name": "Potato Buns",           "price": 280.00, "displayOrder": 5, "description": "Set of 6 buns" },
-        { "name": "Eggless Brioche Buns",  "price": 300.00, "displayOrder": 6, "description": "Set of 6 buns" },
-        { "name": "Pretzel Buns",          "price": 280.00, "displayOrder": 7, "description": "Set of 6 buns" },
-        { "name": "Kaiser Rolls",          "price": 260.00, "displayOrder": 8, "description": "Set of 6 rolls" }
+        {
+          "name": "Whole Wheat Rolls",
+          "price": 260.0,
+          "displayOrder": 1,
+          "description": "Set of 6 rolls"
+        },
+        {
+          "name": "Multi-Seed Rolls",
+          "price": 280.0,
+          "displayOrder": 2,
+          "description": "Set of 6 rolls"
+        },
+        {
+          "name": "Milk Buns",
+          "price": 340.0,
+          "displayOrder": 3,
+          "description": "Set of 6 buns"
+        },
+        {
+          "name": "Sesame Burger Buns",
+          "price": 300.0,
+          "displayOrder": 4,
+          "description": "Set of 6 buns"
+        },
+        {
+          "name": "Potato Buns",
+          "price": 300.0,
+          "displayOrder": 5,
+          "description": "Set of 6 buns"
+        },
+        {
+          "name": "Eggless Brioche Buns",
+          "price": 320.0,
+          "displayOrder": 6,
+          "description": "Set of 6 buns"
+        },
+        {
+          "name": "Bavarian Pretzel Buns",
+          "price": 280.0,
+          "displayOrder": 7,
+          "description": "Set of 6 buns"
+        },
+        {
+          "name": "Kaiser Rolls",
+          "price": 290.0,
+          "displayOrder": 8,
+          "description": "Set of 6 rolls"
+        }
       ]
     },
     {
       "name": "Breakfast & Specialty",
       "displayOrder": 3,
       "items": [
-        { "name": "Classic New York-Style Bagel", "price": 330.00, "displayOrder": 1, "description": "Set of 6; 48 hours' notice" },
-        { "name": "Caramelized Onion Bagel",      "price": 340.00, "displayOrder": 2, "description": "Set of 6; 48 hours' notice" },
-        { "name": "Rosemary Focaccia",           "price": 360.00, "displayOrder": 3 },
-        { "name": "Olive & Tomato Focaccia",     "price": 380.00, "displayOrder": 4 },
-        { "name": "Garlic Knots",                "price": 220.00, "displayOrder": 5, "description": "Set of 6 knots" }
+        {
+          "name": "Classic New York-Style Bagel",
+          "price": 360.0,
+          "displayOrder": 1,
+          "description": "Set of 6; 48 hours' notice",
+          "listTitle": "New York-Style Bagel"
+        },
+        {
+          "name": "Caramelized Onion Bagel",
+          "price": 420.0,
+          "displayOrder": 2,
+          "description": "Set of 6; 48 hours' notice"
+        },
+        {
+          "name": "Olive, Tomato & Rosemary Focaccia (Full)",
+          "price": 1060.0,
+          "displayOrder": 3,
+          "description": "Full tray 12x16 inch; Fri-Sun only",
+          "listTitle": "Tomato Focaccia (Full)"
+        },
+        {
+          "name": "Olive, Tomato & Rosemary Focaccia (Half)",
+          "price": 580.0,
+          "displayOrder": 4,
+          "description": "Half tray 12x8 inch; Fri-Sun only",
+          "listTitle": "Tomato Focaccia (Half)"
+        },
+        {
+          "name": "Garlic & Herb Knots",
+          "price": 260.0,
+          "displayOrder": 5,
+          "description": "Set of 8 knots"
+        }
       ]
     },
     {
       "name": "Sweet Bakes",
       "displayOrder": 4,
       "items": [
-        { "name": "Cinnamon Rolls",   "price": 300.00, "displayOrder": 1, "description": "Set of 6 rolls" },
-        { "name": "Chocolate Rolls",  "price": 320.00, "displayOrder": 2, "description": "Set of 6 rolls" },
-        { "name": "Cardamom Buns",    "price": 300.00, "displayOrder": 3, "description": "Set of 6 buns" }
+        {
+          "name": "Cinnamon Rolls",
+          "price": 420.0,
+          "displayOrder": 1,
+          "description": "Set of 6 rolls"
+        },
+        {
+          "name": "Chocolate Babka Buns",
+          "price": 720.0,
+          "displayOrder": 2,
+          "description": "Set of 6 buns"
+        },
+        {
+          "name": "Nordic Cardamom Buns",
+          "price": 480.0,
+          "displayOrder": 3,
+          "description": "Set of 6 buns"
+        }
       ]
     }
   ]

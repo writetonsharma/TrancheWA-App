@@ -13,6 +13,9 @@ import com.tranche.bakery.conversation.WhatsappConversation;
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.menu.MenuItem;
 import com.tranche.bakery.menu.MenuItemRepository;
+import com.tranche.bakery.offer.PromoContext;
+import com.tranche.bakery.offer.PromoResult;
+import com.tranche.bakery.offer.PromotionEngine;
 
 import lombok.RequiredArgsConstructor;
 
@@ -23,6 +26,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final MenuItemRepository menuItemRepository;
+    private final PromotionEngine promotionEngine;
 
     @Value("${bakery.order.delivery-charge:50}")
     private BigDecimal deliveryCharge;
@@ -153,10 +157,20 @@ public class OrderService {
             }
         }
 
+        if (!hasOverride && order.getDiscountAmount() != null
+                && order.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0) {
+            String label = order.getDiscountLabel() != null ? order.getDiscountLabel() : "Discount";
+            sb.append(String.format("• %s — −₹%.0f\n", label, order.getDiscountAmount()));
+        }
+
         if (order.getDeliveryCharge() != null && order.getDeliveryCharge().compareTo(BigDecimal.ZERO) > 0) {
             sb.append(String.format("• Delivery — ₹%.0f\n", order.getDeliveryCharge()));
-        } else if (order.getCustomer() != null && order.getCustomer().isFreeDelivery()) {
+        } else if (order.getFulfillmentType() == FulfillmentType.DELIVERY) {
             sb.append("• Delivery — _Free_ ✨\n");
+        }
+
+        if (order.getGiftLabel() != null && !order.getGiftLabel().isBlank()) {
+            sb.append(String.format("• %s — _Free_ ✨\n", order.getGiftLabel()));
         }
 
         sb.append(String.format("\n*Total: ₹%.0f*", order.getTotalAmount()));
@@ -204,21 +218,33 @@ public class OrderService {
     private void recalculateTotal(Order order) {
         List<OrderItem> items = orderItemRepository.findAllByOrderId(order.getId());
 
+        BigDecimal listSubtotal = items.stream()
+                .map(OrderItem::getSubtotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         Customer customer = order.getCustomer();
-        BigDecimal itemsTotal;
-        if (customer != null && customer.hasActiveOverride()) {
-            int totalQty = items.stream().mapToInt(OrderItem::getQuantity).sum();
-            itemsTotal = customer.getPricingOverride().multiply(BigDecimal.valueOf(totalQty));
-        } else {
-            itemsTotal = items.stream()
-                    .map(OrderItem::getSubtotal)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal overrideTotal = null;
+        boolean freeDeliveryFlag = false;
+        int completedOrders = 0;
+        if (customer != null) {
+            if (customer.hasActiveOverride()) {
+                int totalQty = items.stream().mapToInt(OrderItem::getQuantity).sum();
+                overrideTotal = customer.getPricingOverride().multiply(BigDecimal.valueOf(totalQty));
+            }
+            freeDeliveryFlag = customer.isFreeDelivery();
+            completedOrders = (int) orderRepository.countByCustomerIdAndStatus(
+                    customer.getId(), OrderStatus.COMPLETED);
         }
 
-        boolean waiveFee = customer != null && customer.isFreeDelivery();
-        BigDecimal fee = waiveFee ? BigDecimal.ZERO : deliveryCharge;
+        PromoResult promo = promotionEngine.evaluate(
+                new PromoContext(listSubtotal, overrideTotal, freeDeliveryFlag, completedOrders));
+
+        BigDecimal fee = promo.freeDelivery() ? BigDecimal.ZERO : deliveryCharge;
         order.setDeliveryCharge(fee);
-        order.setTotalAmount(itemsTotal.add(fee));
+        order.setDiscountAmount(promo.discountAmount());
+        order.setDiscountLabel(promo.discountLabel());
+        order.setGiftLabel(promo.giftLabel());
+        order.setTotalAmount(promo.itemsTotal().add(fee));
         orderRepository.save(order);
     }
 }

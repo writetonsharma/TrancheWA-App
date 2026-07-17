@@ -55,6 +55,15 @@ public class Order {
     @Column(precision = 10, scale = 2, nullable = false)
     private BigDecimal deliveryCharge = BigDecimal.ZERO;
 
+    @Column(name = "discount_amount", precision = 10, scale = 2, nullable = false)
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
+    @Column(name = "discount_label", length = 100)
+    private String discountLabel;
+
+    @Column(name = "gift_label", length = 200)
+    private String giftLabel;
+
     @Column(nullable = false)
     private boolean cutoffWarned = false;
 

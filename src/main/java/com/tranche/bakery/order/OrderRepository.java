@@ -50,4 +50,6 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     List<Order> findAllByCustomerIdOrderByCreatedAtDesc(Long customerId);
 
     List<Order> findAllByStatusInAndDeliveryDateIsNullOrderByCreatedAtDesc(Collection<OrderStatus> statuses);
+
+    long countByCustomerIdAndStatus(Long customerId, OrderStatus status);
 }
