@@ -164,4 +164,30 @@ public class WhatsAppMessage {
     public static ImageMessage imageMessage(String to, String mediaId, String caption) {
         return new ImageMessage(to, new ImagePayload(mediaId, caption));
     }
+
+    @Data @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class DocumentMessage {
+        private String messaging_product = "whatsapp";
+        private String to;
+        private String type = "document";
+        private DocumentPayload document;
+
+        DocumentMessage(String to, DocumentPayload document) {
+            this.to = to;
+            this.document = document;
+        }
+    }
+
+    @Data @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class DocumentPayload {
+        private String id;
+        private String filename;
+        private String caption;
+    }
+
+    public static DocumentMessage documentMessage(String to, String mediaId, String filename, String caption) {
+        return new DocumentMessage(to, new DocumentPayload(mediaId, filename, caption));
+    }
 }

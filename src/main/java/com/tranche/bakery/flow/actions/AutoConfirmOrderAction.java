@@ -8,6 +8,7 @@ import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.payment.PaymentRepository;
 import com.tranche.bakery.payment.PaymentStatus;
+import com.tranche.bakery.receipt.ReceiptService;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,7 @@ public class AutoConfirmOrderAction implements FlowAction {
     private final PaymentRepository paymentRepository;
     private final WhatsAppClient whatsAppClient;
     private final AlertService alertService;
+    private final ReceiptService receiptService;
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("EEE, d MMM", Locale.ENGLISH);
@@ -50,6 +52,8 @@ public class AutoConfirmOrderAction implements FlowAction {
             payment.setStatus(PaymentStatus.SCREENSHOT_VERIFIED);
             paymentRepository.save(payment);
         });
+
+        receiptService.sendReceipt(order);
 
         String orderNumber = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
         String datePart = order.getDeliveryDate() != null

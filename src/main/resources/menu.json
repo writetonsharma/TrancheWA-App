@@ -25,34 +25,29 @@
           "displayOrder": 4
         },
         {
-          "name": "Country Loaf",
-          "price": 260.0,
-          "displayOrder": 5
-        },
-        {
           "name": "Milk & Butter Loaf",
           "price": 340.0,
-          "displayOrder": 6
+          "displayOrder": 5
         },
         {
           "name": "Honey & Walnut Loaf",
           "price": 380.0,
-          "displayOrder": 7
+          "displayOrder": 6
         },
         {
           "name": "Olive Grove Loaf",
           "price": 400.0,
-          "displayOrder": 8
+          "displayOrder": 7
         },
         {
           "name": "Caramelized Onion Loaf",
           "price": 300.0,
-          "displayOrder": 9
+          "displayOrder": 8
         },
         {
           "name": "Honey & Oat Loaf",
           "price": 360.0,
-          "displayOrder": 10
+          "displayOrder": 9
         }
       ]
     },

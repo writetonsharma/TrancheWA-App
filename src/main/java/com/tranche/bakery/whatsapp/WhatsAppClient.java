@@ -46,12 +46,20 @@ public class WhatsAppClient {
         send(WhatsAppMessage.imageMessage(to, mediaId, caption));
     }
 
+    public void sendDocument(String to, String mediaId, String filename, String caption) {
+        send(WhatsAppMessage.documentMessage(to, mediaId, filename, caption));
+    }
+
     public String uploadMedia(byte[] imageBytes, String filename) {
+        return uploadMedia(imageBytes, filename, "image/png");
+    }
+
+    public String uploadMedia(byte[] fileBytes, String filename, String mimeType) {
         try {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("messaging_product", "whatsapp");
-            body.add("type", "image/png");
-            body.add("file", new ByteArrayResource(imageBytes) {
+            body.add("type", mimeType);
+            body.add("file", new ByteArrayResource(fileBytes) {
                 @Override public String getFilename() { return filename; }
             });
 

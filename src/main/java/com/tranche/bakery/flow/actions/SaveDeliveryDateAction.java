@@ -91,9 +91,11 @@ public class SaveDeliveryDateAction implements FlowAction {
             return;
         }
 
-        // Save delivery date on draft
+        // Save delivery date on draft, then recompute totals so any batch discount
+        // (which depends on the delivery day's booked demand) is reflected.
         draft.setDeliveryDate(deliveryDate);
         orderRepository.save(draft);
+        orderService.recalculate(draft);
 
         // Case 3: has other pending orders — warn about a separate order
         if (!pending.isEmpty()) {

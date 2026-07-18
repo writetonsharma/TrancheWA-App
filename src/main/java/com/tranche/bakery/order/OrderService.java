@@ -13,6 +13,7 @@ import com.tranche.bakery.conversation.WhatsappConversation;
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.menu.MenuItem;
 import com.tranche.bakery.menu.MenuItemRepository;
+import com.tranche.bakery.offer.BatchDiscountService;
 import com.tranche.bakery.offer.PromoContext;
 import com.tranche.bakery.offer.PromoResult;
 import com.tranche.bakery.offer.PromotionEngine;
@@ -27,6 +28,7 @@ public class OrderService {
     private final OrderItemRepository orderItemRepository;
     private final MenuItemRepository menuItemRepository;
     private final PromotionEngine promotionEngine;
+    private final BatchDiscountService batchDiscountService;
 
     @Value("${bakery.order.delivery-charge:50}")
     private BigDecimal deliveryCharge;
@@ -54,6 +56,17 @@ public class OrderService {
                     o.setStatus(OrderStatus.DRAFT);
                     return orderRepository.save(o);
                 });
+    }
+
+    /**
+     * Total item quantity in the customer's current DRAFT cart, or 0 if none exists.
+     * Read-only: does not create a draft.
+     */
+    public int currentDraftItemCount(Customer customer) {
+        return orderRepository
+                .findTopByCustomerIdAndStatusOrderByCreatedAtDesc(customer.getId(), OrderStatus.DRAFT)
+                .map(o -> orderItemRepository.sumQuantityByOrderId(o.getId()))
+                .orElse(0);
     }
 
     @Transactional
@@ -163,6 +176,12 @@ public class OrderService {
             sb.append(String.format("• %s — −₹%.0f\n", label, order.getDiscountAmount()));
         }
 
+        if (!hasOverride && order.getBatchDiscountAmount() != null
+                && order.getBatchDiscountAmount().compareTo(BigDecimal.ZERO) > 0) {
+            String label = order.getBatchDiscountLabel() != null ? order.getBatchDiscountLabel() : "Batch discount";
+            sb.append(String.format("\u2022 \uD83D\uDD25 %s \u2014 \u2212\u20B9%.0f\n", label, order.getBatchDiscountAmount()));
+        }
+
         if (order.getDeliveryCharge() != null && order.getDeliveryCharge().compareTo(BigDecimal.ZERO) > 0) {
             sb.append(String.format("• Delivery — ₹%.0f\n", order.getDeliveryCharge()));
         } else if (order.getFulfillmentType() == FulfillmentType.DELIVERY) {
@@ -215,6 +234,12 @@ public class OrderService {
                 .findFirst();
     }
 
+    /** Recompute totals for an order (e.g. after its delivery date is set). */
+    @Transactional
+    public void recalculate(Order order) {
+        recalculateTotal(order);
+    }
+
     private void recalculateTotal(Order order) {
         List<OrderItem> items = orderItemRepository.findAllByOrderId(order.getId());
 
@@ -244,7 +269,39 @@ public class OrderService {
         order.setDiscountAmount(promo.discountAmount());
         order.setDiscountLabel(promo.discountLabel());
         order.setGiftLabel(promo.giftLabel());
-        order.setTotalAmount(promo.itemsTotal().add(fee));
+
+        // Dynamic batch discount: once the delivery date is known, items whose booked
+        // demand for that day has reached a band threshold earn an extra percentage
+        // off their ALREADY-discounted line price (stacks on top of the launch offer).
+        BigDecimal itemsTotal = promo.itemsTotal();
+        BigDecimal batchDiscount = BigDecimal.ZERO;
+        String batchLabel = null;
+        boolean overrideActive = customer != null && customer.hasActiveOverride();
+        if (order.getDeliveryDate() != null && !overrideActive
+                && listSubtotal.signum() > 0) {
+            BigDecimal discountedRatio = itemsTotal.divide(listSubtotal, 10, java.math.RoundingMode.HALF_UP);
+            for (OrderItem it : items) {
+                BigDecimal pct = batchDiscountService.extraPercentFor(
+                        it.getMenuItem().getId(), it.getMenuItem().getPrice(), order.getDeliveryDate());
+                if (pct == null) continue;
+                BigDecimal discountedLine = it.getSubtotal().multiply(discountedRatio);
+                batchDiscount = batchDiscount.add(
+                        discountedLine.multiply(pct).divide(BigDecimal.valueOf(100), 10, java.math.RoundingMode.HALF_UP));
+                batchLabel = "Batch discount";
+            }
+            batchDiscount = batchDiscount.setScale(0, java.math.RoundingMode.HALF_UP);
+        }
+        if (batchDiscount.signum() > 0) {
+            itemsTotal = itemsTotal.subtract(batchDiscount);
+            if (itemsTotal.signum() < 0) itemsTotal = BigDecimal.ZERO;
+        } else {
+            batchDiscount = BigDecimal.ZERO;
+            batchLabel = null;
+        }
+        order.setBatchDiscountAmount(batchDiscount);
+        order.setBatchDiscountLabel(batchLabel);
+
+        order.setTotalAmount(itemsTotal.add(fee));
         orderRepository.save(order);
     }
 }

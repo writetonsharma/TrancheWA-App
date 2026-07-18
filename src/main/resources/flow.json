@@ -1,50 +1,93 @@
 {
   "initialState": "IDLE",
   "states": {
-
     "IDLE": {
       "defaultResponse": "Send *hi* to begin your Tranché Bakery order.",
       "transitions": [
-        { "match": "hi", "ignoreCase": true, "nextState": "MAIN_MENU" }
+        {
+          "match": "hi",
+          "ignoreCase": true,
+          "nextState": "MAIN_MENU"
+        }
       ]
     },
-
     "MAIN_MENU": {
+      "entryAction": "SHOW_BATCH_DISCOUNTS",
       "entryMessage": {
         "type": "buttons",
         "body": "Welcome to Tranché Bakery. 🥖\n\nSmall-batch, European-inspired breads baked fresh for each day's orders. Orders placed before *5 PM* are usually prepared for next-day delivery.\n\nHow can we help you today?\n\n_Send *hi* anytime to return to the main menu._",
         "buttons": [
-          { "id": "order",   "title": "Order" },
-          { "id": "message", "title": "Message Us" },
-          { "id": "info",    "title": "Info" }
+          {
+            "id": "order",
+            "title": "Order"
+          },
+          {
+            "id": "message",
+            "title": "Message Us"
+          },
+          {
+            "id": "info",
+            "title": "Info"
+          }
         ]
       },
       "transitions": [
-        { "match": "order",   "nextState": "ORDER_GATE" },
-        { "match": "message", "nextState": "MESSAGE_CONTACT" },
-        { "match": "info",    "nextState": "INFO_MENU" },
-        { "match": "*",       "nextState": "MAIN_MENU" }
+        {
+          "match": "order",
+          "nextState": "ORDER_GATE"
+        },
+        {
+          "match": "message",
+          "nextState": "MESSAGE_CONTACT"
+        },
+        {
+          "match": "info",
+          "nextState": "INFO_MENU"
+        },
+        {
+          "match": "*",
+          "nextState": "MAIN_MENU"
+        }
       ]
     },
-
     "INFO_MENU": {
       "entryMessage": {
         "type": "buttons",
         "body": "What would you like to know?",
         "buttons": [
-          { "id": "hours",        "title": "Hours & Delivery" },
-          { "id": "order_status", "title": "My Order Status" },
-          { "id": "view_menu",    "title": "View Menu" }
+          {
+            "id": "hours",
+            "title": "Hours & Delivery"
+          },
+          {
+            "id": "order_status",
+            "title": "My Order Status"
+          },
+          {
+            "id": "view_menu",
+            "title": "View Menu"
+          }
         ]
       },
       "transitions": [
-        { "match": "hours",        "nextState": "HOURS_INFO" },
-        { "match": "order_status", "nextState": "ORDER_STATUS" },
-        { "match": "view_menu",    "nextState": "VIEW_MENU" },
-        { "match": "*",            "nextState": "INFO_MENU" }
+        {
+          "match": "hours",
+          "nextState": "HOURS_INFO"
+        },
+        {
+          "match": "order_status",
+          "nextState": "ORDER_STATUS"
+        },
+        {
+          "match": "view_menu",
+          "nextState": "VIEW_MENU"
+        },
+        {
+          "match": "*",
+          "nextState": "INFO_MENU"
+        }
       ]
     },
-
     "VIEW_MENU": {
       "entryMessage": {
         "type": "text",
@@ -52,7 +95,6 @@
       },
       "autoTransition": "MAIN_MENU"
     },
-
     "HOURS_INFO": {
       "entryMessage": {
         "type": "text",
@@ -60,12 +102,10 @@
       },
       "autoTransition": "MAIN_MENU"
     },
-
     "ORDER_STATUS": {
       "entryAction": "SHOW_ORDER_STATUS",
       "autoTransition": "MAIN_MENU"
     },
-
     "ABOUT": {
       "entryMessage": {
         "type": "text",
@@ -73,41 +113,57 @@
       },
       "autoTransition": "MAIN_MENU"
     },
-
     "AREA_SELECT": {
       "entryMessage": {
         "type": "text",
         "body": "Hello. We currently deliver to select areas in Gurgaon.\n\nPlease share your *pincode* so we can confirm delivery availability:"
       },
       "transitions": [
-        { "match": "*", "nextState": "NAME_COLLECT", "saveContext": "pincode", "action": "SAVE_AREA" }
+        {
+          "match": "*",
+          "nextState": "NAME_COLLECT",
+          "saveContext": "pincode",
+          "action": "SAVE_AREA"
+        }
       ]
     },
-
     "NAME_COLLECT": {
       "entryMessage": {
         "type": "text",
         "body": "Good news — we deliver to your area.\n\nMay we have your name for the order?"
       },
       "transitions": [
-        { "match": "*", "nextState": "MAIN_MENU", "saveContext": "customerName", "action": "SAVE_NAME" }
+        {
+          "match": "*",
+          "nextState": "MAIN_MENU",
+          "saveContext": "customerName",
+          "action": "SAVE_NAME"
+        }
       ]
     },
-
     "ORDER_GATE": {
       "entryAction": "ROUTE_TO_REORDER_OR_BROWSE"
     },
-
     "ORDER_SUGGEST_REORDER": {
       "entryAction": "SHOW_LAST_ORDER_SUGGESTION",
       "transitions": [
-        { "match": "reorder",     "nextState": "ORDER_SELECT_DATE", "action": "COPY_LAST_ORDER" },
-        { "match": "browse_menu", "nextState": "ORDER_SELECT_CATEGORY" },
-        { "match": "*",           "nextState": "ORDER_SUGGEST_REORDER" }
+        {
+          "match": "reorder",
+          "nextState": "ORDER_SELECT_DATE",
+          "action": "COPY_LAST_ORDER"
+        },
+        {
+          "match": "browse_menu",
+          "nextState": "ORDER_SELECT_CATEGORY"
+        },
+        {
+          "match": "*",
+          "nextState": "ORDER_SUGGEST_REORDER"
+        }
       ]
     },
-
     "ORDER_SELECT_CATEGORY": {
+      "entryAction": "GUARD_CART_LIMIT",
       "entryMessage": {
         "type": "list",
         "body": "Please choose a category to begin your order:",
@@ -115,10 +171,13 @@
         "dataSource": "MENU_CATEGORIES"
       },
       "transitions": [
-        { "match": "*", "nextState": "ORDER_SELECT_ITEM", "saveContext": "categoryId" }
+        {
+          "match": "*",
+          "nextState": "ORDER_SELECT_ITEM",
+          "saveContext": "categoryId"
+        }
       ]
     },
-
     "ORDER_SELECT_ITEM": {
       "entryMessage": {
         "type": "list",
@@ -127,46 +186,117 @@
         "dataSource": "MENU_ITEMS"
       },
       "transitions": [
-        { "match": "*", "nextState": "ORDER_SELECT_QUANTITY", "saveContext": "itemId" }
+        {
+          "match": "*",
+          "nextState": "ORDER_SELECT_QUANTITY",
+          "saveContext": "itemId"
+        }
       ]
     },
-
     "ORDER_SELECT_QUANTITY": {
       "entryMessage": {
         "type": "buttons",
-        "body": "How many would you like? Tap a button, or type *4* or *5*.\n\n_Need more than 5? Send us a message via *Message Us* on the main menu for bulk orders._",
+        "body": "How many would you like? _(up to 3 per item)_\n\n_Planning a bigger order? Tap *Message Us* on the main menu and we'll take care of it._",
         "buttons": [
-          { "id": "1", "title": "1" },
-          { "id": "2", "title": "2" },
-          { "id": "3", "title": "3" }
+          {
+            "id": "1",
+            "title": "1"
+          },
+          {
+            "id": "2",
+            "title": "2"
+          },
+          {
+            "id": "3",
+            "title": "3"
+          }
         ]
       },
       "transitions": [
-        { "match": "1", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
-        { "match": "2", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
-        { "match": "3", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
-        { "match": "4", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
-        { "match": "5", "nextState": "ORDER_ADD_MORE", "saveContext": "quantity", "action": "ADD_ITEM_TO_ORDER" },
-        { "match": "*", "errorMessage": "We can do between 1 and 5 per item. Please tap a button or type a number.\n\n_For bulk orders, send us a message via *Message Us* on the main menu._" }
+        {
+          "match": "1",
+          "nextState": "ORDER_ADD_MORE",
+          "saveContext": "quantity",
+          "action": "ADD_ITEM_TO_ORDER"
+        },
+        {
+          "match": "2",
+          "nextState": "ORDER_ADD_MORE",
+          "saveContext": "quantity",
+          "action": "ADD_ITEM_TO_ORDER"
+        },
+        {
+          "match": "3",
+          "nextState": "ORDER_ADD_MORE",
+          "saveContext": "quantity",
+          "action": "ADD_ITEM_TO_ORDER"
+        },
+        {
+          "match": "*",
+          "errorMessage": "We can add up to 3 of an item per order. Please tap 1, 2, or 3.\n\n_For a larger order, tap *Message Us* on the main menu._"
+        }
       ]
     },
-
     "ORDER_ADD_MORE": {
       "entryMessage": {
         "type": "buttons",
         "body": "Added to your order.\n\nWould you like to add anything else, or review your order?",
         "buttons": [
-          { "id": "add_item",   "title": "Add Another" },
-          { "id": "view_order", "title": "View Order" }
+          {
+            "id": "add_item",
+            "title": "Add Another"
+          },
+          {
+            "id": "view_order",
+            "title": "View Order"
+          }
         ]
       },
       "transitions": [
-        { "match": "add_item",   "nextState": "ORDER_SELECT_CATEGORY" },
-        { "match": "view_order", "nextState": "ORDER_SELECT_DATE" },
-        { "match": "*",          "nextState": "ORDER_ADD_MORE" }
+        {
+          "match": "add_item",
+          "nextState": "ORDER_SELECT_CATEGORY"
+        },
+        {
+          "match": "view_order",
+          "nextState": "ORDER_SELECT_DATE"
+        },
+        {
+          "match": "*",
+          "nextState": "ORDER_ADD_MORE"
+        }
       ]
     },
-
+    "ORDER_BULK_LIMIT": {
+      "entryMessage": {
+        "type": "buttons",
+        "body": "Our orders are capped at *3 items* each so every bake stays fresh and on time. You've reached that limit for this order.\n\nWould you like to place this order with the items already in your cart? For anything larger, tap *Message Us* on the main menu and we'll arrange a bulk order for you.",
+        "buttons": [
+          {
+            "id": "checkout",
+            "title": "Place Order"
+          },
+          {
+            "id": "done",
+            "title": "No, thanks"
+          }
+        ]
+      },
+      "transitions": [
+        {
+          "match": "checkout",
+          "nextState": "ORDER_SELECT_DATE"
+        },
+        {
+          "match": "done",
+          "nextState": "MAIN_MENU"
+        },
+        {
+          "match": "*",
+          "nextState": "ORDER_BULK_LIMIT"
+        }
+      ]
+    },
     "ORDER_SELECT_DATE": {
       "entryAction": "NOTIFY_DATE_CAPACITY",
       "entryMessage": {
@@ -176,139 +306,237 @@
         "dataSource": "DELIVERY_DATES"
       },
       "transitions": [
-        { "match": "*", "nextState": "ADDRESS_GATE", "saveContext": "deliveryDate", "action": "SAVE_DELIVERY_DATE" }
+        {
+          "match": "*",
+          "nextState": "ADDRESS_GATE",
+          "saveContext": "deliveryDate",
+          "action": "SAVE_DELIVERY_DATE"
+        }
       ]
     },
-
     "ORDER_CONFIRM_SEPARATE": {
       "entryAction": "SHOW_SEPARATE_ORDER_WARNING",
       "transitions": [
-        { "match": "continue_order", "nextState": "ADDRESS_GATE" },
-        { "match": "cancel_order",   "nextState": "MAIN_MENU",  "action": "CANCEL_ORDER" },
-        { "match": "*",              "nextState": "ORDER_CONFIRM_SEPARATE" }
+        {
+          "match": "continue_order",
+          "nextState": "ADDRESS_GATE"
+        },
+        {
+          "match": "cancel_order",
+          "nextState": "MAIN_MENU",
+          "action": "CANCEL_ORDER"
+        },
+        {
+          "match": "*",
+          "nextState": "ORDER_CONFIRM_SEPARATE"
+        }
       ]
     },
-
     "ADDRESS_GATE": {
       "entryAction": "ROUTE_TO_ADDRESS_OR_CONFIRM"
     },
-
     "ADDRESS_COLLECT": {
       "entryMessage": {
         "type": "text",
         "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_This will be saved as your permanent delivery address for all future orders, so please choose carefully._"
       },
       "transitions": [
-        { "match": "*", "nextState": "LOCATION_SHARE", "saveContext": "deliveryAddress", "action": "SAVE_DELIVERY_ADDRESS" }
+        {
+          "match": "*",
+          "nextState": "LOCATION_SHARE",
+          "saveContext": "deliveryAddress",
+          "action": "SAVE_DELIVERY_ADDRESS"
+        }
       ]
     },
-
     "ADDRESS_CONFIRM": {
       "entryAction": "SHOW_SAVED_ADDRESS",
       "transitions": [
-        { "match": "use_address",    "nextState": "DELIVERY_PREFERENCE", "action": "COPY_ADDRESS_TO_ORDER" },
-        { "match": "change_address", "nextState": "ADDRESS_COLLECT_TEMP" },
-        { "match": "*",              "nextState": "ADDRESS_CONFIRM"       }
+        {
+          "match": "use_address",
+          "nextState": "DELIVERY_PREFERENCE",
+          "action": "COPY_ADDRESS_TO_ORDER"
+        },
+        {
+          "match": "change_address",
+          "nextState": "ADDRESS_COLLECT_TEMP"
+        },
+        {
+          "match": "*",
+          "nextState": "ADDRESS_CONFIRM"
+        }
       ]
     },
-
     "ADDRESS_COLLECT_TEMP": {
       "entryMessage": {
         "type": "text",
         "body": "📍 Please share the delivery address for this order:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_"
       },
       "transitions": [
-        { "match": "*", "nextState": "LOCATION_SHARE_TEMP", "saveContext": "deliveryAddress", "action": "SAVE_DELIVERY_ADDRESS_TEMP" }
+        {
+          "match": "*",
+          "nextState": "LOCATION_SHARE_TEMP",
+          "saveContext": "deliveryAddress",
+          "action": "SAVE_DELIVERY_ADDRESS_TEMP"
+        }
       ]
     },
-
     "LOCATION_SHARE": {
       "entryMessage": {
         "type": "buttons",
         "body": "📌 Almost done — please share a *pinned location* so our delivery team can find you easily.\n\n*How to share:*\n📱 *iPhone:* Tap *+* (bottom left) → *Location* → *Send Your Current Location*\n📱 *Android:* Tap *📎* (paperclip) → *Location* → *Send your current location*\n\n⚠️ _Please do not share live location._\n\n_If you're unable to share, tap Skip — but this helps us deliver faster._",
         "buttons": [
-          { "id": "skip_location", "title": "Skip" }
+          {
+            "id": "skip_location",
+            "title": "Skip"
+          }
         ]
       },
       "transitions": [
-        { "matchType": "location", "nextState": "DELIVERY_PREFERENCE", "action": "SAVE_LOCATION" },
-        { "match": "skip_location", "nextState": "DELIVERY_PREFERENCE" }
+        {
+          "matchType": "location",
+          "nextState": "DELIVERY_PREFERENCE",
+          "action": "SAVE_LOCATION"
+        },
+        {
+          "match": "skip_location",
+          "nextState": "DELIVERY_PREFERENCE"
+        }
       ]
     },
-
     "LOCATION_SHARE_TEMP": {
       "entryMessage": {
         "type": "buttons",
         "body": "📌 Almost done — please share a *pinned location* for this delivery address.\n\n*How to share:*\n📱 *iPhone:* Tap *+* (bottom left) → *Location* → *Send Your Current Location*\n📱 *Android:* Tap *📎* (paperclip) → *Location* → *Send your current location*\n\n⚠️ _Please do not share live location._\n\n_If you're unable to share, tap Skip — but this helps us deliver faster._",
         "buttons": [
-          { "id": "skip_location", "title": "Skip" }
+          {
+            "id": "skip_location",
+            "title": "Skip"
+          }
         ]
       },
       "transitions": [
-        { "matchType": "location", "nextState": "DELIVERY_PREFERENCE", "action": "SAVE_LOCATION_TEMP" },
-        { "match": "skip_location", "nextState": "DELIVERY_PREFERENCE" }
+        {
+          "matchType": "location",
+          "nextState": "DELIVERY_PREFERENCE",
+          "action": "SAVE_LOCATION_TEMP"
+        },
+        {
+          "match": "skip_location",
+          "nextState": "DELIVERY_PREFERENCE"
+        }
       ]
     },
-
     "DELIVERY_PREFERENCE": {
       "entryMessage": {
         "type": "buttons",
         "body": "🚪 How would you like your order delivered?\n\nPlease choose one:",
         "buttons": [
-          { "id": "pref_gate", "title": "At apartment gate" },
-          { "id": "pref_door", "title": "Leave at door" },
-          { "id": "pref_person", "title": "Deliver in person" }
+          {
+            "id": "pref_gate",
+            "title": "At apartment gate"
+          },
+          {
+            "id": "pref_door",
+            "title": "Leave at door"
+          },
+          {
+            "id": "pref_person",
+            "title": "Deliver in person"
+          }
         ]
       },
       "transitions": [
-        { "match": "pref_gate",   "nextState": "LOAF_PREFERENCE_GATE", "action": "SAVE_DELIVERY_PREFERENCE" },
-        { "match": "pref_door",   "nextState": "LOAF_PREFERENCE_GATE", "action": "SAVE_DELIVERY_PREFERENCE" },
-        { "match": "pref_person", "nextState": "LOAF_PREFERENCE_GATE", "action": "SAVE_DELIVERY_PREFERENCE" },
-        { "match": "*", "errorMessage": "Please tap one of the buttons above." }
+        {
+          "match": "pref_gate",
+          "nextState": "LOAF_PREFERENCE_GATE",
+          "action": "SAVE_DELIVERY_PREFERENCE"
+        },
+        {
+          "match": "pref_door",
+          "nextState": "LOAF_PREFERENCE_GATE",
+          "action": "SAVE_DELIVERY_PREFERENCE"
+        },
+        {
+          "match": "pref_person",
+          "nextState": "LOAF_PREFERENCE_GATE",
+          "action": "SAVE_DELIVERY_PREFERENCE"
+        },
+        {
+          "match": "*",
+          "errorMessage": "Please tap one of the buttons above."
+        }
       ]
     },
-
     "LOAF_PREFERENCE_GATE": {
       "entryAction": "ROUTE_TO_LOAF_PREFERENCE_OR_CONFIRM"
     },
-
     "LOAF_PREFERENCE": {
       "entryMessage": {
         "type": "buttons",
         "body": "🍞 How would you like the loaves in this order?",
         "buttons": [
-          { "id": "loaf_sliced", "title": "Sliced" },
-          { "id": "loaf_whole",  "title": "Whole" }
+          {
+            "id": "loaf_sliced",
+            "title": "Sliced"
+          },
+          {
+            "id": "loaf_whole",
+            "title": "Whole"
+          }
         ]
       },
       "transitions": [
-        { "match": "loaf_sliced", "nextState": "ORDER_CONFIRM", "action": "SAVE_LOAF_PREFERENCE" },
-        { "match": "loaf_whole",  "nextState": "ORDER_CONFIRM", "action": "SAVE_LOAF_PREFERENCE" },
-        { "match": "*", "errorMessage": "Please choose Sliced or Whole." }
+        {
+          "match": "loaf_sliced",
+          "nextState": "ORDER_CONFIRM",
+          "action": "SAVE_LOAF_PREFERENCE"
+        },
+        {
+          "match": "loaf_whole",
+          "nextState": "ORDER_CONFIRM",
+          "action": "SAVE_LOAF_PREFERENCE"
+        },
+        {
+          "match": "*",
+          "errorMessage": "Please choose Sliced or Whole."
+        }
       ]
     },
-
     "ORDER_CONFIRM": {
       "entryAction": "SHOW_ORDER_SUMMARY",
       "transitions": [
-        { "match": "confirm", "nextState": "PAYMENT_PENDING", "action": "CONFIRM_ORDER" },
-        { "match": "cancel",  "nextState": "MAIN_MENU",       "action": "CANCEL_ORDER"  }
+        {
+          "match": "confirm",
+          "nextState": "PAYMENT_PENDING",
+          "action": "CONFIRM_ORDER"
+        },
+        {
+          "match": "cancel",
+          "nextState": "MAIN_MENU",
+          "action": "CANCEL_ORDER"
+        }
       ]
     },
-
     "PAYMENT_PENDING": {
       "entryAction": "SEND_PAYMENT_QR",
       "transitions": [
-        { "matchType": "image", "nextState": "PAYMENT_RECEIVED", "action": "SAVE_PAYMENT_SCREENSHOT" },
-        { "match": "cancel_order", "nextState": "MAIN_MENU", "action": "CANCEL_ORDER" }
+        {
+          "matchType": "image",
+          "nextState": "PAYMENT_RECEIVED",
+          "action": "SAVE_PAYMENT_SCREENSHOT"
+        },
+        {
+          "match": "cancel_order",
+          "nextState": "MAIN_MENU",
+          "action": "CANCEL_ORDER"
+        }
       ]
     },
-
     "PAYMENT_RECEIVED": {
       "entryAction": "AUTO_CONFIRM_ORDER",
       "autoTransition": "IDLE"
     },
-
     "LATE_PAYMENT_DATE": {
       "entryMessage": {
         "type": "list",
@@ -317,17 +545,24 @@
         "dataSource": "DELIVERY_DATES"
       },
       "transitions": [
-        { "match": "*", "nextState": "PAYMENT_RECEIVED", "saveContext": "deliveryDate", "action": "REVIVE_LATE_PAYMENT" }
+        {
+          "match": "*",
+          "nextState": "PAYMENT_RECEIVED",
+          "saveContext": "deliveryDate",
+          "action": "REVIVE_LATE_PAYMENT"
+        }
       ]
     },
-
     "PAYMENT_ORDER_SELECT": {
       "entryAction": "SHOW_PAYMENT_ORDER_SELECT",
       "transitions": [
-        { "match": "*", "nextState": "PAYMENT_RECEIVED", "action": "APPLY_PAYMENT_SCREENSHOT" }
+        {
+          "match": "*",
+          "nextState": "PAYMENT_RECEIVED",
+          "action": "APPLY_PAYMENT_SCREENSHOT"
+        }
       ]
     },
-
     "MESSAGE_CONTACT": {
       "entryMessage": {
         "type": "text",
@@ -335,6 +570,5 @@
       },
       "autoTransition": "IDLE"
     }
-
   }
 }

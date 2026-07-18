@@ -31,6 +31,7 @@ import com.tranche.bakery.order.OrderItemRepository;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.payment.PaymentRepository;
+import com.tranche.bakery.receipt.ReceiptService;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 
 import jakarta.persistence.criteria.Predicate;
@@ -51,6 +52,7 @@ public class AdminService {
     private final WhatsAppClient whatsAppClient;
     private final CustomerRepository customerRepository;
     private final AdminMessageRepository adminMessageRepository;
+    private final ReceiptService receiptService;
 
     @Transactional(readOnly = true)
     public AdminDashboard buildDashboard() {
@@ -127,6 +129,7 @@ public class AdminService {
                 payment.setStatus(com.tranche.bakery.payment.PaymentStatus.SCREENSHOT_VERIFIED);
                 paymentRepository.save(payment);
             });
+            receiptService.sendReceipt(order);
             try {
                 whatsAppClient.sendText(order.getCustomer().getPhone(),
                         "Your payment has been verified and your order is confirmed. " +

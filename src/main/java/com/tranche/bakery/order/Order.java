@@ -64,6 +64,12 @@ public class Order {
     @Column(name = "gift_label", length = 200)
     private String giftLabel;
 
+    @Column(name = "batch_discount_amount", precision = 10, scale = 2, nullable = false)
+    private BigDecimal batchDiscountAmount = BigDecimal.ZERO;
+
+    @Column(name = "batch_discount_label", length = 200)
+    private String batchDiscountLabel;
+
     @Column(nullable = false)
     private boolean cutoffWarned = false;
 

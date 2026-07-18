@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -42,6 +44,11 @@ public class DeliveryRules {
             OrderStatus.CONFIRMED,
             OrderStatus.IN_BAKING);
 
+    /** Statuses that reserve a baking slot; also the demand basis for batch discounts. */
+    public static Set<OrderStatus> capacityStatuses() {
+        return CAPACITY_STATUSES;
+    }
+
     public record CartFlags(boolean hasBagel, boolean hasFocaccia, int itemCount) {}
 
     /** Inspect an order's items to determine flags and total quantity. */
@@ -58,6 +65,20 @@ public class DeliveryRules {
             }
         }
         return new CartFlags(hasBagel, hasFocaccia, itemCount);
+    }
+
+    /** The next {@code count} deliverable days (ignoring cart constraints), for nudges. */
+    public List<LocalDate> upcomingDeliverableDays(int count) {
+        CartFlags empty = new CartFlags(false, false, 0);
+        List<LocalDate> days = new ArrayList<>();
+        LocalDate d = earliestDate(empty);
+        int scanned = 0;
+        while (days.size() < count && scanned < 60) {
+            if (isDeliverableDay(d, empty)) days.add(d);
+            d = d.plusDays(1);
+            scanned++;
+        }
+        return days;
     }
 
     public int getDailyCapacity() {
