@@ -62,6 +62,7 @@ public class ShowOrderStatusAction implements FlowAction {
                 whatsAppClient.sendButtons(phone, text, List.of(
                         new WhatsAppMessage.Button("paynow_" + o.getId(), "Pay Now"),
                         new WhatsAppMessage.Button("cancel_" + o.getId(), "Cancel Order")));
+                ctx.setRedirectState("IDLE");
             } else {
                 whatsAppClient.sendText(phone, text);
             }
@@ -95,6 +96,7 @@ public class ShowOrderStatusAction implements FlowAction {
             }
             sb.append("\n_Tap an order below to pay. You can cancel from the payment screen._");
             whatsAppClient.sendButtons(phone, sb.toString().trim(), buttons);
+            ctx.setRedirectState("IDLE");
         } else {
             whatsAppClient.sendText(phone, sb.toString().trim());
         }

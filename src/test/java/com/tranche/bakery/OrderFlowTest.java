@@ -446,6 +446,73 @@ class OrderFlowTest extends FlowScenarioBase {
         assertOrderStatus(order1Id, OrderStatus.PENDING_CONFIRMATION);
     }
 
+    // -- Order status with actionable buttons rests and waits instead of burying them --
+    // Regression: ORDER_STATUS auto-transitions to MAIN_MENU, which used to dump the home
+    // menu right under the Pay Now / Cancel buttons. When actionable buttons are shown the
+    // conversation now rests in IDLE so the customer can tap without the menu piling on top.
+    @Test
+    void orderStatus_singlePendingOrder_waitsForButtonsAndDoesNotDumpMenu() {
+        driveToPaymentQr();
+
+        send("hi");
+        send("info");
+        assertState("INFO_MENU");
+        sentTexts.clear();
+        sentButtonBodies.clear();
+        sentButtonTitles.clear();
+        send("order_status");
+
+        // The Pay Now / Cancel buttons reach the customer...
+        assertThat(sentButtonTitles).contains("Pay Now", "Cancel Order");
+
+        // ...the conversation rests waiting for the tap (no auto-jump to MAIN_MENU)...
+        assertState("IDLE");
+
+        // ...and the home menu is NOT dumped underneath the buttons.
+        assertThat(sentButtonBodies)
+                .as("home menu must not be shown under the order-status buttons")
+                .noneMatch(b -> b.contains("How can we help you today"));
+    }
+
+    // -- Per-date item cap block message includes the how-to-pay hint --
+    // When a same-date unpaid order is already at the item cap, picking that date again is
+    // blocked. The block message must tell the customer how to pay (hi -> Info -> My Order
+    // Status), matching the wording on the other "full" screens.
+    @Test
+    void perDateItemCap_blockMessageIncludesPayHint() {
+        String date   = nextDeliveryDate();
+        String catId  = firstCategoryId();
+        String itemId = firstItemId(catId);
+
+        // Order 1: fill the cart for date D to the 3-item cap, confirm to PENDING.
+        send("hi");
+        send("order");
+        send(date);
+        send(catId); send(itemId); send("3"); send("view_order");
+        send("use_address");
+        send("pref_gate");
+        send("loaf_sliced");
+        send("confirm");
+
+        List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(
+                customer.getId(), OrderStatus.PENDING_CONFIRMATION);
+        assertThat(pending).as("one pending order at the item cap").hasSize(1);
+
+        // New order, same date D -> the per-date cap block fires.
+        send("hi");
+        send("order");
+        sentTexts.clear();
+        send(date);
+
+        assertState("ORDER_SELECT_DATE");
+        assertThat(sentTexts)
+                .as("cap block explains the cart is full")
+                .anyMatch(t -> t.contains("already full"));
+        assertThat(sentTexts)
+                .as("cap block tells the customer how to pay")
+                .anyMatch(t -> t.contains("tap *Info*") && t.contains("My Order Status"));
+    }
+
     // ── 6. Separate-order warning → customer cancels the new draft ────────────
 
     @Test

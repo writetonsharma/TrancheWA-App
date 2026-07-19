@@ -74,7 +74,8 @@ public class SaveDeliveryDateAction implements FlowAction {
             whatsAppClient.sendText(phone,
                     "Your cart for *" + deliveryDate.format(DATE_FMT) + "* is already full - it holds up to "
                     + perOrderItemLimit + " items. "
-                    + "You can pay for that order, or pick a different delivery day below.");
+                    + "You can pay for that order, or pick a different delivery day below.\n\n"
+                    + "To pay, send *hi*, then tap *Info* \u2192 *My Order Status* and choose the order to pay.");
             ctx.setRedirectState("ORDER_SELECT_DATE");
             log.info("Blocked date {} for {} - same-date order already at item cap {}",
                     deliveryDate, phone, perOrderItemLimit);
