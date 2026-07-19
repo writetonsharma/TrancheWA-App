@@ -14,6 +14,15 @@ public class WhatsAppMessage {
     }
 
     public static InteractiveMessage buttonMessage(String to, String bodyText, List<Button> buttons) {
+        if (buttons != null) {
+            for (Button button : buttons) {
+                if (button.getReply() == null) continue;
+                String title = button.getReply().getTitle();
+                if (title != null && title.length() > MAX_BUTTON_TITLE_LEN) {
+                    button.getReply().setTitle(title.substring(0, MAX_BUTTON_TITLE_LEN).trim());
+                }
+            }
+        }
         var body = new InteractiveBody(bodyText);
         var action = new ButtonAction(buttons);
         return new InteractiveMessage(to, new Interactive("button", body, action));
@@ -23,6 +32,11 @@ public class WhatsAppMessage {
     // characters (error 131009). Enforce the cap here so no list send can 400,
     // regardless of the data source that built the rows.
     private static final int MAX_ROW_TITLE_LEN = 24;
+
+    // Interactive reply-button titles are capped at 20 characters (error 131009).
+    // Truncate defensively so an over-long title can never make the whole message
+    // 400 and silently vanish (which previously dropped the order-status screen).
+    private static final int MAX_BUTTON_TITLE_LEN = 20;
 
     public static InteractiveMessage listMessage(String to, String bodyText, String buttonLabel, List<Section> sections) {
         if (sections != null) {

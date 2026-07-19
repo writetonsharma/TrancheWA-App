@@ -270,7 +270,7 @@
     "ORDER_BULK_LIMIT": {
       "entryMessage": {
         "type": "buttons",
-        "body": "Our orders are capped at *3 items* each so every bake stays fresh and on time. You've reached that limit for this order.\n\nWould you like to place this order with the items already in your cart? Or tap *No, thanks* to empty the cart and start over. For anything larger, tap *Message Us* on the main menu and we'll arrange a bulk order for you.",
+        "body": "Your cart holds up to *3 items* so every bake stays fresh and on time - it's now full.\n\nWould you like to place this order with the items already in your cart? Or tap *No, thanks* to empty the cart and start over. For anything larger, tap *Message Us* on the main menu and we'll arrange a bulk order for you.",
         "buttons": [
           {
             "id": "checkout",

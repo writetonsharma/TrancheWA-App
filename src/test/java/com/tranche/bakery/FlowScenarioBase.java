@@ -52,6 +52,8 @@ public abstract class FlowScenarioBase {
 
     protected final List<String> sentTexts = new ArrayList<>();
     protected final List<String> sentButtonBodies = new ArrayList<>();
+    // Titles of every button across all sendButtons calls this scenario.
+    protected final List<String> sentButtonTitles = new ArrayList<>();
     // Titles of every row across the sections of the most recent sendList call.
     protected final List<String> sentListRows = new ArrayList<>();
     // Body text of every sendList call (the prompt above the list).
@@ -82,13 +84,20 @@ public abstract class FlowScenarioBase {
 
         sentTexts.clear();
         sentButtonBodies.clear();
+        sentButtonTitles.clear();
         sentListRows.clear();
         sentListBodies.clear();
 
         doAnswer(inv -> { sentTexts.add(inv.getArgument(1, String.class)); return null; })
                 .when(whatsAppClient).sendText(any(), any());
-        doAnswer(inv -> { sentButtonBodies.add(inv.getArgument(1, String.class)); return null; })
-                .when(whatsAppClient).sendButtons(any(), any(), any());
+        doAnswer(inv -> {
+            sentButtonBodies.add(inv.getArgument(1, String.class));
+            @SuppressWarnings("unchecked")
+            java.util.List<com.tranche.bakery.whatsapp.WhatsAppMessage.Button> btns =
+                    inv.getArgument(2, java.util.List.class);
+            if (btns != null) for (var b : btns) sentButtonTitles.add(b.getReply().getTitle());
+            return null;
+        }).when(whatsAppClient).sendButtons(any(), any(), any());
         doAnswer(inv -> {
             sentListRows.clear();
             sentListBodies.add(inv.getArgument(1, String.class));

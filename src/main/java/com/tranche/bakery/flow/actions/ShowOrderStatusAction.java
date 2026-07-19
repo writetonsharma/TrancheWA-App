@@ -67,17 +67,29 @@ public class ShowOrderStatusAction implements FlowAction {
         }
 
         StringBuilder sb = new StringBuilder("*Your active orders:*\n\n");
+        int idx = 0;
         for (Order o : active) {
-            sb.append("• *").append(ref(o)).append("*").append(dateLine(o))
+            idx++;
+            sb.append(idx).append(". *").append(ref(o)).append("*").append(dateLine(o))
               .append(" — ").append(statusEmoji(o.getStatus()))
               .append("\n");
         }
 
+        // WhatsApp caps interactive button titles at 20 characters. A full order
+        // reference ("Cancel TRB-20260719-AB3K" = 24 chars) makes the Cloud API reject
+        // the entire message, so the status would silently never reach the customer.
+        // Label each cancel button by the order's position in the list above; the button
+        // payload still carries the real order id for the global cancel_<id> handler.
         if (!pendingPayment.isEmpty() && pendingPayment.size() <= 3) {
-            List<WhatsAppMessage.Button> buttons = pendingPayment.stream()
-                    .map(o -> new WhatsAppMessage.Button("cancel_" + o.getId(),
-                            "Cancel " + ref(o)))
-                    .toList();
+            List<WhatsAppMessage.Button> buttons = new ArrayList<>();
+            int pos = 0;
+            for (Order o : active) {
+                pos++;
+                if (o.getStatus() == OrderStatus.PENDING_CONFIRMATION) {
+                    buttons.add(new WhatsAppMessage.Button("cancel_" + o.getId(), "Cancel #" + pos));
+                }
+            }
+            sb.append("\n_Tap a button below to cancel an order awaiting payment._");
             whatsAppClient.sendButtons(phone, sb.toString().trim(), buttons);
         } else {
             whatsAppClient.sendText(phone, sb.toString().trim());

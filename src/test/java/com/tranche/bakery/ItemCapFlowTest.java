@@ -154,7 +154,7 @@ class ItemCapFlowTest extends FlowScenarioBase {
 
         assertState("ORDER_SELECT_DATE");
         assertThat(sentTexts).as("full same-date order blocks new items for that day")
-                .anyMatch(t -> t.contains("per-order limit"));
+                .anyMatch(t -> t.contains("is already full"));
     }
 
     // Same-date cap: a partially-full pending order (1 item) still limits how much the

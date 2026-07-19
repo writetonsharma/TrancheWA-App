@@ -326,6 +326,68 @@ class OrderFlowTest extends FlowScenarioBase {
         assertOrderStatus(order2Id, OrderStatus.PENDING_CONFIRMATION);   // untouched
     }
 
+    // -- Order status with two pending orders must render and offer per-order cancel --
+    // Regression: cancel button titles used the full order ref ("Cancel TRB-20260719-AB3K"
+    // = 24 chars), exceeding WhatsApp's 20-char limit, so the Cloud API rejected the whole
+    // interactive message. The status silently failed and the customer was dropped at the
+    // main menu. Titles are now positional ("Cancel #1") so the status always renders.
+    @Test
+    void orderStatus_twoPendingOrders_rendersWithShortCancelButtons() {
+        Long order1Id = driveToPaymentQr(nextDeliveryDate());
+        send("hi");
+
+        String catId  = firstCategoryId();
+        String itemId = firstItemId(catId);
+        send("order");
+        send(secondDeliveryDate());
+        send(catId); send(itemId); send("1"); send("view_order");
+        send("continue_order");
+        send("use_address");
+        send("pref_gate");
+        send("loaf_sliced");
+        send("confirm");
+
+        List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(
+                customer.getId(), OrderStatus.PENDING_CONFIRMATION);
+        assertThat(pending).as("two pending orders").hasSize(2);
+        Long order2Id = pending.stream().filter(o -> !o.getId().equals(order1Id))
+                .findFirst().orElseThrow().getId();
+
+        // Both orders carry a real TRB- reference (set at confirm), so the old code would
+        // have produced 24-char button titles.
+        assertThat(pending).allSatisfy(o ->
+                assertThat(o.getOrderNumber()).as("order number assigned at confirm").isNotNull());
+
+        // Return to the main menu, then open Info -> My Order Status.
+        send("hi");
+        assertState("MAIN_MENU");
+        send("info");
+        assertState("INFO_MENU");
+        sentButtonBodies.clear();
+        sentButtonTitles.clear();
+        send("order_status");
+
+        // The status list actually reached the customer...
+        assertThat(sentButtonBodies)
+                .as("order status list is rendered")
+                .anyMatch(b -> b.toLowerCase().contains("active orders"));
+
+        // ...and every button title respects WhatsApp's 20-char cap.
+        assertThat(sentButtonTitles)
+                .as("no button title exceeds WhatsApp's 20-char limit")
+                .allMatch(t -> t.length() <= 20);
+
+        // Two positional cancel buttons are offered.
+        assertThat(sentButtonTitles)
+                .as("per-order cancel buttons are offered by position")
+                .contains("Cancel #1", "Cancel #2");
+
+        // Selective cancel works: cancelling order 2 leaves order 1 untouched.
+        send("cancel_" + order2Id);
+        assertOrderStatus(order2Id, OrderStatus.CANCELLED);
+        assertOrderStatus(order1Id, OrderStatus.PENDING_CONFIRMATION);
+    }
+
     // ── 6. Separate-order warning → customer cancels the new draft ────────────
 
     @Test

@@ -84,9 +84,9 @@ public class PreConfirmMultiOrderAction implements FlowAction {
             int mergedTotal = orderService.committedItemCountForDate(customerId, draft.getId(), date);
             if (mergedTotal > perOrderItemLimit) {
                 whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                        "Adding these to your existing order for *" + date.format(DATE_FMT)
-                        + "* would go past our " + perOrderItemLimit
-                        + "-item limit per order. Please choose a different delivery day below.");
+                        "Adding these to your cart for *" + date.format(DATE_FMT)
+                        + "* would take it past its " + perOrderItemLimit
+                        + "-item capacity. Please choose a different delivery day below.");
                 ctx.setRedirectState("ORDER_SELECT_DATE");
                 log.info("Blocked merge of draft {} into {} - would exceed item cap {} (customer {})",
                         draft.getId(), existing.getId(), perOrderItemLimit, ctx.getCustomer().getPhone());

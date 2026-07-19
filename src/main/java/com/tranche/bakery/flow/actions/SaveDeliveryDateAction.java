@@ -72,8 +72,8 @@ public class SaveDeliveryDateAction implements FlowAction {
         int alreadyBooked = orderService.pendingItemCountForDate(customerId, deliveryDate);
         if (alreadyBooked >= perOrderItemLimit) {
             whatsAppClient.sendText(phone,
-                    "You already have " + perOrderItemLimit + " items in your order for *"
-                    + deliveryDate.format(DATE_FMT) + "* - that's our per-order limit. "
+                    "Your cart for *" + deliveryDate.format(DATE_FMT) + "* is already full - it holds up to "
+                    + perOrderItemLimit + " items. "
                     + "You can pay for that order, or pick a different delivery day below.");
             ctx.setRedirectState("ORDER_SELECT_DATE");
             log.info("Blocked date {} for {} - same-date order already at item cap {}",
