@@ -31,7 +31,7 @@ class OrderFlowTest extends FlowScenarioBase {
     @Autowired private AdminService adminService;
     @Autowired private OrderItemRepository orderItemRepository;
 
-    // ── 1. Happy path: single order from hi → payment screenshot ─────────────
+    // â”€â”€ 1. Happy path: single order from hi â†’ payment screenshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void happyPath_singleOrder_endToEnd() {
@@ -62,7 +62,7 @@ class OrderFlowTest extends FlowScenarioBase {
         assertThat(sentButtonBodies).noneMatch(text -> text.contains("How would you like the loaves"));
     }
 
-    // ── Bagel needs 48h lead: too-early dates are rejected ───────────────
+    // â”€â”€ Bagel needs 48h lead: too-early dates are rejected â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void bagelItem_menuFiltersByLeadTime() {
@@ -93,7 +93,7 @@ class OrderFlowTest extends FlowScenarioBase {
         }
     }
 
-    // ── Focaccia is weekend-only: weekday dates are rejected ──────────────
+    // â”€â”€ Focaccia is weekend-only: weekday dates are rejected â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void focacciaItem_hiddenOnWeekday() {
@@ -200,6 +200,30 @@ class OrderFlowTest extends FlowScenarioBase {
                         && t.contains("fully booked"));
     }
 
+    // Wider gap (e.g. Tuesday + the following Sunday, with several open days between):
+    // every full day inside the picker window must still be named, not just the soonest.
+    @Test
+    void widelySeparatedFullDays_bothMentionedInNotification() {
+        LocalDate first = LocalDate.parse(nextDeliveryDate());
+        LocalDate later = first.plusDays(5);
+        while (later.getDayOfWeek() == DayOfWeek.MONDAY) later = later.plusDays(1);
+
+        fillDateCapacity(first, 3);
+        fillDateCapacity(later, 3);
+
+        send("hi");
+        send("order");
+        assertState("ORDER_SELECT_DATE");
+
+        java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM");
+        String firstFormatted = first.format(fmt);
+        String laterFormatted = later.format(fmt);
+
+        assertThat(sentTexts).anyMatch(t ->
+                t.contains(firstFormatted) && t.contains(laterFormatted)
+                        && t.contains("fully booked"));
+    }
+
     // Seed a CONFIRMED order for another customer that books `qty` items on `date`.
     private void fillDateCapacity(LocalDate date, int qty) {
         var item = itemRepository.findAll().get(0);
@@ -252,7 +276,7 @@ class OrderFlowTest extends FlowScenarioBase {
         return d;
     }
 
-    // ── 2. Customer cancels via the cancel_<id> button on the QR message ─────
+    // â”€â”€ 2. Customer cancels via the cancel_<id> button on the QR message â”€â”€â”€â”€â”€
 
     @Test
     void cancelOrder_viaCancelIdButton() {
@@ -266,7 +290,7 @@ class OrderFlowTest extends FlowScenarioBase {
         assertThat(sentTexts).anyMatch(t -> t.contains("cancelled"));
     }
 
-    // ── 3. Second order for a different delivery date → separate-order warning ─
+    // â”€â”€ 3. Second order for a different delivery date â†’ separate-order warning â”€
 
     @Test
     void multiOrder_differentDate_showsSeparateOrderWarning() {
@@ -278,21 +302,21 @@ class OrderFlowTest extends FlowScenarioBase {
 
         String catId  = firstCategoryId();
         String itemId = firstItemId(catId);
-        String date2  = secondDeliveryDate();    // D2 ≠ D1
+        String date2  = secondDeliveryDate();    // D2 â‰  D1
 
         send("order");
         send(date2);
         send(catId);
         send(itemId);
         send("1");
-        send("view_order");    // SaveDeliveryDateAction: 1 pending, different date → ORDER_CONFIRM_SEPARATE
+        send("view_order");    // SaveDeliveryDateAction: 1 pending, different date â†’ ORDER_CONFIRM_SEPARATE
 
         assertState("ORDER_CONFIRM_SEPARATE");
         // Customer should see a message warning them this will be a separate order
         assertThat(sentButtonBodies).anyMatch(b -> b.toLowerCase().contains("separate"));
     }
 
-    // ── 4. Customer orders for the same date twice → items are merged ─────────
+    // â”€â”€ 4. Customer orders for the same date twice â†’ items are merged â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void multiOrder_sameDate_mergesIntoExistingOrder() {
@@ -300,7 +324,7 @@ class OrderFlowTest extends FlowScenarioBase {
         String catId  = firstCategoryId();
         String itemId = firstItemId(catId);
 
-        // Order 1: 1 × item, date D
+        // Order 1: 1 Ã— item, date D
         send("hi");
         send("order");
         send(date);
@@ -308,7 +332,7 @@ class OrderFlowTest extends FlowScenarioBase {
         send("use_address");
         send("pref_gate");
         send("loaf_sliced");
-        send("confirm");    // order 1 → PENDING_CONFIRMATION
+        send("confirm");    // order 1 â†’ PENDING_CONFIRMATION
 
         List<Order> after1 = orderRepository.findAllByCustomerIdAndStatus(
                 customer.getId(), OrderStatus.PENDING_CONFIRMATION);
@@ -318,14 +342,14 @@ class OrderFlowTest extends FlowScenarioBase {
         // Reset conversation; order 1 stays PENDING_CONFIRMATION
         send("hi");
 
-        // Order 2: 2 × same item, same date D → SaveDeliveryDateAction Case 1: merge
+        // Order 2: 2 Ã— same item, same date D â†’ SaveDeliveryDateAction Case 1: merge
         send("order");
         send(date);
         send(catId); send(itemId); send("2"); send("view_order");     // merge triggers, draft cancelled, redirected to ORDER_CONFIRM
 
         assertState("ORDER_CONFIRM");
 
-        // Draft was cancelled — no DRAFT orders remain
+        // Draft was cancelled â€” no DRAFT orders remain
         List<Order> drafts = orderRepository.findAllByCustomerIdAndStatus(
                 customer.getId(), OrderStatus.DRAFT);
         assertThat(drafts).as("draft order should have been cancelled after merge").isEmpty();
@@ -337,7 +361,7 @@ class OrderFlowTest extends FlowScenarioBase {
         assertThat(pending.get(0).getId()).isEqualTo(order1Id);
     }
 
-    // ── 5. Two confirmed orders, screenshot prompts order selection ───────────
+    // â”€â”€ 5. Two confirmed orders, screenshot prompts order selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void multiOrder_screenshotWithTwoPendingOrders_asksWhichOrder() {
@@ -346,7 +370,7 @@ class OrderFlowTest extends FlowScenarioBase {
         // Conversation is now in PAYMENT_PENDING; reset so we can place order 2
         send("hi");
 
-        // Order 2 on D2 — goes through SEPARATE warning then confirm
+        // Order 2 on D2 â€” goes through SEPARATE warning then confirm
         String catId  = firstCategoryId();
         String itemId = firstItemId(catId);
         String date2  = secondDeliveryDate();
@@ -354,7 +378,7 @@ class OrderFlowTest extends FlowScenarioBase {
         send("order");
         send(date2);
         send(catId); send(itemId); send("1"); send("view_order");
-        send("continue_order");     // ADDRESS_GATE → ADDRESS_CONFIRM
+        send("continue_order");     // ADDRESS_GATE â†’ ADDRESS_CONFIRM
         send("use_address");        // DELIVERY_PREFERENCE
         send("pref_gate");          // LOAF_PREFERENCE
         send("loaf_sliced");        // ORDER_CONFIRM
@@ -371,7 +395,7 @@ class OrderFlowTest extends FlowScenarioBase {
         // Conversation is in PAYMENT_PENDING; customer sends screenshot
         sendImage("media-test-002");
 
-        // Two pending orders → must ask which order this payment is for
+        // Two pending orders â†’ must ask which order this payment is for
         assertState("PAYMENT_ORDER_SELECT");
 
         // Customer picks order 1
@@ -569,7 +593,7 @@ class OrderFlowTest extends FlowScenarioBase {
                 .anyMatch(t -> t.contains("tap *Info*") && t.contains("My Order Status"));
     }
 
-    // ── 6. Separate-order warning → customer cancels the new draft ────────────
+    // â”€â”€ 6. Separate-order warning â†’ customer cancels the new draft â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void multiOrder_differentDate_cancelFromWarning() {
@@ -584,7 +608,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         assertState("ORDER_CONFIRM_SEPARATE");
 
-        send("cancel_order");           // CANCEL_ORDER action → MAIN_MENU
+        send("cancel_order");           // CANCEL_ORDER action â†’ MAIN_MENU
 
         assertState("MAIN_MENU");
         List<Order> drafts = orderRepository.findAllByCustomerIdAndStatus(
@@ -592,7 +616,7 @@ class OrderFlowTest extends FlowScenarioBase {
         assertThat(drafts).as("draft should be cancelled when customer declines separate order").isEmpty();
     }
 
-    // ── 7. Admin cancel notifies customer via WhatsApp ──────────────────────────
+    // â”€â”€ 7. Admin cancel notifies customer via WhatsApp â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void adminCancelOrder_notifiesCustomer() {
@@ -607,7 +631,7 @@ class OrderFlowTest extends FlowScenarioBase {
                 org.mockito.ArgumentMatchers.contains("cancelled"));
     }
 
-    // ── 8. Same item added twice consolidates into a single line ────────────────
+    // â”€â”€ 8. Same item added twice consolidates into a single line â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void addSameItemTwice_consolidatesQuantity() {
@@ -617,9 +641,9 @@ class OrderFlowTest extends FlowScenarioBase {
         send("hi");
         send("order");
         send(nextDeliveryDate());
-        send(catId); send(itemId); send("2");   // 2 × item
+        send(catId); send(itemId); send("2");   // 2 Ã— item
         send("add_item");                        // add another
-        send(catId); send(itemId); send("1");   // 1 × same item
+        send(catId); send(itemId); send("1");   // 1 Ã— same item
 
         List<Order> drafts = orderRepository.findAllByCustomerIdAndStatus(
                 customer.getId(), OrderStatus.DRAFT);
@@ -630,7 +654,7 @@ class OrderFlowTest extends FlowScenarioBase {
         assertThat(items.get(0).getQuantity()).as("quantity should be 2 + 1 = 3").isEqualTo(3);
     }
 
-    // ── 9. Max 3 pending orders — 4th order is blocked ──────────────────────────
+    // â”€â”€ 9. Max 3 pending orders â€” 4th order is blocked â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Test
     void maxPendingOrders_fourthOrderBlocked() {
@@ -671,7 +695,7 @@ class OrderFlowTest extends FlowScenarioBase {
                 customer.getId(), OrderStatus.PENDING_CONFIRMATION);
         assertThat(pending).as("should have 3 pending orders").hasSize(3);
 
-        // 4th order attempt — should be blocked
+        // 4th order attempt â€” should be blocked
         LocalDate d4 = d3.plusDays(1);
         if (d4.getDayOfWeek() == DayOfWeek.MONDAY) d4 = d4.plusDays(1);
         String date4 = d4.toString();
@@ -685,7 +709,7 @@ class OrderFlowTest extends FlowScenarioBase {
         assertState("IDLE");
         assertThat(sentTexts).anyMatch(t -> t.contains("3 orders awaiting payment"));
 
-        // Still exactly 3 pending orders — 4th was cancelled
+        // Still exactly 3 pending orders â€” 4th was cancelled
         List<Order> pendingAfter = orderRepository.findAllByCustomerIdAndStatus(
                 customer.getId(), OrderStatus.PENDING_CONFIRMATION);
         assertThat(pendingAfter).as("should still have 3 pending orders").hasSize(3);
@@ -797,9 +821,9 @@ class OrderFlowTest extends FlowScenarioBase {
 
         // Go through to delivery preference (first time - should be asked)
         send("view_order");
-        send("use_address");    // ADDRESS_CONFIRM → DELIVERY_PREFERENCE
+        send("use_address");    // ADDRESS_CONFIRM â†’ DELIVERY_PREFERENCE
         assertState("DELIVERY_PREFERENCE");
-        send("pref_person");    // Sets preference → LOAF_PREFERENCE_GATE
+        send("pref_person");    // Sets preference â†’ LOAF_PREFERENCE_GATE
 
         // Verify the preference was saved on the draft
         Order draft = orderRepository.findAllByCustomerIdAndStatus(
@@ -807,7 +831,7 @@ class OrderFlowTest extends FlowScenarioBase {
         assertThat(draft.getDeliveryPreference()).isEqualTo("IN_PERSON");
 
         // Now go back from the loaf/confirm step to add more items (via the order
-        // confirm → cancel → re-add pattern). Simulate by directly navigating.
+        // confirm â†’ cancel â†’ re-add pattern). Simulate by directly navigating.
         // Use the same draft by re-entering the ORDER_SELECT_CATEGORY state.
         // In reality the user might tap a "change order" or the flow loops back.
         // For this test, manually put conversation back to ORDER_ADD_MORE with same orderId.
@@ -822,11 +846,11 @@ class OrderFlowTest extends FlowScenarioBase {
         send(itemId);
         send("1");
 
-        // View order again — should go through address but SKIP delivery preference
+        // View order again â€” should go through address but SKIP delivery preference
         send("view_order");
         send("use_address");
 
-        // Should NOT be at DELIVERY_PREFERENCE — should have skipped to loaf/confirm
+        // Should NOT be at DELIVERY_PREFERENCE â€” should have skipped to loaf/confirm
         assertThat(conversation.getState())
                 .as("delivery preference should be skipped when already set")
                 .isNotEqualTo("DELIVERY_PREFERENCE");

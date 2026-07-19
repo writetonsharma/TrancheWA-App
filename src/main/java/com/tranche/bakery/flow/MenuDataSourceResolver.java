@@ -108,16 +108,14 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("EEEE, d MMMM");
         List<WhatsAppMessage.Row> rows = new ArrayList<>();
         LocalDate candidate = start;
-        int scanned = 0;
-        // Scan up to 60 days so weekend-only carts (focaccia) still fill the list.
-        while (rows.size() < 7 && scanned < 60) {
+        LocalDate windowEnd = start.plusDays(7); // only show dates within the coming week
+        while (candidate.isBefore(windowEnd)) {
             if (deliveryRules.isAvailable(candidate, flags)) {
                 rows.add(new WhatsAppMessage.Row(
                         candidate.toString(),          // id: "2026-06-21"
                         candidate.format(fmt)));       // title: "Saturday, 21 June"
             }
             candidate = candidate.plusDays(1);
-            scanned++;
         }
         return List.of(new WhatsAppMessage.Section("Choose Delivery Date", rows));
     }

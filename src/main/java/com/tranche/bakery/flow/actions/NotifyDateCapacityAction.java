@@ -45,23 +45,19 @@ public class NotifyDateCapacityAction implements FlowAction {
 
         LocalDate available = deliveryRules.firstAvailableDate(flags);
 
-        // Scan the same window the date picker uses (up to 7 available dates, max 60
-        // days). Collect ALL full days within that window so the customer knows exactly
-        // which days are missing from the list and why.
+        // Scan the same 7-calendar-day window the date picker uses. Collect ALL
+        // full days within that window so the customer knows exactly which days are
+        // missing from the list and why.
         List<LocalDate> fullDays = new ArrayList<>();
         LocalDate d = deliveryRules.earliestDate(flags);
-        int scanned = 0;
-        int availableCount = 0;
-        while (availableCount < 7 && scanned < 60) {
+        LocalDate windowEnd = d.plusDays(7);
+        while (d.isBefore(windowEnd)) {
             if (deliveryRules.isDeliverableDay(d, flags)) {
                 if (!deliveryRules.hasCapacity(d, flags)) {
                     fullDays.add(d);
-                } else {
-                    availableCount++;
                 }
             }
             d = d.plusDays(1);
-            scanned++;
         }
 
         if (fullDays.isEmpty()) return;
