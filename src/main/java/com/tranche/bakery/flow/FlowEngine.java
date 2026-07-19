@@ -105,6 +105,25 @@ public class FlowEngine {
             return;
         }
 
+        // Global paynow_<id> ? re-surface the QR for a specific unpaid order, regardless of
+        // conversation state. Lets a customer who dismissed the QR pay from the order-status
+        // screen without hunting for the old image.
+        if (input.trim().matches("paynow_\\d+")) {
+            long targetId = Long.parseLong(input.trim().substring("paynow_".length()));
+            Order payable = orderService.findPayableForCustomer(targetId, customer.getId()).orElse(null);
+            if (payable != null) {
+                Map<String, Object> payCtx = new HashMap<>();
+                payCtx.put("orderId", payable.getId().toString());
+                conversation.setContext(payCtx);
+                enterState(customer, conversation, "PAYMENT_PENDING", input, messageType, rawMessage);
+            } else {
+                whatsAppClient.sendText(phone,
+                        "This order can no longer be paid \u2014 it may already be confirmed or cancelled. " +
+                        "Send *hi* to return to the main menu.");
+            }
+            return;
+        }
+
         // Global late-payment recovery: an image arrives but there is no active order awaiting
         // payment. This happens when the customer's order was cancelled at the 5 PM cutoff yet they
         // still pay against the old QR afterwards. Offer to revive that order on a valid bake day.

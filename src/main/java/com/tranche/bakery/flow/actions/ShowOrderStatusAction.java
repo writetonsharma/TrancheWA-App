@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -59,6 +60,7 @@ public class ShowOrderStatusAction implements FlowAction {
             String text = "*Order " + ref(o) + dateLine(o) + "*\n\n" + statusLine(o.getStatus());
             if (o.getStatus() == OrderStatus.PENDING_CONFIRMATION) {
                 whatsAppClient.sendButtons(phone, text, List.of(
+                        new WhatsAppMessage.Button("paynow_" + o.getId(), "Pay Now"),
                         new WhatsAppMessage.Button("cancel_" + o.getId(), "Cancel Order")));
             } else {
                 whatsAppClient.sendText(phone, text);
@@ -75,21 +77,23 @@ public class ShowOrderStatusAction implements FlowAction {
               .append("\n");
         }
 
-        // WhatsApp caps interactive button titles at 20 characters. A full order
-        // reference ("Cancel TRB-20260719-AB3K" = 24 chars) makes the Cloud API reject
-        // the entire message, so the status would silently never reach the customer.
-        // Label each cancel button by the order's position in the list above; the button
-        // payload still carries the real order id for the global cancel_<id> handler.
+        // At most MAX_PENDING_ORDERS (3) unpaid orders can exist, so one "Pay" button each
+        // fits WhatsApp's 3-button cap. Show them soonest-delivery first; tapping re-sends
+        // that order's QR (which carries its own Cancel button), keeping payment one tap away.
+        // Titles stay short ("Pay \u00b7 Tue, 21 Jul") so the Cloud API never 400s on the
+        // 20-char cap and silently drops the whole status message.
         if (!pendingPayment.isEmpty() && pendingPayment.size() <= 3) {
+            List<Order> payable = pendingPayment.stream()
+                    .sorted(Comparator.comparing(Order::getDeliveryDate,
+                            Comparator.nullsLast(Comparator.naturalOrder())))
+                    .toList();
             List<WhatsAppMessage.Button> buttons = new ArrayList<>();
-            int pos = 0;
-            for (Order o : active) {
-                pos++;
-                if (o.getStatus() == OrderStatus.PENDING_CONFIRMATION) {
-                    buttons.add(new WhatsAppMessage.Button("cancel_" + o.getId(), "Cancel #" + pos));
-                }
+            for (Order o : payable) {
+                String date  = o.getDeliveryDate() != null ? o.getDeliveryDate().format(DATE_FMT) : "";
+                String title = date.isEmpty() ? "Pay " + ref(o) : "Pay \u00b7 " + date;
+                buttons.add(new WhatsAppMessage.Button("paynow_" + o.getId(), title));
             }
-            sb.append("\n_Tap a button below to cancel an order awaiting payment._");
+            sb.append("\n_Tap an order below to pay. You can cancel from the payment screen._");
             whatsAppClient.sendButtons(phone, sb.toString().trim(), buttons);
         } else {
             whatsAppClient.sendText(phone, sb.toString().trim());

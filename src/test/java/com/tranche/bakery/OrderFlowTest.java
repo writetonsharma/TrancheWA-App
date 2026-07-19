@@ -326,13 +326,12 @@ class OrderFlowTest extends FlowScenarioBase {
         assertOrderStatus(order2Id, OrderStatus.PENDING_CONFIRMATION);   // untouched
     }
 
-    // -- Order status with two pending orders must render and offer per-order cancel --
-    // Regression: cancel button titles used the full order ref ("Cancel TRB-20260719-AB3K"
-    // = 24 chars), exceeding WhatsApp's 20-char limit, so the Cloud API rejected the whole
-    // interactive message. The status silently failed and the customer was dropped at the
-    // main menu. Titles are now positional ("Cancel #1") so the status always renders.
+    // -- Order status with two pending orders renders and offers per-order Pay buttons --
+    // Regression: button titles must stay within WhatsApp's 20-char cap or the Cloud API
+    // rejects the whole interactive message and the status silently never reaches the
+    // customer. Titles are short ("Pay + date") and each re-sends that order's QR.
     @Test
-    void orderStatus_twoPendingOrders_rendersWithShortCancelButtons() {
+    void orderStatus_twoPendingOrders_offersShortPayButtons() {
         Long order1Id = driveToPaymentQr(nextDeliveryDate());
         send("hi");
 
@@ -377,14 +376,73 @@ class OrderFlowTest extends FlowScenarioBase {
                 .as("no button title exceeds WhatsApp's 20-char limit")
                 .allMatch(t -> t.length() <= 20);
 
-        // Two positional cancel buttons are offered.
-        assertThat(sentButtonTitles)
-                .as("per-order cancel buttons are offered by position")
-                .contains("Cancel #1", "Cancel #2");
+        // One Pay button is offered per unpaid order.
+        assertThat(sentButtonTitles.stream().filter(t -> t.startsWith("Pay")).toList())
+                .as("a Pay button per unpaid order")
+                .hasSize(2);
 
-        // Selective cancel works: cancelling order 2 leaves order 1 untouched.
+        // Selective cancel still works via the global cancel_<id> payload.
         send("cancel_" + order2Id);
         assertOrderStatus(order2Id, OrderStatus.CANCELLED);
+        assertOrderStatus(order1Id, OrderStatus.PENDING_CONFIRMATION);
+    }
+
+    // -- Re-pay: a customer who dismissed the QR can pay again from order status --
+    // The QR is only sent once at checkout; if the customer scrolls away, order status
+    // now lets them re-surface it (paynow_<id>) and complete payment without a new order.
+    @Test
+    void orderStatus_singlePendingOrder_payNowReSendsQrAndConfirms() {
+        Long orderId = driveToPaymentQr();
+
+        // Leave the payment screen and open Info -> My Order Status.
+        send("hi");
+        send("info");
+        send("order_status");
+
+        // A single unpaid order offers Pay Now (alongside Cancel Order).
+        assertThat(sentButtonTitles).as("Pay Now offered on single-order status").contains("Pay Now");
+
+        // Tapping Pay Now re-surfaces the QR and returns to PAYMENT_PENDING.
+        send("paynow_" + orderId);
+        assertState("PAYMENT_PENDING");
+
+        // From there the customer pays and the order confirms as usual.
+        sendImage("media-repay-001");
+        assertState("IDLE");
+        assertOrderStatus(orderId, OrderStatus.CONFIRMED);
+    }
+
+    // -- Re-pay is selective: with multiple unpaid orders, the tapped order's QR is sent --
+    @Test
+    void orderStatus_multiplePending_payNowTargetsChosenOrder() {
+        Long order1Id = driveToPaymentQr(nextDeliveryDate());
+        send("hi");
+
+        String catId  = firstCategoryId();
+        String itemId = firstItemId(catId);
+        send("order");
+        send(secondDeliveryDate());
+        send(catId); send(itemId); send("1"); send("view_order");
+        send("continue_order");
+        send("use_address");
+        send("pref_gate");
+        send("loaf_sliced");
+        send("confirm");
+
+        List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(
+                customer.getId(), OrderStatus.PENDING_CONFIRMATION);
+        assertThat(pending).hasSize(2);
+        Long order2Id = pending.stream().filter(o -> !o.getId().equals(order1Id))
+                .findFirst().orElseThrow().getId();
+
+        // Re-pay order 2 specifically from the status screen: its QR is re-sent and the
+        // conversation re-enters payment scoped to that order (order 1 is untouched).
+        send("paynow_" + order2Id);
+        assertState("PAYMENT_PENDING");
+        assertThat(conversation.getContext().get("orderId"))
+                .as("re-pay targets the chosen order")
+                .isEqualTo(order2Id.toString());
+        assertOrderStatus(order2Id, OrderStatus.PENDING_CONFIRMATION);
         assertOrderStatus(order1Id, OrderStatus.PENDING_CONFIRMATION);
     }
 

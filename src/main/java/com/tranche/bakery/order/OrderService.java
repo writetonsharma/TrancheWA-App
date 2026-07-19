@@ -257,6 +257,13 @@ public class OrderService {
         return !orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PENDING_CONFIRMATION).isEmpty();
     }
 
+    /** An order the customer may still pay for: theirs, and awaiting payment. */
+    public Optional<Order> findPayableForCustomer(Long orderId, Long customerId) {
+        return orderRepository.findById(orderId)
+                .filter(o -> o.getCustomer().getId().equals(customerId))
+                .filter(o -> o.getStatus() == OrderStatus.PENDING_CONFIRMATION);
+    }
+
     public Optional<Order> findRevivableLatePayment(Long customerId) {
         LocalDate today = LocalDate.now();
         return orderRepository

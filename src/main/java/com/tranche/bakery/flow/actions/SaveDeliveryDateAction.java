@@ -107,7 +107,7 @@ public class SaveDeliveryDateAction implements FlowAction {
             whatsAppClient.sendText(phone,
                     "You already have " + MAX_PENDING_ORDERS + " orders awaiting payment. " +
                     "Please complete payment for an existing order before placing a new one.\n\n" +
-                    "Send *hi* to return to the main menu.");
+                    "To pay, send *hi*, then tap *Info* \u2192 *My Order Status* and choose the order to pay.");
             ctx.setRedirectState("IDLE");
             log.info("Blocked new order for {} - max {} pending orders reached", phone, MAX_PENDING_ORDERS);
             return;
