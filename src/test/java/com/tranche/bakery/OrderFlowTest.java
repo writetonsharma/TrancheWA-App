@@ -170,6 +170,36 @@ class OrderFlowTest extends FlowScenarioBase {
                         && t.contains("fully booked"));
     }
 
+    // Non-consecutive full days (e.g. Tuesday + Sunday) are both reported even when
+    // there are available days in between.
+    @Test
+    void nonConsecutiveFullDays_bothMentionedInNotification() {
+        // Find two non-consecutive deliverable days with available days between them
+        LocalDate first = LocalDate.parse(nextDeliveryDate());
+        // Skip one available day, then find the next deliverable day after that
+        LocalDate middle = first.plusDays(1);
+        while (middle.getDayOfWeek() == DayOfWeek.MONDAY) middle = middle.plusDays(1);
+        LocalDate later = middle.plusDays(1);
+        while (later.getDayOfWeek() == DayOfWeek.MONDAY) later = later.plusDays(1);
+
+        // Fill first and later, leave middle open
+        fillDateCapacity(first, 3);
+        fillDateCapacity(later, 3);
+
+        send("hi");
+        send("order");
+        assertState("ORDER_SELECT_DATE");
+
+        java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM");
+        String firstFormatted = first.format(fmt);
+        String laterFormatted = later.format(fmt);
+
+        // Both full days should be mentioned in the notification
+        assertThat(sentTexts).anyMatch(t ->
+                t.contains(firstFormatted) && t.contains(laterFormatted)
+                        && t.contains("fully booked"));
+    }
+
     // Seed a CONFIRMED order for another customer that books `qty` items on `date`.
     private void fillDateCapacity(LocalDate date, int qty) {
         var item = itemRepository.findAll().get(0);

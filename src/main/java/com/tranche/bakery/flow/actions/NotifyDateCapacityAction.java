@@ -45,22 +45,31 @@ public class NotifyDateCapacityAction implements FlowAction {
 
         LocalDate available = deliveryRules.firstAvailableDate(flags);
 
-        // Collect ALL full days between expected and available (inclusive of expected)
+        // Scan the same window the date picker uses (up to 7 available dates, max 60
+        // days). Collect ALL full days within that window so the customer knows exactly
+        // which days are missing from the list and why.
         List<LocalDate> fullDays = new ArrayList<>();
-        LocalDate d = expected;
+        LocalDate d = deliveryRules.earliestDate(flags);
         int scanned = 0;
-        while (d.isBefore(available) && scanned < 60) {
-            if (deliveryRules.isDeliverableDay(d, flags) && !deliveryRules.hasCapacity(d, flags)) {
-                fullDays.add(d);
+        int availableCount = 0;
+        while (availableCount < 7 && scanned < 60) {
+            if (deliveryRules.isDeliverableDay(d, flags)) {
+                if (!deliveryRules.hasCapacity(d, flags)) {
+                    fullDays.add(d);
+                } else {
+                    availableCount++;
+                }
             }
             d = d.plusDays(1);
             scanned++;
         }
 
+        if (fullDays.isEmpty()) return;
+
         String msg;
-        if (fullDays.size() <= 1) {
+        if (fullDays.size() == 1) {
             msg = "\u26A0\uFE0F Heads-up: we've reached our baking limit for *"
-                    + expected.format(FMT) + "*, so it's fully booked.\n\n"
+                    + fullDays.get(0).format(FMT) + "*, so it's fully booked.\n\n"
                     + "The earliest morning we can deliver is *" + available.format(FMT) + "*. "
                     + "Please choose from the available dates below \uD83D\uDDD3\uFE0F";
         } else {
