@@ -29,7 +29,7 @@ public class MenuDataSourceResolver implements DataSourceResolver {
     @Override
     public List<WhatsAppMessage.Section> resolve(String dataSource, Map<String, Object> context) {
         return switch (dataSource) {
-            case "MENU_CATEGORIES" -> resolveCategories();
+            case "MENU_CATEGORIES" -> resolveCategories(context);
             case "MENU_ITEMS"      -> resolveItems(context);
             case "DELIVERY_AREAS"  -> resolveDeliveryAreas();
             case "DELIVERY_DATES"  -> resolveDeliveryDates(context);
@@ -37,13 +37,29 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         };
     }
 
-    private List<WhatsAppMessage.Section> resolveCategories() {
+    private List<WhatsAppMessage.Section> resolveCategories(Map<String, Object> context) {
+        final LocalDate day = parseDeliveryDate(context);
         List<WhatsAppMessage.Row> rows = categoryRepository
                 .findAllByActiveTrueOrderByDisplayOrderAsc()
                 .stream()
+                .filter(c -> day == null || categoryHasItemsForDate(c, day))
                 .map(c -> new WhatsAppMessage.Row(c.getId().toString(), c.getName()))
                 .toList();
         return List.of(new WhatsAppMessage.Section("Categories", rows));
+    }
+
+    /** True if the category has at least one active item deliverable on the date. */
+    private boolean categoryHasItemsForDate(com.tranche.bakery.menu.MenuCategory category, LocalDate day) {
+        return itemRepository.findAllByCategoryAndActiveTrueOrderByDisplayOrderAsc(category).stream()
+                .anyMatch(i -> deliveryRules.itemDeliverableOn(i.getName(), day));
+    }
+
+    /** Reads a "deliveryDate" (ISO yyyy-MM-dd) from context, or null if absent/invalid. */
+    private LocalDate parseDeliveryDate(Map<String, Object> context) {
+        Object dateVal = context != null ? context.get("deliveryDate") : null;
+        if (dateVal == null) return null;
+        try { return LocalDate.parse(dateVal.toString()); }
+        catch (Exception ignored) { return null; }
     }
 
     private List<WhatsAppMessage.Section> resolveItems(Map<String, Object> context) {
@@ -54,9 +70,12 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         MenuCategory category = categoryRepository.findById(categoryId).orElse(null);
         if (category == null) return List.of();
 
+        final LocalDate day = parseDeliveryDate(context);
+
         List<WhatsAppMessage.Row> rows = itemRepository
                 .findAllByCategoryAndActiveTrueOrderByDisplayOrderAsc(category)
                 .stream()
+                .filter(i -> day == null || deliveryRules.itemDeliverableOn(i.getName(), day))
                 .map(i -> {
                     String price = String.format("₹%.0f", i.getPrice());
                     String desc = (i.getDescription() != null && !i.getDescription().isBlank())

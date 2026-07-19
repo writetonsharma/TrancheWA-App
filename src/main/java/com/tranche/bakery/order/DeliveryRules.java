@@ -133,6 +133,18 @@ public class DeliveryRules {
         return !date.isBefore(earliestDate(flags)) && isAvailable(date, flags);
     }
 
+    /**
+     * Whether a single menu item can be delivered on the given date, applying the
+     * same day-type and lead-time rules used for a whole cart. Used by the
+     * date-first menu to hide items that do not fit the customer chosen morning
+     * (e.g. focaccia on a weekday, or a bagel that cannot clear its 48h ferment).
+     */
+    public boolean itemDeliverableOn(String itemName, LocalDate date) {
+        String n = itemName == null ? "" : itemName.toLowerCase();
+        CartFlags flags = new CartFlags(n.contains("bagel"), n.contains("focaccia"), 1);
+        return isDeliverableDay(date, flags) && !date.isBefore(earliestDate(flags));
+    }
+
     /** The soonest day we would normally offer (day-type valid), ignoring capacity. */
     public LocalDate firstDeliverableDay(CartFlags flags) {
         LocalDate d = earliestDate(flags);

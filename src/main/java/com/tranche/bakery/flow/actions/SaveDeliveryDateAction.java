@@ -17,6 +17,16 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+/**
+ * Date-first flow: the customer chooses the delivery day BEFORE browsing the menu.
+ * This action validates the chosen date, enforces the max-pending-orders cap, then
+ * creates (or reuses) the draft and stamps the date on it so subsequent item adds
+ * recalculate live batch discounts for that day.
+ *
+ * For a brand-new (empty) order it hands off to the category browse; for a reorder
+ * (draft already carries items) it hands off to the pre-confirm gate, which runs
+ * the same-date merge / separate-order logic.
+ */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -27,7 +37,7 @@ public class SaveDeliveryDateAction implements FlowAction {
     private final WhatsAppClient whatsAppClient;
     private final DeliveryRules deliveryRules;
 
-    private static final int MAX_PENDING_ORDERS = 3;
+    static final int MAX_PENDING_ORDERS = 3;
 
     @Override
     public String getName() { return "SAVE_DELIVERY_DATE"; }
@@ -35,17 +45,24 @@ public class SaveDeliveryDateAction implements FlowAction {
     @Override
     @Transactional
     public void execute(ActionContext ctx) {
-        String orderIdStr = ctx.contextValue("orderId");
-        String dateStr    = ctx.contextValue("deliveryDate");
-        if (orderIdStr == null || dateStr == null) return;
+        String dateStr = ctx.contextValue("deliveryDate");
+        if (dateStr == null) return;
 
-        Order draft = orderRepository.findById(Long.parseLong(orderIdStr)).orElse(null);
-        if (draft == null || draft.getStatus() != OrderStatus.DRAFT) return;
+        LocalDate deliveryDate;
+        try {
+            deliveryDate = LocalDate.parse(dateStr);
+        } catch (Exception e) {
+            return;
+        }
 
-        LocalDate deliveryDate = LocalDate.parse(dateStr);
         Long customerId = ctx.getCustomer().getId();
+        String phone = ctx.getCustomer().getPhone();
 
-        // Enforce scheduling rules: bagel 48h lead, focaccia weekend-only, no Mondays, daily capacity
+        // Reuse the current draft if one exists (reorder), else create a fresh one.
+        Order draft = orderService.getOrCreateDraft(ctx.getCustomer(), ctx.getConversation());
+        ctx.getConversation().getContext().put("orderId", draft.getId().toString());
+
+        // Validate against this cart's constraints (empty cart => generic rules).
         DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(draft.getId());
         if (!deliveryRules.isValidDeliveryDate(deliveryDate, flags)) {
             boolean dayTypeOk = deliveryRules.isDeliverableDay(deliveryDate, flags)
@@ -53,62 +70,46 @@ public class SaveDeliveryDateAction implements FlowAction {
             String reason = dayTypeOk
                     ? fullDateMessage(deliveryDate, deliveryRules.firstAvailableDate(flags))
                     : invalidDateMessage(flags);
-            whatsAppClient.sendText(ctx.getCustomer().getPhone(), reason);
+            whatsAppClient.sendText(phone, reason);
             ctx.setRedirectState("ORDER_SELECT_DATE");
-            log.info("Rejected delivery date {} for draft {} (bagel={}, focaccia={}, capacityFull={}) - re-prompting",
-                    deliveryDate, draft.getId(), flags.hasBagel(), flags.hasFocaccia(), dayTypeOk);
+            log.info("Rejected delivery date {} for draft {} - re-prompting", deliveryDate, draft.getId());
             return;
         }
 
-        // Case 1: customer already has a PENDING_CONFIRMATION order for this exact date → merge into it
-        Order existing = orderRepository
+        // Max concurrent unpaid orders. A same-date existing order is exempt because
+        // it will merge (not add) at the pre-confirm step.
+        boolean sameDateExists = orderRepository
                 .findTopByCustomerIdAndStatusAndDeliveryDate(customerId, OrderStatus.PENDING_CONFIRMATION, deliveryDate)
-                .orElse(null);
-        if (existing != null) {
-            orderService.mergeItems(draft, existing);
-            orderService.cancel(draft);
-            ctx.getConversation().getContext().put("orderId", existing.getId().toString());
-            ctx.setRedirectState("ORDER_CONFIRM");
-            log.info("Merged draft {} into existing order {} for date {} (customer {})",
-                    draft.getId(), existing.getId(), deliveryDate, ctx.getCustomer().getPhone());
-            return;
-        }
-
-        // Count current PENDING_CONFIRMATION orders
+                .isPresent();
         List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PENDING_CONFIRMATION);
-
-        // Case 2: max separate orders reached → block and cancel draft
-        if (pending.size() >= MAX_PENDING_ORDERS) {
+        if (!sameDateExists && pending.size() >= MAX_PENDING_ORDERS) {
             orderService.cancel(draft);
             ctx.getConversation().getContext().remove("orderId");
-            whatsAppClient.sendText(ctx.getCustomer().getPhone(),
+            whatsAppClient.sendText(phone,
                     "You already have " + MAX_PENDING_ORDERS + " orders awaiting payment. " +
                     "Please complete payment for an existing order before placing a new one.\n\n" +
                     "Send *hi* to return to the main menu.");
             ctx.setRedirectState("IDLE");
-            log.info("Blocked new order for {} — max {} pending orders reached",
-                    ctx.getCustomer().getPhone(), MAX_PENDING_ORDERS);
+            log.info("Blocked new order for {} - max {} pending orders reached", phone, MAX_PENDING_ORDERS);
             return;
         }
 
-        // Save delivery date on draft, then recompute totals so any batch discount
-        // (which depends on the delivery day's booked demand) is reflected.
+        // Stamp the date now so item adds recalculate live batch discounts for the day.
         draft.setDeliveryDate(deliveryDate);
         orderRepository.save(draft);
         orderService.recalculate(draft);
 
-        // Case 3: has other pending orders — warn about a separate order
-        if (!pending.isEmpty()) {
-            ctx.setRedirectState("ORDER_CONFIRM_SEPARATE");
-            log.info("Draft {} set to {} — showing separate-order warning (customer {})",
-                    draft.getId(), deliveryDate, ctx.getCustomer().getPhone());
+        // Reorder: draft already has items -> straight to the pre-confirm gate.
+        if (flags.itemCount() > 0) {
+            ctx.setRedirectState("PRE_CONFIRM_GATE");
+            log.info("Delivery date {} saved for reorder draft {} - to pre-confirm", deliveryDate, draft.getId());
             return;
         }
 
-        // Case 4: no existing pending orders — normal flow continues to ADDRESS_GATE
-        log.info("Delivery date {} saved for draft {} (customer {})",
-                deliveryDate, draft.getId(), ctx.getCustomer().getPhone());
+        // New order: proceed to the (date-filtered) category browse.
+        log.info("Delivery date {} saved for new draft {} (customer {})", deliveryDate, draft.getId(), phone);
     }
+
     private String invalidDateMessage(DeliveryRules.CartFlags flags) {
         StringBuilder sb = new StringBuilder("That date isn't available for this order. ");
         if (flags.hasBagel()) {
@@ -124,7 +125,7 @@ public class SaveDeliveryDateAction implements FlowAction {
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("EEEE, d MMMM");
 
     private String fullDateMessage(LocalDate requested, LocalDate earliestAvailable) {
-        return "Sorry, *" + requested.format(DATE_FMT) + "* is fully booked — we've reached our baking limit for that day. "
+        return "Sorry, *" + requested.format(DATE_FMT) + "* is fully booked - we've reached our baking limit for that day. "
                 + "The earliest morning we can deliver is *" + earliestAvailable.format(DATE_FMT) + "*. "
                 + "Please pick one of the dates below.";
     }

@@ -34,6 +34,7 @@ class ItemCapFlowTest extends FlowScenarioBase {
 
         send("hi");
         send("order");
+        send(nextDeliveryDate());
         send(catId);
         send(itemId);
         assertState("ORDER_SELECT_QUANTITY");
@@ -52,6 +53,7 @@ class ItemCapFlowTest extends FlowScenarioBase {
 
         send("hi");
         send("order");
+        send(nextDeliveryDate());
         send(catId);
         send(itemId);
         send("2");
@@ -76,6 +78,7 @@ class ItemCapFlowTest extends FlowScenarioBase {
 
         send("hi");
         send("order");
+        send(nextDeliveryDate());
         send(catId);
         send(itemId);
         send("3");
@@ -87,22 +90,45 @@ class ItemCapFlowTest extends FlowScenarioBase {
     }
 
     // From the handoff, "Place Order" proceeds to checkout with the current cart.
+    // Date is already chosen (date-first), so this goes straight to the address step.
     @Test
-    void bulkLimit_placeOrder_proceedsToDate() {
+    void bulkLimit_placeOrder_proceedsToCheckout() {
         driveToBulkLimit();
 
         send("checkout");
-        assertState("ORDER_SELECT_DATE");
+        assertState("ADDRESS_CONFIRM");
         assertThat(cartQty()).isEqualTo(3);
     }
 
-    // From the handoff, "No, thanks" ends the flow at the main menu.
+    // From the handoff, "No, thanks" empties the cart and returns to the menu.
     @Test
-    void bulkLimit_noThanks_returnsToMenu() {
+    void bulkLimit_noThanks_emptiesCartAndReturnsToMenu() {
         driveToBulkLimit();
 
         send("done");
         assertState("MAIN_MENU");
+        assertThat(cartQty()).as("declining at the cap must empty the cart").isEqualTo(0);
+    }
+
+    // After declining at the cap, the customer is not trapped: they can browse and
+    // add items again instead of being bounced straight back to the bulk handoff.
+    @Test
+    void afterNoThanks_customerCanOrderAgain() {
+        driveToBulkLimit();
+        send("done");
+        assertState("MAIN_MENU");
+
+        String catId  = firstCategoryId();
+        String itemId = firstItemId(catId);
+        send("order");
+        assertState("ORDER_SELECT_DATE");
+        send(nextDeliveryDate());
+        assertState("ORDER_SELECT_CATEGORY");
+        send(catId);
+        send(itemId);
+        send("1");
+        assertState("ORDER_ADD_MORE");
+        assertThat(cartQty()).isEqualTo(1);
     }
 
     private void driveToBulkLimit() {
@@ -110,6 +136,7 @@ class ItemCapFlowTest extends FlowScenarioBase {
         String itemId = firstItemId(catId);
         send("hi");
         send("order");
+        send(nextDeliveryDate());
         send(catId);
         send(itemId);
         send("3");

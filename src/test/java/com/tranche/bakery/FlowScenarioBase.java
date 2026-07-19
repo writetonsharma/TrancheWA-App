@@ -52,6 +52,10 @@ public abstract class FlowScenarioBase {
 
     protected final List<String> sentTexts = new ArrayList<>();
     protected final List<String> sentButtonBodies = new ArrayList<>();
+    // Titles of every row across the sections of the most recent sendList call.
+    protected final List<String> sentListRows = new ArrayList<>();
+    // Body text of every sendList call (the prompt above the list).
+    protected final List<String> sentListBodies = new ArrayList<>();
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -78,11 +82,27 @@ public abstract class FlowScenarioBase {
 
         sentTexts.clear();
         sentButtonBodies.clear();
+        sentListRows.clear();
+        sentListBodies.clear();
 
         doAnswer(inv -> { sentTexts.add(inv.getArgument(1, String.class)); return null; })
                 .when(whatsAppClient).sendText(any(), any());
         doAnswer(inv -> { sentButtonBodies.add(inv.getArgument(1, String.class)); return null; })
                 .when(whatsAppClient).sendButtons(any(), any(), any());
+        doAnswer(inv -> {
+            sentListRows.clear();
+            sentListBodies.add(inv.getArgument(1, String.class));
+            @SuppressWarnings("unchecked")
+            java.util.List<com.tranche.bakery.whatsapp.WhatsAppMessage.Section> sections =
+                    inv.getArgument(3, java.util.List.class);
+            if (sections != null) {
+                for (var section : sections) {
+                    if (section.getRows() == null) continue;
+                    for (var row : section.getRows()) sentListRows.add(row.getTitle());
+                }
+            }
+            return null;
+        }).when(whatsAppClient).sendList(any(), any(), any(), any());
     }
 
     protected void send(String input) {
@@ -141,11 +161,11 @@ public abstract class FlowScenarioBase {
 
         send("hi");
         send("order");
+        send(deliveryDate);
         send(catId);
         send(itemId);
         send("1");
         send("view_order");
-        send(deliveryDate);
         send("use_address");
         send("pref_gate");
         send("loaf_sliced");

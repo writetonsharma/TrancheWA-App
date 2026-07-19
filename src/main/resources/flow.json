@@ -154,7 +154,7 @@
         },
         {
           "match": "browse_menu",
-          "nextState": "ORDER_SELECT_CATEGORY"
+          "nextState": "ORDER_SELECT_DATE"
         },
         {
           "match": "*",
@@ -259,7 +259,7 @@
         },
         {
           "match": "view_order",
-          "nextState": "ORDER_SELECT_DATE"
+          "nextState": "PRE_CONFIRM_GATE"
         },
         {
           "match": "*",
@@ -270,7 +270,7 @@
     "ORDER_BULK_LIMIT": {
       "entryMessage": {
         "type": "buttons",
-        "body": "Our orders are capped at *3 items* each so every bake stays fresh and on time. You've reached that limit for this order.\n\nWould you like to place this order with the items already in your cart? For anything larger, tap *Message Us* on the main menu and we'll arrange a bulk order for you.",
+        "body": "Our orders are capped at *3 items* each so every bake stays fresh and on time. You've reached that limit for this order.\n\nWould you like to place this order with the items already in your cart? Or tap *No, thanks* to empty the cart and start over. For anything larger, tap *Message Us* on the main menu and we'll arrange a bulk order for you.",
         "buttons": [
           {
             "id": "checkout",
@@ -285,11 +285,12 @@
       "transitions": [
         {
           "match": "checkout",
-          "nextState": "ORDER_SELECT_DATE"
+          "nextState": "PRE_CONFIRM_GATE"
         },
         {
           "match": "done",
-          "nextState": "MAIN_MENU"
+          "nextState": "MAIN_MENU",
+          "action": "DISCARD_DRAFT"
         },
         {
           "match": "*",
@@ -301,18 +302,21 @@
       "entryAction": "NOTIFY_DATE_CAPACITY",
       "entryMessage": {
         "type": "list",
-        "body": "When would you like your order delivered? 🗓️\n\nWe deliver between *6–8 AM*. Choose your preferred morning below:",
+        "body": "When would you like your order delivered? 🗓️\n\nWe deliver between *6–8 AM*. Choose your preferred morning below:\n\n_A quick note:_ your date shapes the menu. 🥐 *Bagels* need a 48-hour head start, and 🍞 *focaccia* is baked for weekends only (Fri–Sun) — so they only appear on the days we can bake them fresh.",
         "buttonLabel": "Choose Date",
         "dataSource": "DELIVERY_DATES"
       },
       "transitions": [
         {
           "match": "*",
-          "nextState": "ADDRESS_GATE",
+          "nextState": "ORDER_SELECT_CATEGORY",
           "saveContext": "deliveryDate",
           "action": "SAVE_DELIVERY_DATE"
         }
       ]
+    },
+    "PRE_CONFIRM_GATE": {
+      "entryAction": "PRE_CONFIRM_MULTIORDER"
     },
     "ORDER_CONFIRM_SEPARATE": {
       "entryAction": "SHOW_SEPARATE_ORDER_WARNING",

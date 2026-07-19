@@ -48,11 +48,11 @@ class OrderFlowTest extends FlowScenarioBase {
 
         send("hi");
         send("order");
+        send(nextDeliveryDate());
         send(bunsCategory.getId().toString());
         send(itemId);
         send("1");
         send("view_order");
-        send(nextDeliveryDate());
         send("use_address");
         send("pref_gate");
 
@@ -63,51 +63,58 @@ class OrderFlowTest extends FlowScenarioBase {
     // ── Bagel needs 48h lead: too-early dates are rejected ───────────────
 
     @Test
-    void bagelOrder_rejectsTooEarlyDate() {
-        String catId  = categoryIdByName("Breakfast & Specialty");
-        String itemId = itemIdByNameContains(catId, "bagel");
+    void bagelItem_menuFiltersByLeadTime() {
+        String catId = categoryIdByName("Breakfast & Specialty");
 
+        // A bagel-eligible date offers the bagel.
         send("hi");
         send("order");
-        send(catId);
-        send(itemId);
-        send("1");
-        send("view_order");
-        assertState("ORDER_SELECT_DATE");
-
-        // Today is always before the bagel earliest date (>= today + 2)
-        send(LocalDate.now().toString());
-        assertState("ORDER_SELECT_DATE");
-        assertThat(sentTexts).anyMatch(t -> t.contains("48-hour"));
-
-        // A valid bagel date advances past date selection
         send(bagelEarliestDate());
-        assertState("ADDRESS_CONFIRM");
+        assertState("ORDER_SELECT_CATEGORY");
+        send(catId);
+        assertThat(sentListRows).as("bagel offered once the 48h lead is met")
+                .anyMatch(t -> t.toLowerCase().contains("bagel"));
+
+        // A valid delivery day still inside the 48h window hides the bagel. When the
+        // only near day is a closed Monday, no such window exists, so this is skipped.
+        LocalDate bagelOk = LocalDate.parse(bagelEarliestDate());
+        LocalDate probe = LocalDate.now().plusDays(LocalTime.now().getHour() >= 23 ? 2 : 1);
+        while (probe.getDayOfWeek() == DayOfWeek.MONDAY) probe = probe.plusDays(1);
+        if (probe.isBefore(bagelOk)) {
+            send("hi");
+            send("order");
+            send(probe.toString());
+            assertState("ORDER_SELECT_CATEGORY");
+            send(catId);
+            assertThat(sentListRows).as("bagel hidden when the date is within 48h")
+                    .noneMatch(t -> t.toLowerCase().contains("bagel"));
+        }
     }
 
     // ── Focaccia is weekend-only: weekday dates are rejected ──────────────
 
     @Test
-    void focacciaOrder_rejectsWeekday() {
-        String catId  = categoryIdByName("Breakfast & Specialty");
-        String itemId = itemIdByNameContains(catId, "focaccia");
+    void focacciaItem_hiddenOnWeekday() {
+        String catId = categoryIdByName("Breakfast & Specialty");
 
         send("hi");
         send("order");
-        send(catId);
-        send(itemId);
-        send("1");
-        send("view_order");
-        assertState("ORDER_SELECT_DATE");
 
-        // A future Wednesday clears the lead time but is not a weekend -> rejected
+        // A weekday date: focaccia is weekend-only, so it isn't offered.
         send(nextWeekday(DayOfWeek.WEDNESDAY).toString());
-        assertState("ORDER_SELECT_DATE");
-        assertThat(sentTexts).anyMatch(t -> t.contains("weekend"));
+        assertState("ORDER_SELECT_CATEGORY");
+        send(catId);
+        assertThat(sentListRows).as("focaccia hidden on a weekday")
+                .noneMatch(t -> t.toLowerCase().contains("focaccia"));
 
-        // A weekend date is accepted
+        // A weekend date offers focaccia.
+        send("hi");
+        send("order");
         send(nextWeekend(DayOfWeek.SATURDAY).toString());
-        assertState("ADDRESS_CONFIRM");
+        assertState("ORDER_SELECT_CATEGORY");
+        send(catId);
+        assertThat(sentListRows).as("focaccia offered on a weekend")
+                .anyMatch(t -> t.toLowerCase().contains("focaccia"));
     }
 
     // -- Daily capacity: a fully-booked date is hidden, rejected, and explained ----
@@ -118,15 +125,8 @@ class OrderFlowTest extends FlowScenarioBase {
         LocalDate full = LocalDate.parse(nextDeliveryDate());
         fillDateCapacity(full, 3);
 
-        String catId  = firstCategoryId();
-        String itemId = firstItemId(catId);
-
         send("hi");
         send("order");
-        send(catId);
-        send(itemId);
-        send("1");
-        send("view_order");
         assertState("ORDER_SELECT_DATE");
 
         // Entry note explains why the soonest day is missing
@@ -137,11 +137,11 @@ class OrderFlowTest extends FlowScenarioBase {
         assertState("ORDER_SELECT_DATE");
         assertThat(sentTexts).anyMatch(t -> t.contains("fully booked"));
 
-        // The next available (non-Monday) date is accepted
+        // The next available (non-Monday) date is accepted -> browse the menu
         LocalDate next = full.plusDays(1);
         while (next.getDayOfWeek() == DayOfWeek.MONDAY) next = next.plusDays(1);
         send(next.toString());
-        assertState("ADDRESS_CONFIRM");
+        assertState("ORDER_SELECT_CATEGORY");
     }
 
     // Seed a CONFIRMED order for another customer that books `qty` items on `date`.
@@ -225,11 +225,11 @@ class OrderFlowTest extends FlowScenarioBase {
         String date2  = secondDeliveryDate();    // D2 ≠ D1
 
         send("order");
+        send(date2);
         send(catId);
         send(itemId);
         send("1");
-        send("view_order");
-        send(date2);    // SaveDeliveryDateAction: 1 pending, different date → ORDER_CONFIRM_SEPARATE
+        send("view_order");    // SaveDeliveryDateAction: 1 pending, different date → ORDER_CONFIRM_SEPARATE
 
         assertState("ORDER_CONFIRM_SEPARATE");
         // Customer should see a message warning them this will be a separate order
@@ -247,8 +247,8 @@ class OrderFlowTest extends FlowScenarioBase {
         // Order 1: 1 × item, date D
         send("hi");
         send("order");
-        send(catId); send(itemId); send("1"); send("view_order");
         send(date);
+        send(catId); send(itemId); send("1"); send("view_order");
         send("use_address");
         send("pref_gate");
         send("loaf_sliced");
@@ -264,8 +264,8 @@ class OrderFlowTest extends FlowScenarioBase {
 
         // Order 2: 2 × same item, same date D → SaveDeliveryDateAction Case 1: merge
         send("order");
-        send(catId); send(itemId); send("2"); send("view_order");
-        send(date);     // merge triggers, draft cancelled, redirected to ORDER_CONFIRM
+        send(date);
+        send(catId); send(itemId); send("2"); send("view_order");     // merge triggers, draft cancelled, redirected to ORDER_CONFIRM
 
         assertState("ORDER_CONFIRM");
 
@@ -296,8 +296,8 @@ class OrderFlowTest extends FlowScenarioBase {
         String date2  = secondDeliveryDate();
 
         send("order");
+        send(date2);
         send(catId); send(itemId); send("1"); send("view_order");
-        send(date2);                // ORDER_CONFIRM_SEPARATE
         send("continue_order");     // ADDRESS_GATE → ADDRESS_CONFIRM
         send("use_address");        // DELIVERY_PREFERENCE
         send("pref_gate");          // LOAF_PREFERENCE
@@ -336,8 +336,8 @@ class OrderFlowTest extends FlowScenarioBase {
         String catId  = firstCategoryId();
         String itemId = firstItemId(catId);
         send("order");
-        send(catId); send(itemId); send("1"); send("view_order");
-        send(secondDeliveryDate());     // ORDER_CONFIRM_SEPARATE
+        send(secondDeliveryDate());
+        send(catId); send(itemId); send("1"); send("view_order");     // ORDER_CONFIRM_SEPARATE
 
         assertState("ORDER_CONFIRM_SEPARATE");
 
@@ -373,6 +373,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         send("hi");
         send("order");
+        send(nextDeliveryDate());
         send(catId); send(itemId); send("2");   // 2 × item
         send("add_item");                        // add another
         send(catId); send(itemId); send("1");   // 1 × same item
@@ -400,8 +401,8 @@ class OrderFlowTest extends FlowScenarioBase {
         String date2 = secondDeliveryDate();
         send("hi");
         send("order");
-        send(catId); send(itemId); send("1"); send("view_order");
         send(date2);
+        send(catId); send(itemId); send("1"); send("view_order");
         send("continue_order");
         send("use_address");
         send("pref_gate");
@@ -415,8 +416,8 @@ class OrderFlowTest extends FlowScenarioBase {
 
         send("hi");
         send("order");
-        send(catId); send(itemId); send("1"); send("view_order");
         send(date3);
+        send(catId); send(itemId); send("1"); send("view_order");
         send("continue_order");
         send("use_address");
         send("pref_gate");
@@ -435,10 +436,9 @@ class OrderFlowTest extends FlowScenarioBase {
         sentTexts.clear();
         send("hi");
         send("order");
-        send(catId); send(itemId); send("1"); send("view_order");
         send(date4);
 
-        // Should be redirected to IDLE with a blocking message
+        // Blocked at the date step (before browsing) -> IDLE with a blocking message
         assertState("IDLE");
         assertThat(sentTexts).anyMatch(t -> t.contains("3 orders awaiting payment"));
 
@@ -446,5 +446,71 @@ class OrderFlowTest extends FlowScenarioBase {
         List<Order> pendingAfter = orderRepository.findAllByCustomerIdAndStatus(
                 customer.getId(), OrderStatus.PENDING_CONFIRMATION);
         assertThat(pendingAfter).as("should still have 3 pending orders").hasSize(3);
+    }
+
+    // -- Date step surfaces the bagel/focaccia heads-up so customers aren't confused --
+
+    @Test
+    void dateStep_showsBagelFocacciaHeadsUpNote() {
+        send("hi");
+        send("order");
+        assertState("ORDER_SELECT_DATE");
+
+        assertThat(sentListBodies)
+                .as("date prompt explains bagels/focaccia only show on bakeable days")
+                .anyMatch(b -> b != null
+                        && b.toLowerCase().contains("bagel")
+                        && b.toLowerCase().contains("focaccia"));
+    }
+
+    // -- Regression: starting a new order clears a previous order's stale context --
+    // Date-first runs the date step before any item is added, so a stale orderId/
+    // deliveryDate from a completed order must not filter the date list or menu.
+
+    @Test
+    void newOrder_clearsStaleContextFromPreviousOrder() {
+        String catId = categoryIdByName("Breakfast & Specialty");
+        String bagelItemId = itemIdByNameContains(catId, "bagel");
+        var bagel = itemRepository.findById(Long.parseLong(bagelItemId)).orElseThrow();
+
+        // A prior COMPLETED order containing a bagel (48h lead) would, if left in
+        // context, wrongly hide the soonest normal delivery day for the new order.
+        Long staleOrderId = jdbcTemplate.queryForObject(
+                "INSERT INTO orders (customer_id, status, fulfillment_type, delivery_charge) "
+                        + "VALUES (?, 'COMPLETED', 'DELIVERY', 0) RETURNING id",
+                Long.class, customer.getId());
+        jdbcTemplate.update(
+                "INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, subtotal) "
+                        + "VALUES (?, ?, 1, 0, 0)",
+                staleOrderId, bagel.getId());
+
+        // Simulate a returning customer at MAIN_MENU with leftover context (no re-greeting).
+        conversation.setState("MAIN_MENU");
+        conversation.getContext().put("orderId", staleOrderId.toString());
+        conversation.getContext().put("deliveryDate", "2020-01-01");
+        conversation.getContext().put("categoryId", catId);
+        conversationRepository.save(conversation);
+        reloadConversation();
+
+        // Start a new order without greeting, so the "hi" reset does not fire.
+        send("order");
+        assertState("ORDER_SUGGEST_REORDER");
+        assertThat(conversation.getContext())
+                .as("stale deliveryDate cleared when a new order starts")
+                .doesNotContainKey("deliveryDate");
+        assertThat(conversation.getContext())
+                .as("stale orderId cleared when a new order starts")
+                .doesNotContainKey("orderId");
+
+        // Browse to the date step: the soonest normal day must be offered (it would be
+        // hidden if the stale bagel cart were still filtering the list).
+        send("browse_menu");
+        assertState("ORDER_SELECT_DATE");
+        LocalDate soonest = LocalDate.parse(nextDeliveryDate());
+        String soonestRow = soonest.format(
+                java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM"));
+        assertThat(sentListRows)
+                .as("soonest normal day offered once stale bagel context is cleared")
+                .contains(soonestRow);
     }
 }
