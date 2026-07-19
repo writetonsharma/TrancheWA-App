@@ -113,14 +113,14 @@
           "name": "Classic New York-Style Bagel",
           "price": 360.0,
           "displayOrder": 1,
-          "description": "Set of 6; 48 hours' notice",
+          "description": "Set of 6",
           "listTitle": "New York-Style Bagel"
         },
         {
           "name": "Caramelized Onion Bagel",
           "price": 420.0,
           "displayOrder": 2,
-          "description": "Set of 6; 48 hours' notice"
+          "description": "Set of 6"
         },
         {
           "name": "Olive, Tomato & Rosemary Focaccia (Full)",

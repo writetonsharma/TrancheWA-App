@@ -10,6 +10,7 @@ import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +37,9 @@ public class PreConfirmMultiOrderAction implements FlowAction {
     private final WhatsAppClient whatsAppClient;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("EEEE, d MMMM");
+
+    @Value("${bakery.order.per-order-item-limit:3}")
+    private int perOrderItemLimit;
 
     @Override
     public String getName() { return "PRE_CONFIRM_MULTIORDER"; }
@@ -76,6 +80,18 @@ public class PreConfirmMultiOrderAction implements FlowAction {
                 .findTopByCustomerIdAndStatusAndDeliveryDate(customerId, OrderStatus.PENDING_CONFIRMATION, date)
                 .orElse(null);
         if (existing != null) {
+            // Merging must not push the day's order past the per-order item cap.
+            int mergedTotal = orderService.committedItemCountForDate(customerId, draft.getId(), date);
+            if (mergedTotal > perOrderItemLimit) {
+                whatsAppClient.sendText(ctx.getCustomer().getPhone(),
+                        "Adding these to your existing order for *" + date.format(DATE_FMT)
+                        + "* would go past our " + perOrderItemLimit
+                        + "-item limit per order. Please choose a different delivery day below.");
+                ctx.setRedirectState("ORDER_SELECT_DATE");
+                log.info("Blocked merge of draft {} into {} - would exceed item cap {} (customer {})",
+                        draft.getId(), existing.getId(), perOrderItemLimit, ctx.getCustomer().getPhone());
+                return;
+            }
             orderService.mergeItems(draft, existing);
             orderService.cancel(draft);
             ctx.getConversation().getContext().put("orderId", existing.getId().toString());

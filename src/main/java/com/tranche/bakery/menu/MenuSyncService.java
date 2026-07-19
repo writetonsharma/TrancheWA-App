@@ -11,7 +11,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
@@ -28,6 +30,9 @@ public class MenuSyncService implements ApplicationRunner {
         var resource = new ClassPathResource("menu.json");
         MenuJson config = objectMapper.readValue(resource.getInputStream(), MenuJson.class);
 
+        Set<Long> seenCategoryIds = new HashSet<>();
+        Set<Long> seenItemIds = new HashSet<>();
+
         for (MenuJson.CategoryJson catJson : config.getCategories()) {
             MenuCategory category = categoryRepository.findByName(catJson.getName())
                     .orElseGet(() -> {
@@ -38,6 +43,7 @@ public class MenuSyncService implements ApplicationRunner {
             category.setDisplayOrder(catJson.getDisplayOrder());
             category.setActive(true);
             categoryRepository.save(category);
+            seenCategoryIds.add(category.getId());
 
             for (MenuJson.ItemJson itemJson : catJson.getItems()) {
                 MenuItem item = itemRepository.findByCategoryAndName(category, itemJson.getName())
@@ -55,9 +61,33 @@ public class MenuSyncService implements ApplicationRunner {
                 }
                 item.setActive(true);
                 itemRepository.save(item);
+                seenItemIds.add(item.getId());
             }
         }
-        log.info("Menu sync complete: {} categories loaded", config.getCategories().size());
+
+        // Reconcile: menu.json is the source of truth. Deactivate any active item or
+        // category that is no longer present, so removed/renamed entries (e.g. an old
+        // bagel variant that was superseded) stop appearing in the live menu.
+        int deactivatedItems = 0;
+        for (MenuItem item : itemRepository.findAll()) {
+            if (item.isActive() && !seenItemIds.contains(item.getId())) {
+                item.setActive(false);
+                itemRepository.save(item);
+                deactivatedItems++;
+                log.info("Deactivated stale menu item: {}", item.getName());
+            }
+        }
+        int deactivatedCategories = 0;
+        for (MenuCategory category : categoryRepository.findAll()) {
+            if (category.isActive() && !seenCategoryIds.contains(category.getId())) {
+                category.setActive(false);
+                categoryRepository.save(category);
+                deactivatedCategories++;
+                log.info("Deactivated stale menu category: {}", category.getName());
+            }
+        }
+        log.info("Menu sync complete: {} categories loaded, {} stale items and {} stale categories deactivated",
+                config.getCategories().size(), deactivatedItems, deactivatedCategories);
     }
 
     @Data

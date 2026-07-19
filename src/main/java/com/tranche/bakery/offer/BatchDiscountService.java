@@ -53,16 +53,27 @@ public class BatchDiscountService {
     }
 
     /**
-     * Extra percent (e.g. 5.00) an item earns for a delivery date because its booked
-     * demand has reached the band threshold, or null if it does not qualify.
+     * How many of an order's {@code orderQty} units for an item qualify for the batch
+     * discount on a delivery date. The band threshold is filled first by OTHER already
+     * booked demand (this order excluded), then by this order's own units; only the
+     * units BEYOND the threshold are discounted. The units that establish the batch
+     * (bring demand up to the threshold) are never discounted.
+     *
+     * <p>This makes a single customer's stacked units and a new customer joining an
+     * already-established batch behave consistently: only surplus units earn the extra.
+     *
+     * @param excludeOrderId this order's id, so its own booked units are not counted as
+     *                       pre-existing demand (may be null for a not-yet-booked draft)
      */
-    public BigDecimal extraPercentFor(Long itemId, BigDecimal price, LocalDate date) {
-        if (!enabled || itemId == null || date == null) return null;
+    public long discountableUnits(Long itemId, BigDecimal price, LocalDate date,
+                                  int orderQty, Long excludeOrderId) {
+        if (!enabled || itemId == null || date == null || orderQty <= 0) return 0;
         BatchDiscountBand band = bandFor(price);
-        if (band == null) return null;
-        long booked = orderItemRepository.sumBookedQuantityForItem(
-                itemId, date, DeliveryRules.capacityStatuses());
-        return booked >= band.getThresholdUnits() ? band.getPercent() : null;
+        if (band == null) return 0;
+        long otherBooked = orderItemRepository.sumBookedQuantityForItemExcludingOrder(
+                itemId, date, DeliveryRules.batchDemandStatuses(), excludeOrderId);
+        long unitsToReachThreshold = Math.max(0, band.getThresholdUnits() - otherBooked);
+        return Math.max(0, orderQty - unitsToReachThreshold);
     }
 
     /**
@@ -73,7 +84,7 @@ public class BatchDiscountService {
         if (!enabled || dates == null || dates.isEmpty()) return List.of();
 
         List<Object[]> rows = orderItemRepository.sumBookedByItemAndDate(
-                dates, DeliveryRules.capacityStatuses());
+                dates, DeliveryRules.batchDemandStatuses());
         if (rows.isEmpty()) return List.of();
 
         List<Long> itemIds = rows.stream().map(r -> (Long) r[0]).distinct().toList();

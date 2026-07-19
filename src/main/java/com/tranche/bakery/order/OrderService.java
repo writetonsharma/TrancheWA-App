@@ -13,6 +13,7 @@ import com.tranche.bakery.conversation.WhatsappConversation;
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.menu.MenuItem;
 import com.tranche.bakery.menu.MenuItemRepository;
+import com.tranche.bakery.offer.BatchDiscountBand;
 import com.tranche.bakery.offer.BatchDiscountService;
 import com.tranche.bakery.offer.PromoContext;
 import com.tranche.bakery.offer.PromoResult;
@@ -67,6 +68,38 @@ public class OrderService {
                 .findTopByCustomerIdAndStatusOrderByCreatedAtDesc(customer.getId(), OrderStatus.DRAFT)
                 .map(o -> orderItemRepository.sumQuantityByOrderId(o.getId()))
                 .orElse(0);
+    }
+
+    /**
+     * Item quantity the customer already has booked in an unpaid (PENDING_CONFIRMATION)
+     * order for a delivery date. These items merge into a same-date draft, so they count
+     * toward the per-order item cap. Returns 0 when the date is null or nothing is booked.
+     */
+    public int pendingItemCountForDate(Long customerId, LocalDate date) {
+        if (date == null) return 0;
+        return orderItemRepository.sumQuantityByCustomerStatusAndDate(
+                customerId, OrderStatus.PENDING_CONFIRMATION, date);
+    }
+
+    /**
+     * Effective item count toward the per-order cap for a draft's delivery date: the
+     * draft's own items PLUS any same-date unpaid order that will merge into it.
+     */
+    public int committedItemCountForDate(Long customerId, Long draftId, LocalDate date) {
+        int draftQty = draftId == null ? 0 : orderItemRepository.sumQuantityByOrderId(draftId);
+        return draftQty + pendingItemCountForDate(customerId, date);
+    }
+
+    /**
+     * Effective per-cap item count for the customer's current draft: the draft's own
+     * items plus any same-date unpaid order that will merge into it. Read-only.
+     */
+    public int committedItemCountForCurrentDraft(Customer customer) {
+        Order draft = orderRepository
+                .findTopByCustomerIdAndStatusOrderByCreatedAtDesc(customer.getId(), OrderStatus.DRAFT)
+                .orElse(null);
+        if (draft == null) return 0;
+        return committedItemCountForDate(customer.getId(), draft.getId(), draft.getDeliveryDate());
     }
 
     @Transactional
@@ -271,8 +304,10 @@ public class OrderService {
         order.setGiftLabel(promo.giftLabel());
 
         // Dynamic batch discount: once the delivery date is known, items whose booked
-        // demand for that day has reached a band threshold earn an extra percentage
-        // off their ALREADY-discounted line price (stacks on top of the launch offer).
+        // demand for that day has reached a band threshold earn an extra percentage off
+        // their ALREADY-discounted line price (stacks on top of the launch offer). Only
+        // the units BEYOND the threshold are discounted -- the units that establish the
+        // batch (bring demand up to the threshold) are not (see discountableUnits).
         BigDecimal itemsTotal = promo.itemsTotal();
         BigDecimal batchDiscount = BigDecimal.ZERO;
         String batchLabel = null;
@@ -281,12 +316,20 @@ public class OrderService {
                 && listSubtotal.signum() > 0) {
             BigDecimal discountedRatio = itemsTotal.divide(listSubtotal, 10, java.math.RoundingMode.HALF_UP);
             for (OrderItem it : items) {
-                BigDecimal pct = batchDiscountService.extraPercentFor(
-                        it.getMenuItem().getId(), it.getMenuItem().getPrice(), order.getDeliveryDate());
-                if (pct == null) continue;
-                BigDecimal discountedLine = it.getSubtotal().multiply(discountedRatio);
-                batchDiscount = batchDiscount.add(
-                        discountedLine.multiply(pct).divide(BigDecimal.valueOf(100), 10, java.math.RoundingMode.HALF_UP));
+                int qty = it.getQuantity();
+                if (qty <= 0) continue;
+                BigDecimal price = it.getMenuItem().getPrice();
+                BatchDiscountBand band = batchDiscountService.bandFor(price);
+                if (band == null) continue;
+                long units = batchDiscountService.discountableUnits(
+                        it.getMenuItem().getId(), price, order.getDeliveryDate(), qty, order.getId());
+                if (units <= 0) continue;
+                BigDecimal discountedPerUnit = it.getSubtotal().multiply(discountedRatio)
+                        .divide(BigDecimal.valueOf(qty), 10, java.math.RoundingMode.HALF_UP);
+                batchDiscount = batchDiscount.add(discountedPerUnit
+                        .multiply(BigDecimal.valueOf(units))
+                        .multiply(band.getPercent())
+                        .divide(BigDecimal.valueOf(100), 10, java.math.RoundingMode.HALF_UP));
                 batchLabel = "Batch discount";
             }
             batchDiscount = batchDiscount.setScale(0, java.math.RoundingMode.HALF_UP);

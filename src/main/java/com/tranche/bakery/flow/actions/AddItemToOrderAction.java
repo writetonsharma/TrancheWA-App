@@ -3,7 +3,6 @@ package com.tranche.bakery.flow.actions;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
-import com.tranche.bakery.order.OrderItemRepository;
 import com.tranche.bakery.order.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +15,6 @@ import org.springframework.stereotype.Component;
 public class AddItemToOrderAction implements FlowAction {
 
     private final OrderService orderService;
-    private final OrderItemRepository orderItemRepository;
 
     @Value("${bakery.order.per-order-item-limit:3}")
     private int perOrderItemLimit;
@@ -46,10 +44,12 @@ public class AddItemToOrderAction implements FlowAction {
         // Save orderId to context so subsequent actions can reference it
         ctx.context().put("orderId", order.getId().toString());
 
-        // Cap the number of items a single order can hold. If this add would push the
-        // cart past the limit, do not add it and route the customer to the bulk-order
-        // handoff so they can either check out what they have or reach us for a big order.
-        int currentQty = orderItemRepository.sumQuantityByOrderId(order.getId());
+        // Cap the number of items for a delivery day. The count includes any same-date
+        // unpaid order that will merge into this cart, so the merged total can never
+        // exceed the limit. If this add would push it past the cap, do not add it and
+        // route the customer to the bulk-order handoff.
+        int currentQty = orderService.committedItemCountForDate(
+                ctx.getCustomer().getId(), order.getId(), order.getDeliveryDate());
         if (currentQty + quantity > perOrderItemLimit) {
             log.info("Add of {} x {} would exceed per-order limit {} (cart has {}) for customer {} -> bulk limit",
                     itemIdStr, quantity, perOrderItemLimit, currentQty, ctx.getCustomer().getPhone());

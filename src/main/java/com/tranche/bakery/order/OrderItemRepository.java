@@ -25,11 +25,20 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     int sumQuantityByOrderId(@Param("orderId") Long orderId);
 
     @Query("select coalesce(sum(oi.quantity), 0) from OrderItem oi "
+            + "where oi.order.customer.id = :customerId and oi.order.status = :status "
+            + "and oi.order.deliveryDate = :date")
+    int sumQuantityByCustomerStatusAndDate(@Param("customerId") Long customerId,
+                                           @Param("status") OrderStatus status,
+                                           @Param("date") LocalDate date);
+
+    @Query("select coalesce(sum(oi.quantity), 0) from OrderItem oi "
             + "where oi.menuItem.id = :itemId and oi.order.deliveryDate = :date "
-            + "and oi.order.status in :statuses")
-    long sumBookedQuantityForItem(@Param("itemId") Long itemId,
-                                  @Param("date") LocalDate date,
-                                  @Param("statuses") Collection<OrderStatus> statuses);
+            + "and oi.order.status in :statuses "
+            + "and (:excludeOrderId is null or oi.order.id <> :excludeOrderId)")
+    long sumBookedQuantityForItemExcludingOrder(@Param("itemId") Long itemId,
+                                                @Param("date") LocalDate date,
+                                                @Param("statuses") Collection<OrderStatus> statuses,
+                                                @Param("excludeOrderId") Long excludeOrderId);
 
     @Query("select oi.menuItem.id, oi.order.deliveryDate, sum(oi.quantity) from OrderItem oi "
             + "where oi.order.deliveryDate in :dates and oi.order.status in :statuses "

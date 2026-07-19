@@ -44,9 +44,23 @@ public class DeliveryRules {
             OrderStatus.CONFIRMED,
             OrderStatus.IN_BAKING);
 
-    /** Statuses that reserve a baking slot; also the demand basis for batch discounts. */
+    /** Statuses that reserve a baking slot (daily capacity check). */
     public static Set<OrderStatus> capacityStatuses() {
         return CAPACITY_STATUSES;
+    }
+
+    /**
+     * Confirmed (paid) demand basis for the dynamic batch discount. Only orders that
+     * are actually paid/confirmed count toward reaching a band threshold, so unpaid
+     * pending carts never establish a batch for other customers.
+     */
+    private static final Set<OrderStatus> BATCH_DEMAND_STATUSES = Set.of(
+            OrderStatus.CONFIRMED,
+            OrderStatus.IN_BAKING);
+
+    /** Confirmed/paid statuses that count toward batch-discount demand. */
+    public static Set<OrderStatus> batchDemandStatuses() {
+        return BATCH_DEMAND_STATUSES;
     }
 
     public record CartFlags(boolean hasBagel, boolean hasFocaccia, int itemCount) {}

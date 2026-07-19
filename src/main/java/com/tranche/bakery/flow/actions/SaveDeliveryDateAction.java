@@ -10,6 +10,7 @@ import com.tranche.bakery.order.DeliveryRules;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +40,9 @@ public class SaveDeliveryDateAction implements FlowAction {
 
     static final int MAX_PENDING_ORDERS = 3;
 
+    @Value("${bakery.order.per-order-item-limit:3}")
+    private int perOrderItemLimit;
+
     @Override
     public String getName() { return "SAVE_DELIVERY_DATE"; }
 
@@ -61,6 +65,21 @@ public class SaveDeliveryDateAction implements FlowAction {
         // Reuse the current draft if one exists (reorder), else create a fresh one.
         Order draft = orderService.getOrCreateDraft(ctx.getCustomer(), ctx.getConversation());
         ctx.getConversation().getContext().put("orderId", draft.getId().toString());
+
+        // Per-date item cap: any same-date unpaid order will merge into this cart, so if
+        // it is already at the item limit no more can be added for that day. Stop here
+        // and let the customer pay for it or pick a different delivery day.
+        int alreadyBooked = orderService.pendingItemCountForDate(customerId, deliveryDate);
+        if (alreadyBooked >= perOrderItemLimit) {
+            whatsAppClient.sendText(phone,
+                    "You already have " + perOrderItemLimit + " items in your order for *"
+                    + deliveryDate.format(DATE_FMT) + "* - that's our per-order limit. "
+                    + "You can pay for that order, or pick a different delivery day below.");
+            ctx.setRedirectState("ORDER_SELECT_DATE");
+            log.info("Blocked date {} for {} - same-date order already at item cap {}",
+                    deliveryDate, phone, perOrderItemLimit);
+            return;
+        }
 
         // Validate against this cart's constraints (empty cart => generic rules).
         DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(draft.getId());

@@ -28,7 +28,7 @@ public class GuardCartLimitAction implements FlowAction {
 
     @Override
     public void execute(ActionContext ctx) {
-        int currentQty = orderService.currentDraftItemCount(ctx.getCustomer());
+        int currentQty = orderService.committedItemCountForCurrentDraft(ctx.getCustomer());
         if (currentQty >= perOrderItemLimit) {
             log.info("Cart already at limit {} for customer {} -> bulk limit",
                     perOrderItemLimit, ctx.getCustomer().getPhone());

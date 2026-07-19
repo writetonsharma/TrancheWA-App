@@ -43,6 +43,20 @@ class BatchDiscountFlowTest extends FlowScenarioBase {
                 .orElseThrow();
     }
 
+    // A plain item in the 350..600 band (batch threshold 2, +4%), no lead-time quirks.
+    private MenuItem midBand350to600() {
+        return itemRepository.findAll().stream()
+                .filter(MenuItem::isActive)
+                .filter(i -> i.getPrice().compareTo(new BigDecimal("350")) >= 0
+                        && i.getPrice().compareTo(new BigDecimal("600")) < 0)
+                .filter(i -> {
+                    String n = i.getName().toLowerCase();
+                    return !n.contains("bagel") && !n.contains("focaccia");
+                })
+                .min(Comparator.comparing(MenuItem::getPrice))
+                .orElseThrow();
+    }
+
     private void seedBookedDemand(MenuItem item, LocalDate date, int units) {
         Customer c = new Customer();
         c.setPhone("91900001" + String.format("%04d", demandSeq++));
@@ -51,7 +65,7 @@ class BatchDiscountFlowTest extends FlowScenarioBase {
 
         Order o = new Order();
         o.setCustomer(c);
-        o.setStatus(OrderStatus.PENDING_CONFIRMATION);
+        o.setStatus(OrderStatus.CONFIRMED);
         o.setDeliveryDate(date);
         o = orderRepository.save(o);
 
@@ -136,5 +150,107 @@ class BatchDiscountFlowTest extends FlowScenarioBase {
     void greeting_noNudgeWhenNothingHot() {
         send("hi");
         assertThat(sentTexts).noneMatch(t -> t.contains("Live batch discounts"));
+    }
+    // At exactly the threshold, all units establish the batch -> no discount.
+    // Mid band threshold is 2, so an order of 2 with no other demand gets nothing.
+    @Test
+    void batchDiscount_atThresholdNotDiscounted() {
+        MenuItem item = midBand350to600();
+        LocalDate date = deliveryRules.upcomingDeliverableDays(1).get(0);
+
+        Order establishing = draftFor(item, date, 2);
+
+        assertThat(establishing.getBatchDiscountAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(establishing.getBatchDiscountLabel()).isNull();
+    }
+
+    // Only surplus units (beyond the threshold) are discounted. Mid band threshold is
+    // 2, so an order of 3 with no other demand discounts exactly 1 unit.
+    @Test
+    void batchDiscount_onlyAppliesToSurplusUnits() {
+        MenuItem item = midBand350to600();
+        LocalDate date = deliveryRules.upcomingDeliverableDays(1).get(0);
+
+        Order surplus = draftFor(item, date, 3);
+
+        assertThat(surplus.getBatchDiscountAmount()).isGreaterThan(BigDecimal.ZERO);
+
+        // The discount equals exactly one unit's worth (2 of the 3 establish the batch).
+        BigDecimal perUnitListPrice = item.getPrice();
+        BigDecimal discountedPerUnit = perUnitListPrice
+                .subtract(surplus.getDiscountAmount().divide(BigDecimal.valueOf(3), 10, java.math.RoundingMode.HALF_UP));
+        BigDecimal expectedOneUnit = discountedPerUnit
+                .multiply(new BigDecimal("0.04"))
+                .setScale(0, java.math.RoundingMode.HALF_UP);
+        assertThat(surplus.getBatchDiscountAmount()).isEqualByComparingTo(expectedOneUnit);
+    }
+
+    // Confirmed-only basis: an unpaid PENDING order from another customer does NOT
+    // count toward the threshold, so it cannot establish a batch for this customer.
+    @Test
+    void batchDiscount_pendingDemandDoesNotCount() {
+        MenuItem item = midBand350to600();
+        LocalDate date = deliveryRules.upcomingDeliverableDays(1).get(0);
+        seedPendingDemand(item, date, 5); // well over threshold, but unpaid
+
+        Order order = draftFor(item, date, 1);
+
+        assertThat(order.getBatchDiscountAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(order.getBatchDiscountLabel()).isNull();
+    }
+
+    // Confirmed demand from OTHERS already meets the threshold, so a new customer
+    // joining the batch gets the discount on all of their units.
+    @Test
+    void batchDiscount_joiningEstablishedBatchDiscountsAllUnits() {
+        MenuItem item = midBand350to600();
+        LocalDate date = deliveryRules.upcomingDeliverableDays(1).get(0);
+        seedBookedDemand(item, date, 2); // CONFIRMED, meets threshold 2
+
+        Order order = draftFor(item, date, 1);
+
+        assertThat(order.getBatchDiscountAmount()).isGreaterThan(BigDecimal.ZERO);
+    }
+
+    // Mixed demand: 1 unit already CONFIRMED by others (threshold 2) means this order's
+    // first unit finishes establishing the batch and only its second unit is discounted.
+    @Test
+    void batchDiscount_mixedDemandDiscountsOnlyBeyondThreshold() {
+        MenuItem item = midBand350to600();
+        LocalDate date = deliveryRules.upcomingDeliverableDays(1).get(0);
+        seedBookedDemand(item, date, 1); // CONFIRMED by another customer
+
+        Order order = draftFor(item, date, 2); // one unit establishes, one is surplus
+
+        assertThat(order.getBatchDiscountAmount()).isGreaterThan(BigDecimal.ZERO);
+
+        // Exactly one unit's worth of discount (not two).
+        BigDecimal discountedPerUnit = item.getPrice()
+                .subtract(order.getDiscountAmount().divide(BigDecimal.valueOf(2), 10, java.math.RoundingMode.HALF_UP));
+        BigDecimal expectedOneUnit = discountedPerUnit
+                .multiply(new BigDecimal("0.04"))
+                .setScale(0, java.math.RoundingMode.HALF_UP);
+        assertThat(order.getBatchDiscountAmount()).isEqualByComparingTo(expectedOneUnit);
+    }
+
+    private void seedPendingDemand(MenuItem item, LocalDate date, int units) {
+        Customer c = new Customer();
+        c.setPhone("91900002" + String.format("%04d", demandSeq++));
+        c.setName("Pending " + demandSeq);
+        c = customerRepository.save(c);
+
+        Order o = new Order();
+        o.setCustomer(c);
+        o.setStatus(OrderStatus.PENDING_CONFIRMATION);
+        o.setDeliveryDate(date);
+        o = orderRepository.save(o);
+
+        OrderItem oi = new OrderItem();
+        oi.setOrder(o);
+        oi.setMenuItem(item);
+        oi.setQuantity(units);
+        oi.setUnitPrice(item.getPrice());
+        oi.setSubtotal(item.getPrice().multiply(BigDecimal.valueOf(units)));
+        orderItemRepository.save(oi);
     }
 }
