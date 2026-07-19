@@ -196,6 +196,13 @@ public class AdminController {
         return "redirect:/admin";
     }
 
+    @PostMapping("/alerts/{id}/resolve")
+    public String resolveAlert(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        adminService.resolveAlert(id);
+        redirectAttributes.addFlashAttribute("flash", "Alert cleared.");
+        return "redirect:/admin";
+    }
+
     @GetMapping("/conversation/{phone}")
     public String viewConversation(@PathVariable String phone,
                                    @RequestParam(required = false) String orderStatus,

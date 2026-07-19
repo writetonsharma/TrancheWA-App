@@ -2,6 +2,8 @@ package com.tranche.bakery.flow.actions;
 
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
+import com.tranche.bakery.offer.BatchDiscountService;
+import com.tranche.bakery.offer.BatchDiscountService.Nudge;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderService;
@@ -37,6 +39,7 @@ public class SaveDeliveryDateAction implements FlowAction {
     private final OrderService orderService;
     private final WhatsAppClient whatsAppClient;
     private final DeliveryRules deliveryRules;
+    private final BatchDiscountService batchDiscountService;
 
     static final int MAX_PENDING_ORDERS = 3;
 
@@ -119,6 +122,9 @@ public class SaveDeliveryDateAction implements FlowAction {
         orderRepository.save(draft);
         orderService.recalculate(draft);
 
+        // Show batch discount nudge specific to the chosen delivery day.
+        sendBatchNudge(phone, deliveryDate);
+
         // Reorder: draft already has items -> straight to the pre-confirm gate.
         if (flags.itemCount() > 0) {
             ctx.setRedirectState("PRE_CONFIRM_GATE");
@@ -143,6 +149,20 @@ public class SaveDeliveryDateAction implements FlowAction {
     }
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("EEEE, d MMMM");
+
+    private void sendBatchNudge(String phone, LocalDate deliveryDate) {
+        if (!batchDiscountService.isEnabled()) return;
+        List<Nudge> nudges = batchDiscountService.liveNudges(List.of(deliveryDate));
+        if (nudges.isEmpty()) return;
+        StringBuilder sb = new StringBuilder(
+                "\uD83D\uDD25 *Batch discount active for this day* \u2014 join a batch and save extra:\n\n");
+        for (Nudge n : nudges) {
+            sb.append(String.format("\u2022 %s \u2014 *%s%% off*\n",
+                    n.itemName(), n.percent().stripTrailingZeros().toPlainString()));
+        }
+        sb.append("\n_Stacked on top of your usual discount._");
+        whatsAppClient.sendText(phone, sb.toString());
+    }
 
     private String fullDateMessage(LocalDate requested, LocalDate earliestAvailable) {
         return "Sorry, *" + requested.format(DATE_FMT) + "* is fully booked - we've reached our baking limit for that day. "

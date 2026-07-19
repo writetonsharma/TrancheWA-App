@@ -101,7 +101,7 @@
     <div class="card-body p-0">
       <table class="table table-sm table-hover mb-0">
         <thead class="table-light">
-          <tr><th>Type</th><th>Message</th><th>Customer</th><th>Order</th><th>When</th></tr>
+          <tr><th>Type</th><th>Message</th><th>Customer</th><th>Order</th><th>When</th><th></th></tr>
         </thead>
         <tbody>
           <tr th:each="a : ${dashboard.alerts}"
@@ -112,6 +112,11 @@
             <td th:text="${a.customerPhone ?: '—'}"></td>
             <td th:text="${a.orderId ?: '—'}"></td>
             <td th:text="${#temporals.format(a.createdAt, 'dd MMM HH:mm')}"></td>
+            <td>
+              <form th:action="@{/admin/alerts/{id}/resolve(id=${a.id})}" method="post" class="mb-0">
+                <button type="submit" class="btn btn-sm btn-outline-success" title="Clear this alert">✅</button>
+              </form>
+            </td>
           </tr>
         </tbody>
       </table>

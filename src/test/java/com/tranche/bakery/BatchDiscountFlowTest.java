@@ -132,25 +132,62 @@ class BatchDiscountFlowTest extends FlowScenarioBase {
         assertThat(draft.getBatchDiscountAmount()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 
-    // Greeting nudge lists a hot item when demand is live for the coming bake days.
+    // Batch discount nudge is shown after date selection when demand is live for that day.
     @Test
-    void greeting_showsLiveBatchDiscountNudge() {
-        MenuItem item = cheapUnder350();
+    void dateSelection_showsBatchDiscountNudge() {
+        MenuItem item = midBand350to600(); // threshold 2, fits within test capacity (3)
         LocalDate date = deliveryRules.upcomingDeliverableDays(3).get(0);
-        seedBookedDemand(item, date, 4);
+        seedBookedDemand(item, date, 2);
 
         send("hi");
+        send("order");
+        send(date.toString());
 
         assertThat(sentTexts).anyMatch(t ->
-                t.contains("Live batch discounts") && t.contains(item.getName()));
+                t.contains("Batch discount active for this day") && t.contains(item.getName()));
     }
 
-    // No hot items: greeting stays clean (no nudge text).
+    // No hot items for the chosen date: no nudge shown.
     @Test
-    void greeting_noNudgeWhenNothingHot() {
+    void dateSelection_noNudgeWhenNothingHot() {
         send("hi");
-        assertThat(sentTexts).noneMatch(t -> t.contains("Live batch discounts"));
+        send("order");
+        send(nextDeliveryDate());
+        assertThat(sentTexts).noneMatch(t -> t.contains("Batch discount active"));
     }
+
+    // Nudge is NOT shown at main menu greeting (moved to post-date-selection).
+    @Test
+    void greeting_noNudgeAtMainMenu() {
+        MenuItem item = midBand350to600();
+        LocalDate date = deliveryRules.upcomingDeliverableDays(3).get(0);
+        seedBookedDemand(item, date, 2);
+
+        send("hi");
+
+        assertThat(sentTexts).noneMatch(t -> t.contains("batch discount") || t.contains("Batch discount"));
+    }
+
+    // Batch discount nudge is specific to the chosen day: demand on a different day
+    // does NOT trigger the nudge for the selected date.
+    @Test
+    void dateSelection_nudgeSpecificToChosenDay() {
+        MenuItem item = midBand350to600();
+        java.util.List<LocalDate> upcoming = deliveryRules.upcomingDeliverableDays(3);
+        LocalDate dateWithDemand = upcoming.get(0);
+        LocalDate dateWithout = upcoming.size() > 1 ? upcoming.get(1) : upcoming.get(0).plusDays(2);
+        // Skip if both resolve to the same date
+        if (dateWithDemand.equals(dateWithout)) return;
+
+        seedBookedDemand(item, dateWithDemand, 2);
+
+        send("hi");
+        send("order");
+        send(dateWithout.toString());
+
+        assertThat(sentTexts).noneMatch(t -> t.contains("Batch discount active"));
+    }
+
     // At exactly the threshold, all units establish the batch -> no discount.
     // Mid band threshold is 2, so an order of 2 with no other demand gets nothing.
     @Test

@@ -121,6 +121,11 @@ public class AdminService {
     }
 
     @Transactional
+    public void resolveAlert(Long id) {
+        alertService.resolve(id);
+    }
+
+    @Transactional
     public void approvePayment(Long orderId) {
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.CONFIRMED);

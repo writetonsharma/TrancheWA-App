@@ -10,6 +10,9 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Entry action for the delivery-date step. If the soonest day we would normally
@@ -41,12 +44,36 @@ public class NotifyDateCapacityAction implements FlowAction {
         }
 
         LocalDate available = deliveryRules.firstAvailableDate(flags);
-        String msg = "\u26A0\uFE0F Heads-up: we've reached our baking limit for *"
-                + expected.format(FMT) + "*, so it's fully booked.\n\n"
-                + "The earliest morning we can deliver is *" + available.format(FMT) + "*. "
-                + "Please choose from the available dates below \uD83D\uDDD3\uFE0F";
+
+        // Collect ALL full days between expected and available (inclusive of expected)
+        List<LocalDate> fullDays = new ArrayList<>();
+        LocalDate d = expected;
+        int scanned = 0;
+        while (d.isBefore(available) && scanned < 60) {
+            if (deliveryRules.isDeliverableDay(d, flags) && !deliveryRules.hasCapacity(d, flags)) {
+                fullDays.add(d);
+            }
+            d = d.plusDays(1);
+            scanned++;
+        }
+
+        String msg;
+        if (fullDays.size() <= 1) {
+            msg = "\u26A0\uFE0F Heads-up: we've reached our baking limit for *"
+                    + expected.format(FMT) + "*, so it's fully booked.\n\n"
+                    + "The earliest morning we can deliver is *" + available.format(FMT) + "*. "
+                    + "Please choose from the available dates below \uD83D\uDDD3\uFE0F";
+        } else {
+            String fullList = fullDays.stream()
+                    .map(day -> "*" + day.format(FMT) + "*")
+                    .collect(Collectors.joining(", "));
+            msg = "\u26A0\uFE0F Heads-up: we've reached our baking limit for "
+                    + fullList + " — they're fully booked.\n\n"
+                    + "The earliest morning we can deliver is *" + available.format(FMT) + "*. "
+                    + "Please choose from the available dates below \uD83D\uDDD3\uFE0F";
+        }
         whatsAppClient.sendText(ctx.getCustomer().getPhone(), msg);
-        log.info("Notified capacity gap: expected {} full, earliest available {} (customer {})",
-                expected, available, ctx.getCustomer().getPhone());
+        log.info("Notified capacity gap: {} full day(s), earliest available {} (customer {})",
+                fullDays.size(), available, ctx.getCustomer().getPhone());
     }
 }

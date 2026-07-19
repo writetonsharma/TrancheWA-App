@@ -7,7 +7,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -142,6 +144,30 @@ class OrderFlowTest extends FlowScenarioBase {
         while (next.getDayOfWeek() == DayOfWeek.MONDAY) next = next.plusDays(1);
         send(next.toString());
         assertState("ORDER_SELECT_CATEGORY");
+    }
+
+    // Multiple full days: the notification mentions ALL of them, not just the first.
+    @Test
+    void multipleFullDays_allMentionedInNotification() {
+        // Fill two consecutive deliverable days
+        LocalDate first = LocalDate.parse(nextDeliveryDate());
+        LocalDate second = first.plusDays(1);
+        while (second.getDayOfWeek() == DayOfWeek.MONDAY) second = second.plusDays(1);
+        fillDateCapacity(first, 3);
+        fillDateCapacity(second, 3);
+
+        send("hi");
+        send("order");
+        assertState("ORDER_SELECT_DATE");
+
+        // The notification should mention both full days
+        java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM");
+        String firstFormatted = first.format(fmt);
+        String secondFormatted = second.format(fmt);
+
+        assertThat(sentTexts).anyMatch(t ->
+                t.contains(firstFormatted) && t.contains(secondFormatted)
+                        && t.contains("fully booked"));
     }
 
     // Seed a CONFIRMED order for another customer that books `qty` items on `date`.
@@ -699,5 +725,80 @@ class OrderFlowTest extends FlowScenarioBase {
         assertThat(sentListRows)
                 .as("soonest normal day offered once stale bagel context is cleared")
                 .contains(soonestRow);
+    }
+
+    // QR payment description uses the unique order number (TRB-...) not the numeric ID.
+    @Test
+    void paymentQr_descriptionUsesOrderNumber() {
+        Long orderId = driveToPaymentQr();
+        Order order = orderRepository.findById(orderId).orElseThrow();
+
+        assertThat(order.getOrderNumber())
+                .as("order number should be generated")
+                .isNotNull()
+                .startsWith("TRB-");
+
+        // Verify sendImage was called with a caption referencing the order number
+        ArgumentCaptor<String> captionCaptor = ArgumentCaptor.forClass(String.class);
+        verify(whatsAppClient, atLeastOnce()).sendImage(
+                eq(customer.getPhone()), org.mockito.ArgumentMatchers.any(), captionCaptor.capture());
+        String caption = captionCaptor.getValue();
+        assertThat(caption)
+                .as("QR caption should reference the unique order number")
+                .contains(order.getOrderNumber())
+                .doesNotContain("#" + order.getId());
+    }
+
+    // Delivery preference is asked only once per order. When the user adds more items
+    // to an existing draft that already has a preference, the question is skipped.
+    @Test
+    void deliveryPreference_askedOnlyOncePerOrder() {
+        String catId  = firstCategoryId();
+        String itemId = firstItemId(catId);
+        String date   = nextDeliveryDate();
+
+        // Start order, add first item
+        send("hi");
+        send("order");
+        send(date);
+        send(catId);
+        send(itemId);
+        send("1");
+
+        // Go through to delivery preference (first time - should be asked)
+        send("view_order");
+        send("use_address");    // ADDRESS_CONFIRM → DELIVERY_PREFERENCE
+        assertState("DELIVERY_PREFERENCE");
+        send("pref_person");    // Sets preference → LOAF_PREFERENCE_GATE
+
+        // Verify the preference was saved on the draft
+        Order draft = orderRepository.findAllByCustomerIdAndStatus(
+                customer.getId(), OrderStatus.DRAFT).get(0);
+        assertThat(draft.getDeliveryPreference()).isEqualTo("IN_PERSON");
+
+        // Now go back from the loaf/confirm step to add more items (via the order
+        // confirm → cancel → re-add pattern). Simulate by directly navigating.
+        // Use the same draft by re-entering the ORDER_SELECT_CATEGORY state.
+        // In reality the user might tap a "change order" or the flow loops back.
+        // For this test, manually put conversation back to ORDER_ADD_MORE with same orderId.
+        conversation.setState("ORDER_ADD_MORE");
+        conversation.getContext().put("orderId", draft.getId().toString());
+        conversationRepository.save(conversation);
+        reloadConversation();
+
+        // Add another item
+        send("add_item");
+        send(catId);
+        send(itemId);
+        send("1");
+
+        // View order again — should go through address but SKIP delivery preference
+        send("view_order");
+        send("use_address");
+
+        // Should NOT be at DELIVERY_PREFERENCE — should have skipped to loaf/confirm
+        assertThat(conversation.getState())
+                .as("delivery preference should be skipped when already set")
+                .isNotEqualTo("DELIVERY_PREFERENCE");
     }
 }

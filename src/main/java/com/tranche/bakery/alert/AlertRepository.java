@@ -15,4 +15,8 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
     @Modifying
     @Query("UPDATE Alert a SET a.resolved = true, a.resolvedAt = CURRENT_TIMESTAMP WHERE a.resolved = false")
     void resolveAll();
+
+    @Modifying
+    @Query("UPDATE Alert a SET a.resolved = true, a.resolvedAt = CURRENT_TIMESTAMP WHERE a.id = :id AND a.resolved = false")
+    void resolveById(@org.springframework.data.repository.query.Param("id") Long id);
 }

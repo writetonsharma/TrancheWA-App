@@ -48,4 +48,9 @@ public class AlertService {
     public void resolveAll() {
         alertRepository.resolveAll();
     }
+
+    @Transactional
+    public void resolve(Long id) {
+        alertRepository.resolveById(id);
+    }
 }

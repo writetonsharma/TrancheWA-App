@@ -62,7 +62,8 @@ public class SendPaymentQrAction implements FlowAction {
         BigDecimal amount = testMode
                 ? BigDecimal.valueOf(1.0 + (int)(Math.random() * 99) / 100.0).setScale(2, java.math.RoundingMode.HALF_UP)
                 : order.getTotalAmount();
-        String note = "Tranche Bakery Order #" + order.getId();
+        String orderRef = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
+        String note = "Tranche Bakery Order " + orderRef;
         log.info("Sending payment QR for order {} amount {}", order.getId(), amount);
 
         try {
