@@ -144,7 +144,7 @@ class BatchDiscountFlowTest extends FlowScenarioBase {
         send(date.toString());
 
         assertThat(sentTexts).anyMatch(t ->
-                t.contains("Batch discount active for this day") && t.contains(item.getName()));
+            t.contains("Extra discount available for this delivery day") && t.contains(item.getName()));
     }
 
     // No hot items for the chosen date: no nudge shown.

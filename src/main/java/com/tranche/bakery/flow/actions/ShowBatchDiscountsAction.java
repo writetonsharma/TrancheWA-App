@@ -66,12 +66,12 @@ public class ShowBatchDiscountsAction implements FlowAction {
 
     private String buildMessage(List<Nudge> nudges) {
         StringBuilder sb = new StringBuilder(
-                "\uD83D\uDD25 *Live batch discounts* \u2014 join a batch and save extra:\n\n");
+            "\uD83D\uDD25 *Extra discounts on selected bake days:*\n\n");
         for (Nudge n : nudges) {
             String days = n.dates().stream().map(d -> d.format(DAY_FMT)).collect(Collectors.joining(", "));
             sb.append(String.format("\u2022 %s \u2014 *%s%% off* (%s)\n", n.itemName(), pct(n.percent()), days));
         }
-        sb.append("\n_Stacked on top of your usual discount, when you order for those days._");
+        sb.append("\n_Order one of these products for a listed day to receive the extra discount._");
         return sb.toString();
     }
 

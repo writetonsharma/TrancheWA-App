@@ -40,7 +40,7 @@ class OrderFlowTest extends FlowScenarioBase {
         sendImage("media-test-001");
 
         assertState("IDLE");
-        assertOrderStatus(orderId, OrderStatus.CONFIRMED);
+        assertOrderStatus(orderId, OrderStatus.PAYMENT_SCREENSHOT_RECEIVED);
     }
 
     @Test
@@ -402,7 +402,7 @@ class OrderFlowTest extends FlowScenarioBase {
         send("pay_" + order1Id);
 
         assertState("IDLE");
-        assertOrderStatus(order1Id, OrderStatus.CONFIRMED);
+        assertOrderStatus(order1Id, OrderStatus.PAYMENT_SCREENSHOT_RECEIVED);
         assertOrderStatus(order2Id, OrderStatus.PENDING_CONFIRMATION);   // untouched
     }
 
@@ -489,7 +489,7 @@ class OrderFlowTest extends FlowScenarioBase {
         // From there the customer pays and the order confirms as usual.
         sendImage("media-repay-001");
         assertState("IDLE");
-        assertOrderStatus(orderId, OrderStatus.CONFIRMED);
+        assertOrderStatus(orderId, OrderStatus.PAYMENT_SCREENSHOT_RECEIVED);
     }
 
     // -- Re-pay is selective: with multiple unpaid orders, the tapped order's QR is sent --

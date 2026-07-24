@@ -8,7 +8,6 @@ import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.payment.PaymentRepository;
 import com.tranche.bakery.payment.PaymentStatus;
-import com.tranche.bakery.receipt.ReceiptService;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +28,6 @@ public class AutoConfirmOrderAction implements FlowAction {
     private final PaymentRepository paymentRepository;
     private final WhatsAppClient whatsAppClient;
     private final AlertService alertService;
-    private final ReceiptService receiptService;
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("EEE, d MMM", Locale.ENGLISH);
@@ -45,15 +43,13 @@ public class AutoConfirmOrderAction implements FlowAction {
         Order order = orderRepository.findById(Long.parseLong(orderIdStr)).orElse(null);
         if (order == null) return;
 
-        order.setStatus(OrderStatus.CONFIRMED);
-        orderRepository.save(order);
+                order.setStatus(OrderStatus.PAYMENT_SCREENSHOT_RECEIVED);
+                orderRepository.save(order);
 
-        paymentRepository.findByOrder(order).ifPresent(payment -> {
-            payment.setStatus(PaymentStatus.SCREENSHOT_VERIFIED);
-            paymentRepository.save(payment);
-        });
-
-        receiptService.sendReceipt(order);
+                paymentRepository.findByOrder(order).ifPresent(payment -> {
+                        payment.setStatus(PaymentStatus.SCREENSHOT_RECEIVED);
+                        paymentRepository.save(payment);
+                });
 
         String orderNumber = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
         String datePart = order.getDeliveryDate() != null
@@ -61,10 +57,10 @@ public class AutoConfirmOrderAction implements FlowAction {
                 : "";
 
         StringBuilder msg = new StringBuilder();
-        msg.append("✅ *Payment received — order confirmed!*\n\n");
-        msg.append("Order *").append(orderNumber).append("*").append(datePart)
-           .append(" is confirmed. We'll bake fresh and deliver between *6–8 AM*.\n\n");
-        msg.append("Thank you for ordering from Tranché Bakery. 🥖");
+                  msg.append("📸 *Payment screenshot received*\n\n");
+                  msg.append("We're verifying the payment for order *").append(orderNumber).append("*")
+                          .append(datePart).append(". We'll send you another message as soon as your order is confirmed.\n\n");
+                  msg.append("Please keep this chat open. No further action is needed right now.");
 
         // Show any remaining pending orders so customer knows what still needs payment
         List<Order> remaining = orderRepository
@@ -92,11 +88,11 @@ public class AutoConfirmOrderAction implements FlowAction {
         String dateStr = order.getDeliveryDate() != null
                 ? order.getDeliveryDate().format(DATE_FMT) : "date TBD";
         alertService.raise("PAYMENT_RECEIVED",
-                "📸 Payment received & order confirmed\n\n" +
+                "📸 Payment screenshot awaiting verification\n\n" +
                 "Order: *" + orderNumber + "* · " + dateStr + amtPart + "\n" +
                 "Customer: " + customerName + " (" + ctx.getCustomer().getPhone() + ")",
                 order.getId(), ctx.getCustomer().getPhone());
 
-        log.info("Order {} auto-confirmed for customer {}", orderNumber, ctx.getCustomer().getPhone());
+        log.info("Payment screenshot queued for order {} customer {}", orderNumber, ctx.getCustomer().getPhone());
     }
 }

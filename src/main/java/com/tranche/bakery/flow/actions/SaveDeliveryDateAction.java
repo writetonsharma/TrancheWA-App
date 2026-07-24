@@ -155,12 +155,12 @@ public class SaveDeliveryDateAction implements FlowAction {
         List<Nudge> nudges = batchDiscountService.liveNudges(List.of(deliveryDate));
         if (nudges.isEmpty()) return;
         StringBuilder sb = new StringBuilder(
-                "\uD83D\uDD25 *Batch discount active for this day* \u2014 join a batch and save extra:\n\n");
+            "\uD83D\uDD25 *Extra discount available for this delivery day:*\n\n");
         for (Nudge n : nudges) {
             sb.append(String.format("\u2022 %s \u2014 *%s%% off*\n",
                     n.itemName(), n.percent().stripTrailingZeros().toPlainString()));
         }
-        sb.append("\n_Stacked on top of your usual discount._");
+        sb.append("\n_Add one of these products to receive the extra discount._");
         whatsAppClient.sendText(phone, sb.toString());
     }
 

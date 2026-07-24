@@ -26,7 +26,7 @@ public class StuckOrderAlertJob {
 
     private static final String REMINDER_MESSAGE =
             "👋 Hi! It looks like you started an order but haven't finished yet.\n\n" +
-            "If you'd like to continue, just send *hi* and pick up where you left off.\n\n" +
+            "To order, send *hi* to clear this draft and start again.\n\n" +
             "_Orders that aren't completed by 5 PM will be set aside for the day._";
 
     @Scheduled(cron = "0 0 * * * *", zone = "Asia/Kolkata")

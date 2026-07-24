@@ -51,27 +51,28 @@ class PaymentTestModeFlowTest extends FlowScenarioBase {
     }
 
     @Test
-    void testMode_receiptIsSentAgainstRealOrderTotalOnConfirm() {
+        void testMode_screenshotAwaitsVerificationAndKeepsRealOrderTotal() {
         Long orderId = driveToPaymentQr();
 
         Order before = orderRepository.findById(orderId).orElseThrow();
         BigDecimal realTotal = before.getTotalAmount();
 
-        // Customer pays the token amount and shares the screenshot -> order confirms.
+        // Customer pays the token amount and shares the screenshot -> verification is pending.
         sendImage("media-test-token");
 
         assertState("IDLE");
-        assertOrderStatus(orderId, OrderStatus.CONFIRMED);
+        assertOrderStatus(orderId, OrderStatus.PAYMENT_SCREENSHOT_RECEIVED);
 
-        // The receipt document is dispatched to the customer...
-        verify(whatsAppClient).sendDocument(eq(customer.getPhone()), any(), any(), any());
-
-        // ...and the confirmed order still carries the real total the receipt renders,
+        // The order still carries the real total that its eventual receipt will render,
         // never the token QR amount.
         Order after = orderRepository.findById(orderId).orElseThrow();
         assertThat(after.getTotalAmount())
-                .as("confirmed order total is unchanged and real")
+                .as("order total is unchanged and real while verification is pending")
                 .isEqualByComparingTo(realTotal)
                 .isGreaterThan(new BigDecimal("2.00"));
+
+        assertThat(sentTexts).anyMatch(text -> text.contains("Payment screenshot received")
+                && text.contains("another message")
+                && text.contains("No further action"));
     }
 }

@@ -37,6 +37,8 @@ public class ShowOrderStatusAction implements FlowAction {
         List<Order> active = new ArrayList<>();
         active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.IN_BAKING));
         active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.CONFIRMED));
+        active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PAYMENT_SCREENSHOT_RECEIVED));
+        active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PAYMENT_REVIEW_REQUIRED));
         active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PENDING_CONFIRMATION));
 
         if (active.isEmpty()) {
@@ -113,6 +115,8 @@ public class ShowOrderStatusAction implements FlowAction {
     private String statusLine(OrderStatus s) {
         return switch (s) {
             case PENDING_CONFIRMATION -> "⏳ *Awaiting payment.*\nPlease complete payment and share the screenshot to confirm your order.";
+            case PAYMENT_SCREENSHOT_RECEIVED -> "📸 *Payment screenshot received.*\nWe're verifying it and will message you when the order is confirmed.";
+            case PAYMENT_REVIEW_REQUIRED -> "🔎 *Payment verification in progress.*\nWe need a little more time to check the payment and will message you when it is confirmed.";
             case CONFIRMED            -> "✅ *Confirmed.*\nPayment received. We'll bake fresh and deliver between 6–8 AM.";
             case IN_BAKING            -> "🔥 *Baking right now!*\nFreshness in progress — delivery follows shortly.";
             default                   -> "Being processed. We'll update you shortly.";
@@ -122,6 +126,8 @@ public class ShowOrderStatusAction implements FlowAction {
     private String statusEmoji(OrderStatus s) {
         return switch (s) {
             case PENDING_CONFIRMATION -> "⏳ awaiting payment";
+            case PAYMENT_SCREENSHOT_RECEIVED -> "📸 payment verification";
+            case PAYMENT_REVIEW_REQUIRED -> "🔎 payment review";
             case CONFIRMED            -> "✅ confirmed";
             case IN_BAKING            -> "🔥 baking now";
             default                   -> s.name().toLowerCase();

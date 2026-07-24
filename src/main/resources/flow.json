@@ -97,7 +97,7 @@
     "HOURS_INFO": {
       "entryMessage": {
         "type": "text",
-        "body": "🕐 *Hours & Delivery*\n\n*Bake Days:* Monday to Saturday\n*Delivery Days:* Tuesday to Sunday\n_(We rest on Sundays — no baking, so no Monday deliveries)_\n\n*Order Cutoff:* 5 PM daily\nOrders placed before 5 PM are baked fresh overnight and delivered next morning between *6–8 AM*.\n\n*Messaging Hours:* 8 AM – 5 PM\nYou can place orders anytime — we read and respond to messages between 8 AM and 5 PM."
+        "body": "🕐 *Hours & Delivery*\n\n*Bake Days:* Monday to Saturday\n*Delivery Days:* Tuesday to Sunday\n_(We rest on Sundays — no baking, so no Monday deliveries)_\n\n*Order Cutoff:* 5 PM daily\nMost available products ordered before 5 PM can be delivered the next morning between *6–8 AM*. Some products need more preparation time or are available only on certain days; the order calendar will show the available delivery mornings.\n\n*Messaging Hours:* 8 AM – 5 PM\nYou can place orders anytime — we read and respond to messages between 8 AM and 5 PM."
       },
       "autoTransition": "MAIN_MENU"
     },
@@ -195,7 +195,7 @@
     "ORDER_SELECT_QUANTITY": {
       "entryMessage": {
         "type": "buttons",
-        "body": "How many would you like? _(up to 3 per item)_\n\n_Planning a bigger order? Tap *Message Us* on the main menu and we'll take care of it._",
+        "body": "How many would you like? _(up to 3 total units per order)_\n\n_Your order can contain up to 3 units across all products. For a larger order, tap *Message Us* on the main menu and we'll take care of it._",
         "buttons": [
           {
             "id": "1",
@@ -232,7 +232,7 @@
         },
         {
           "match": "*",
-          "errorMessage": "We can add up to 3 of an item per order. Please tap 1, 2, or 3.\n\n_For a larger order, tap *Message Us* on the main menu._"
+          "errorMessage": "Each order can contain up to 3 total units across all products. Please tap 1, 2, or 3.\n\n_For a larger order, tap *Message Us* on the main menu._"
         }
       ]
     },
@@ -269,7 +269,7 @@
     "ORDER_BULK_LIMIT": {
       "entryMessage": {
         "type": "buttons",
-        "body": "Your cart holds up to *3 items* so every bake stays fresh and on time - it's now full.\n\nWould you like to place this order with the items already in your cart? Or tap *No, thanks* to empty the cart and start over. For anything larger, tap *Message Us* on the main menu and we'll arrange a bulk order for you.",
+        "body": "Your cart holds up to *3 total units* across all products, so it's now full.\n\nWould you like to place this order with the items already in your cart? Tap *No, thanks* to empty the cart and start over. For a larger order, tap *Message Us* on the main menu and we'll arrange it with you.",
         "buttons": [
           {
             "id": "checkout",
@@ -341,7 +341,7 @@
     "ADDRESS_COLLECT": {
       "entryMessage": {
         "type": "text",
-        "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_This will be saved as your permanent delivery address for all future orders, so please choose carefully._"
+        "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_We'll save this as your default address for future orders. You can choose a different address for any later order._"
       },
       "transitions": [
         {
@@ -544,7 +544,7 @@
     "LATE_PAYMENT_DATE": {
       "entryMessage": {
         "type": "list",
-        "body": "We received your payment — thank you! 🙏\n\nYour earlier order was set aside at our *5 PM* cutoff, so there is no active order for tomorrow. Not to worry — we will honour this payment on our next bake day.\n\nWhich morning would you like it delivered?",
+        "body": "We received your payment screenshot — thank you. 🙏\n\nYour earlier order was cancelled at our *5 PM* cutoff, but your payment is secure. Please choose another available morning below so we can restore the order and verify your payment.\n\nWhich morning would you like it delivered?",
         "buttonLabel": "Choose Date",
         "dataSource": "DELIVERY_DATES"
       },

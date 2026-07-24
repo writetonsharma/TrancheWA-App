@@ -136,9 +136,16 @@ public class AdminService {
             });
             receiptService.sendReceipt(order);
             try {
+                String ref = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
+                String delivery = order.getDeliveryDate() != null
+                    ? " We'll deliver on *" + order.getDeliveryDate().format(
+                        java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM")) +
+                        "* between *6–8 AM*."
+                    : " We'll confirm the delivery morning with you shortly.";
                 whatsAppClient.sendText(order.getCustomer().getPhone(),
-                        "Your payment has been verified and your order is confirmed. " +
-                        "Your bake will be scheduled for the next available slot. Thank you for ordering from Tranché Bakery.");
+                    "✅ *Payment verified — order confirmed!*\n\n" +
+                    "Order *" + ref + "* is confirmed." + delivery + "\n\n" +
+                    "Thank you for ordering from Tranché Bakery. 🥖");
             } catch (Exception e) {
                 log.warn("Could not notify customer after payment approval: {}", e.getMessage());
             }
