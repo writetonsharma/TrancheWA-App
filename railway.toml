@@ -1,0 +1,11 @@
+[deploy]
+numReplicas = 1
+sleepApplication = true
+restartPolicyType = "ON_FAILURE"
+
+[deploy.healthcheck]
+path = "/actuator/health"
+timeout = 30
+
+[service]
+memoryLimitMb = 256
