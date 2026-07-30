@@ -123,18 +123,11 @@
           "description": "Set of 6"
         },
         {
-          "name": "Olive, Tomato & Rosemary Focaccia (Full)",
-          "price": 1060.0,
+          "name": "Olive, Tomato & Rosemary Focaccia",
+          "price": 420.0,
           "displayOrder": 3,
-          "description": "Full tray 12x16 inch; Fri-Sun only",
-          "listTitle": "Tomato Focaccia (Full)"
-        },
-        {
-          "name": "Olive, Tomato & Rosemary Focaccia (Half)",
-          "price": 580.0,
-          "displayOrder": 4,
-          "description": "Half tray 12x8 inch; Fri-Sun only",
-          "listTitle": "Tomato Focaccia (Half)"
+          "description": "8x8 inch tray; Fri-Sun only",
+          "listTitle": "Tomato Focaccia"
         },
         {
           "name": "Garlic & Herb Knots",
