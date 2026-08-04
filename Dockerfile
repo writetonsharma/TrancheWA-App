@@ -8,4 +8,4 @@ FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 COPY --from=builder /app/target/*.jar app.jar
 EXPOSE 8080
-CMD ["java", "-Xms32m", "-Xmx128m", "-Xss256k", "-XX:+UseSerialGC", "-XX:MaxMetaspaceSize=80m", "-XX:MaxRAM=256m", "-XX:TieredStopAtLevel=1", "-Djava.awt.headless=true", "-jar", "app.jar"]
+CMD ["java", "-Xms32m", "-Xmx128m", "-Xss256k", "-XX:+UseSerialGC", "-XX:MaxMetaspaceSize=128m", "-XX:TieredStopAtLevel=1", "-Djava.awt.headless=true", "-jar", "app.jar"]
