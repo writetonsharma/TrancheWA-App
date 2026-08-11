@@ -115,7 +115,7 @@
     "AREA_SELECT": {
       "entryMessage": {
         "type": "text",
-        "body": "Hello. We currently deliver to select areas in Gurgaon.\n\nPlease share your *pincode* so we can confirm delivery availability:"
+        "body": "Hello. We currently deliver to *DLF Phase 5, Gurgaon* (pincodes 122002, 122022).\n\nIf you're unsure of your pincode, try *122022*.\n\nPlease share your pincode to confirm delivery:"
       },
       "transitions": [
         {

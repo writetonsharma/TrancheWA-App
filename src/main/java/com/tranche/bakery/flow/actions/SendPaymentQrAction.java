@@ -62,8 +62,9 @@ public class SendPaymentQrAction implements FlowAction {
         BigDecimal amount = testMode
                 ? BigDecimal.valueOf(1.0 + (int)(Math.random() * 99) / 100.0).setScale(2, java.math.RoundingMode.HALF_UP)
                 : order.getTotalAmount();
-        String orderRef = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
-        String note = "Tranche Bakery Order " + orderRef;
+        String orderRef = order.getOrderNumber() != null ? order.getOrderNumber() : String.valueOf(order.getId());
+        // UPI/WhatsApp note accepts letters, numbers and spaces only — turn any other char into a space.
+        String note = ("Tranche Bakery Order " + orderRef).replaceAll("[^A-Za-z0-9 ]", " ").replaceAll(" +", " ").trim();
         log.info("Sending payment QR for order {} amount {}", order.getId(), amount);
 
         try {
