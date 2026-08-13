@@ -141,8 +141,8 @@ public class SaveDeliveryDateAction implements FlowAction {
         if (flags.hasBagel()) {
             sb.append("Bagels need a 48-hour head start (18-hour cold fermentation). ");
         }
-        if (flags.hasFocaccia()) {
-            sb.append("Focaccia is baked for weekends only (Friday to Sunday). ");
+        if (flags.hasWeekendOnly()) {
+            sb.append("Focaccia and sweet rolls are weekend-only (Friday to Sunday). ");
         }
         sb.append("Please pick one of the dates below.");
         return sb.toString();

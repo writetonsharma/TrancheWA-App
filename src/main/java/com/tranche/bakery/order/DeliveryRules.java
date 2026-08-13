@@ -16,9 +16,9 @@ import java.util.Set;
  * and the save action (enforcement).
  *
  * Rules:
- *  - No delivery on Mondays (nothing is baked on Sunday).
+ *  - No delivery on Wednesdays.
  *  - Bagels need 48h notice (18h cold fermentation) -> one extra lead day.
- *  - Focaccia is weekend-only (Friday, Saturday, Sunday).
+ *  - Focaccia and sweet rolls are weekend-only (Friday, Saturday, Sunday).
  *  - Daily capacity: once a delivery day is fully booked (default 15 items),
  *    it is no longer offered.
  */
@@ -63,22 +63,30 @@ public class DeliveryRules {
         return BATCH_DEMAND_STATUSES;
     }
 
-    public record CartFlags(boolean hasBagel, boolean hasFocaccia, int itemCount) {}
+    public record CartFlags(boolean hasBagel, boolean hasWeekendOnly, int itemCount) {}
+
+    /** Focaccia and the sweet rolls (cinnamon, babka, cardamom) deliver on weekends only. */
+    private static boolean isWeekendOnly(String lowerName) {
+        return lowerName.contains("focaccia")
+                || lowerName.contains("cinnamon")
+                || lowerName.contains("babka")
+                || lowerName.contains("cardamom");
+    }
 
     /** Inspect an order's items to determine flags and total quantity. */
     public CartFlags flagsForOrder(Long orderId) {
         boolean hasBagel = false;
-        boolean hasFocaccia = false;
+        boolean hasWeekendOnly = false;
         int itemCount = 0;
         if (orderId != null) {
             for (OrderItem item : orderItemRepository.findAllByOrderId(orderId)) {
                 String name = item.getMenuItem().getName().toLowerCase();
                 if (name.contains("bagel")) hasBagel = true;
-                if (name.contains("focaccia")) hasFocaccia = true;
+                if (isWeekendOnly(name)) hasWeekendOnly = true;
                 itemCount += item.getQuantity();
             }
         }
-        return new CartFlags(hasBagel, hasFocaccia, itemCount);
+        return new CartFlags(hasBagel, hasWeekendOnly, itemCount);
     }
 
     /** The next {@code count} deliverable days (ignoring cart constraints), for nudges. */
@@ -122,13 +130,13 @@ public class DeliveryRules {
         return LocalDate.now().plusDays(lead);
     }
 
-    /** Day-of-week eligibility (Monday closed; focaccia weekend-only). */
+    /** Day-of-week eligibility (Wednesday closed; focaccia & sweet rolls weekend-only). */
     public boolean isDeliverableDay(LocalDate date, CartFlags flags) {
         DayOfWeek dow = date.getDayOfWeek();
-        if (dow == DayOfWeek.MONDAY) {
+        if (dow == DayOfWeek.WEDNESDAY) {
             return false;
         }
-        if (flags.hasFocaccia()
+        if (flags.hasWeekendOnly()
                 && dow != DayOfWeek.FRIDAY
                 && dow != DayOfWeek.SATURDAY
                 && dow != DayOfWeek.SUNDAY) {
@@ -155,7 +163,7 @@ public class DeliveryRules {
      */
     public boolean itemDeliverableOn(String itemName, LocalDate date) {
         String n = itemName == null ? "" : itemName.toLowerCase();
-        CartFlags flags = new CartFlags(n.contains("bagel"), n.contains("focaccia"), 1);
+        CartFlags flags = new CartFlags(n.contains("bagel"), isWeekendOnly(n), 1);
         return isDeliverableDay(date, flags) && !date.isBefore(earliestDate(flags));
     }
 

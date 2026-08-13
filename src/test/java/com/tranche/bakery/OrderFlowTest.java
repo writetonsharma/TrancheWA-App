@@ -81,7 +81,7 @@ class OrderFlowTest extends FlowScenarioBase {
         // only near day is a closed Monday, no such window exists, so this is skipped.
         LocalDate bagelOk = LocalDate.parse(bagelEarliestDate());
         LocalDate probe = LocalDate.now().plusDays(LocalTime.now().getHour() >= 23 ? 2 : 1);
-        while (probe.getDayOfWeek() == DayOfWeek.MONDAY) probe = probe.plusDays(1);
+        while (probe.getDayOfWeek() == DayOfWeek.WEDNESDAY) probe = probe.plusDays(1);
         if (probe.isBefore(bagelOk)) {
             send("hi");
             send("order");
@@ -103,7 +103,7 @@ class OrderFlowTest extends FlowScenarioBase {
         send("order");
 
         // A weekday date: focaccia is weekend-only, so it isn't offered.
-        send(nextWeekday(DayOfWeek.WEDNESDAY).toString());
+        send(nextWeekday(DayOfWeek.THURSDAY).toString());
         assertState("ORDER_SELECT_CATEGORY");
         send(catId);
         assertThat(sentListRows).as("focaccia hidden on a weekday")
@@ -141,7 +141,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         // The next available (non-Monday) date is accepted -> browse the menu
         LocalDate next = full.plusDays(1);
-        while (next.getDayOfWeek() == DayOfWeek.MONDAY) next = next.plusDays(1);
+        while (next.getDayOfWeek() == DayOfWeek.WEDNESDAY) next = next.plusDays(1);
         send(next.toString());
         assertState("ORDER_SELECT_CATEGORY");
     }
@@ -152,7 +152,7 @@ class OrderFlowTest extends FlowScenarioBase {
         // Fill two consecutive deliverable days
         LocalDate first = LocalDate.parse(nextDeliveryDate());
         LocalDate second = first.plusDays(1);
-        while (second.getDayOfWeek() == DayOfWeek.MONDAY) second = second.plusDays(1);
+        while (second.getDayOfWeek() == DayOfWeek.WEDNESDAY) second = second.plusDays(1);
         fillDateCapacity(first, 3);
         fillDateCapacity(second, 3);
 
@@ -178,9 +178,9 @@ class OrderFlowTest extends FlowScenarioBase {
         LocalDate first = LocalDate.parse(nextDeliveryDate());
         // Skip one available day, then find the next deliverable day after that
         LocalDate middle = first.plusDays(1);
-        while (middle.getDayOfWeek() == DayOfWeek.MONDAY) middle = middle.plusDays(1);
+        while (middle.getDayOfWeek() == DayOfWeek.WEDNESDAY) middle = middle.plusDays(1);
         LocalDate later = middle.plusDays(1);
-        while (later.getDayOfWeek() == DayOfWeek.MONDAY) later = later.plusDays(1);
+        while (later.getDayOfWeek() == DayOfWeek.WEDNESDAY) later = later.plusDays(1);
 
         // Fill first and later, leave middle open
         fillDateCapacity(first, 3);
@@ -206,7 +206,7 @@ class OrderFlowTest extends FlowScenarioBase {
     void widelySeparatedFullDays_bothMentionedInNotification() {
         LocalDate first = LocalDate.parse(nextDeliveryDate());
         LocalDate later = first.plusDays(5);
-        while (later.getDayOfWeek() == DayOfWeek.MONDAY) later = later.plusDays(1);
+        while (later.getDayOfWeek() == DayOfWeek.WEDNESDAY) later = later.plusDays(1);
 
         fillDateCapacity(first, 3);
         fillDateCapacity(later, 3);
@@ -258,7 +258,7 @@ class OrderFlowTest extends FlowScenarioBase {
     // Earliest valid date for a bagel cart: base lead + 1 extra day, skipping Monday.
     private String bagelEarliestDate() {
         LocalDate d = LocalDate.now().plusDays(LocalTime.now().getHour() >= 23 ? 3 : 2);
-        while (d.getDayOfWeek() == DayOfWeek.MONDAY) d = d.plusDays(1);
+        while (d.getDayOfWeek() == DayOfWeek.WEDNESDAY) d = d.plusDays(1);
         return d.toString();
     }
 
@@ -678,7 +678,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         // 3rd date: skip two ahead from date1
         LocalDate d3 = LocalDate.parse(date2).plusDays(1);
-        if (d3.getDayOfWeek() == DayOfWeek.MONDAY) d3 = d3.plusDays(1);
+        if (d3.getDayOfWeek() == DayOfWeek.WEDNESDAY) d3 = d3.plusDays(1);
         String date3 = d3.toString();
 
         send("hi");
@@ -697,7 +697,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         // 4th order attempt â€” should be blocked
         LocalDate d4 = d3.plusDays(1);
-        if (d4.getDayOfWeek() == DayOfWeek.MONDAY) d4 = d4.plusDays(1);
+        if (d4.getDayOfWeek() == DayOfWeek.WEDNESDAY) d4 = d4.plusDays(1);
         String date4 = d4.toString();
 
         sentTexts.clear();

@@ -31,7 +31,7 @@ public class OrderService {
     private final PromotionEngine promotionEngine;
     private final BatchDiscountService batchDiscountService;
 
-    @Value("${bakery.order.delivery-charge:50}")
+    @Value("${bakery.order.delivery-charge:65}")
     private BigDecimal deliveryCharge;
 
     @Value("${bakery.order.cutoff-hour}")

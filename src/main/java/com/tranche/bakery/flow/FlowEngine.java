@@ -71,8 +71,10 @@ public class FlowEngine {
         if (GREETING_PATTERN.matcher(input.trim()).matches()) {
             orderService.cancelDraftIfExists(customer);
             conversation.setContext(new HashMap<>());
-            // First-time customers must select their delivery area before anything else
-            String nextState = (customer.getDeliveryArea() == null) ? "AREA_SELECT" : "MAIN_MENU";
+            // First-time customers give their name, then go straight to the menu.
+            // Delivery area/pincode is no longer gated — anyone can explore and order;
+            // the delivery address and pinned location are collected at checkout.
+            String nextState = (customer.getName() == null || customer.getName().isBlank()) ? "NAME_COLLECT" : "MAIN_MENU";
             enterState(customer, conversation, nextState, input, messageType, rawMessage);
             return;
         }

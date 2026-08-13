@@ -97,7 +97,7 @@
     "HOURS_INFO": {
       "entryMessage": {
         "type": "text",
-        "body": "🕐 *Hours & Delivery*\n\n*Bake Days:* Monday to Saturday\n*Delivery Days:* Tuesday to Sunday\n_(We rest on Sundays — no baking, so no Monday deliveries)_\n\n*Order Cutoff:* 5 PM daily\nMost available products ordered before 5 PM can be delivered the next morning between *6–8 AM*. Some products need more preparation time or are available only on certain days; the order calendar will show the available delivery mornings.\n\n*Messaging Hours:* 8 AM – 5 PM\nYou can place orders anytime — we read and respond to messages between 8 AM and 5 PM."
+        "body": "🕐 *Hours & Delivery*\n\n*Delivery:* every morning *6–8 AM*, except *Wednesdays*.\n\n*Order Cutoff:* 5 PM daily\nMost available products ordered before 5 PM can be delivered the next morning between *6–8 AM*. Some products need more preparation time or are available only on certain days (sweet rolls and focaccia are weekend-only, Fri–Sun); the order calendar will show the available delivery mornings.\n\n*Messaging Hours:* 8 AM – 5 PM\nYou can place orders anytime — we read and respond to messages between 8 AM and 5 PM."
       },
       "autoTransition": "MAIN_MENU"
     },
@@ -129,7 +129,7 @@
     "NAME_COLLECT": {
       "entryMessage": {
         "type": "text",
-        "body": "Good news — we deliver to your area.\n\nMay we have your name for the order?"
+        "body": "Welcome to Tranché Bakery! 🥖\n\nMay we have your name for the order?"
       },
       "transitions": [
         {
@@ -341,7 +341,7 @@
     "ADDRESS_COLLECT": {
       "entryMessage": {
         "type": "text",
-        "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_We'll save this as your default address for future orders. You can choose a different address for any later order._"
+        "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_We currently deliver in and around DLF Phase 5, Gurgaon. If you're a bit further out, we'll message you to confirm — and refund in full if we can't reach you._\n\n_We'll save this as your default address for future orders. You can choose a different address for any later order._"
       },
       "transitions": [
         {
@@ -373,7 +373,7 @@
     "ADDRESS_COLLECT_TEMP": {
       "entryMessage": {
         "type": "text",
-        "body": "📍 Please share the delivery address for this order:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_"
+        "body": "📍 Please share the delivery address for this order:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_We currently deliver in and around DLF Phase 5, Gurgaon. If you're a bit further out, we'll message you to confirm — and refund in full if we can't reach you._"
       },
       "transitions": [
         {

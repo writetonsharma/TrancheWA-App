@@ -153,14 +153,14 @@ public abstract class FlowScenarioBase {
     protected String nextDeliveryDate() {
         LocalDate start = LocalDate.now().plusDays(
                 LocalTime.now().getHour() >= 23 ? 2 : 1);
-        while (start.getDayOfWeek() == DayOfWeek.MONDAY) start = start.plusDays(1);
+        while (start.getDayOfWeek() == DayOfWeek.WEDNESDAY) start = start.plusDays(1);
         return start.toString();
     }
 
     protected String secondDeliveryDate() {
         LocalDate d1 = LocalDate.parse(nextDeliveryDate());
         LocalDate d2 = d1.plusDays(1);
-        if (d2.getDayOfWeek() == DayOfWeek.MONDAY) d2 = d2.plusDays(1);
+        if (d2.getDayOfWeek() == DayOfWeek.WEDNESDAY) d2 = d2.plusDays(1);
         return d2.toString();
     }
 
