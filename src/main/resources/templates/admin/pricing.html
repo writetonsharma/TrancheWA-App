@@ -38,39 +38,54 @@
 
   <!-- ── Add/Update Override ─────────────────────────────────── -->
   <div class="section-card">
-    <div class="card-header bg-primary text-white">Set Pricing Override</div>
+    <div class="card-header bg-primary text-white">Set Friends & Family Pricing</div>
     <div class="card-body">
       <p class="text-muted small mb-3">
-        Set a flat-rate price for a customer. The QR code will always show this amount regardless of what they order.
-        The customer must have messaged the bot at least once (so their number exists in the system).
+        Give a customer flat per-unit pricing. Set a price per category (e.g. all rolls at ₹150),
+        and/or an <em>all-items</em> flat rate as a catch-all — a category price always wins over it,
+        and any category left blank charges the normal menu price. Anyone with pricing here is treated
+        as Friends & Family. The customer must have messaged the bot at least once (so their number exists).
       </p>
       <form th:action="@{/admin/pricing/set}" method="post">
         <div class="row g-3">
-          <div class="col-md-3">
+          <div class="col-md-4">
             <label class="form-label fw-semibold">Phone (with country code)</label>
             <input type="text" name="phone" class="form-control" placeholder="919000000001" required>
           </div>
-          <div class="col-md-2">
-            <label class="form-label fw-semibold">Flat Rate (₹)</label>
-            <input type="number" name="amount" class="form-control" step="0.01" min="1" placeholder="150" required>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">Flat rate — all items (₹)</label>
+            <input type="number" name="amount" class="form-control" step="0.01" min="1" placeholder="optional catch-all">
           </div>
           <div class="col-md-2">
             <label class="form-label fw-semibold">Expires In (days)</label>
-            <input type="number" name="expiryDays" class="form-control" min="1" placeholder="30 (or blank = never)">
+            <input type="number" name="expiryDays" class="form-control" min="1" placeholder="blank = never">
           </div>
           <div class="col-md-3">
             <label class="form-label fw-semibold">Note</label>
-            <input type="text" name="note" class="form-control" placeholder="e.g. Beta tester, friend">
+            <input type="text" name="note" class="form-control" placeholder="e.g. Family, close friend">
           </div>
-          <div class="col-md-2 d-flex align-items-end gap-2">
-            <div class="form-check mb-2">
+        </div>
+
+        <label class="form-label fw-semibold mt-3">Per-category flat price (₹ per unit)</label>
+        <div class="row g-3">
+          <div class="col-md-3" th:each="cat : ${categories}">
+            <label class="form-label small text-muted mb-1" th:text="${cat.name}">Category</label>
+            <input type="hidden" name="categoryNames" th:value="${cat.name}">
+            <input type="number" name="categoryPrices" class="form-control" step="0.01" min="1"
+                   placeholder="list price">
+          </div>
+        </div>
+
+        <div class="row g-3 mt-1">
+          <div class="col-12">
+            <div class="form-check">
               <input class="form-check-input" type="checkbox" name="freeDelivery" id="freeDelivery" value="true">
               <label class="form-check-label" for="freeDelivery">Free delivery</label>
             </div>
           </div>
         </div>
         <div class="mt-3">
-          <button type="submit" class="btn btn-primary">Save Override</button>
+          <button type="submit" class="btn btn-primary">Save Pricing</button>
         </div>
       </form>
     </div>
@@ -90,7 +105,7 @@
             <tr>
               <th>Phone</th>
               <th>Name</th>
-              <th>Flat Rate</th>
+              <th>Flat Pricing</th>
               <th>Free Delivery</th>
               <th>Expires</th>
               <th>Note</th>
@@ -103,7 +118,13 @@
                 th:class="${c.overrideExpiresAt != null and c.overrideExpiresAt.isBefore(now)} ? 'expired' : ''">
               <td th:text="${c.phone}"></td>
               <td th:text="${c.name ?: '—'}"></td>
-              <td th:text="'₹' + ${c.pricingOverride}"></td>
+              <td>
+                <span th:if="${c.pricingOverride != null}" class="badge bg-primary me-1"
+                      th:text="'All ₹' + ${c.pricingOverride}"></span>
+                <span th:each="entry : ${c.categoryPrices}" class="badge bg-secondary me-1"
+                      th:text="${entry.key} + ' ₹' + ${entry.value}"></span>
+                <span th:if="${c.pricingOverride == null and c.categoryPrices.isEmpty()}" class="text-muted">—</span>
+              </td>
               <td>
                 <span th:if="${c.freeDelivery}" class="badge bg-success">Yes</span>
                 <span th:unless="${c.freeDelivery}" class="text-muted">No</span>

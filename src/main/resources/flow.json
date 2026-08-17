@@ -14,7 +14,7 @@
     "MAIN_MENU": {
       "entryMessage": {
         "type": "buttons",
-        "body": "Welcome to Tranché Bakery. 🥖\n\nSmall-batch, European-inspired breads baked fresh for each day's orders. Orders placed before *5 PM* are usually prepared for next-day delivery.\n\nHow can we help you today?\n\n_Send *hi* anytime to return to the main menu._",
+        "body": "{greeting}Small-batch, European-inspired breads baked fresh for each day's orders. Orders placed before *5 PM* are usually prepared for next-day delivery.\n\nHow can we help you today?\n\n_Send *hi* anytime to return to the main menu._",
         "buttons": [
           {
             "id": "order",

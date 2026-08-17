@@ -86,7 +86,7 @@ public class SaveDeliveryDateAction implements FlowAction {
         }
 
         // Validate against this cart's constraints (empty cart => generic rules).
-        DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(draft.getId());
+        DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(draft.getId(), ctx.getCustomer().isFriendsAndFamily());
         if (!deliveryRules.isValidDeliveryDate(deliveryDate, flags)) {
             boolean dayTypeOk = deliveryRules.isDeliverableDay(deliveryDate, flags)
                     && !deliveryDate.isBefore(deliveryRules.earliestDate(flags));

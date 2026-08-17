@@ -65,7 +65,7 @@ public class PreConfirmMultiOrderAction implements FlowAction {
         Long customerId = ctx.getCustomer().getId();
 
         // Capacity may have changed (or the cart grew) since the date was picked.
-        DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(draft.getId());
+        DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(draft.getId(), ctx.getCustomer().isFriendsAndFamily());
         if (!deliveryRules.isValidDeliveryDate(date, flags)) {
             whatsAppClient.sendText(ctx.getCustomer().getPhone(),
                     "Sorry, *" + date.format(DATE_FMT) + "* can no longer take this order in full - "

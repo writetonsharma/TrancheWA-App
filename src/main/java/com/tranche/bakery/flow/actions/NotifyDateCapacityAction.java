@@ -36,7 +36,7 @@ public class NotifyDateCapacityAction implements FlowAction {
     public void execute(ActionContext ctx) {
         String orderIdStr = ctx.contextValue("orderId");
         Long orderId = orderIdStr != null ? Long.parseLong(orderIdStr) : null;
-        DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(orderId);
+        DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(orderId, ctx.getCustomer().isFriendsAndFamily());
 
         LocalDate expected = deliveryRules.firstDeliverableDay(flags);
         if (deliveryRules.hasCapacity(expected, flags)) {

@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
+import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.delivery.DeliveryAreaLoader;
 import com.tranche.bakery.menu.MenuCategory;
 import com.tranche.bakery.menu.MenuCategoryRepository;
@@ -27,31 +28,32 @@ public class MenuDataSourceResolver implements DataSourceResolver {
     private final DeliveryRules deliveryRules;
 
     @Override
-    public List<WhatsAppMessage.Section> resolve(String dataSource, Map<String, Object> context) {
+    public List<WhatsAppMessage.Section> resolve(String dataSource, Map<String, Object> context, Customer customer) {
+        boolean fnf = customer != null && customer.isFriendsAndFamily();
         return switch (dataSource) {
-            case "MENU_CATEGORIES" -> resolveCategories(context);
-            case "MENU_ITEMS"      -> resolveItems(context);
+            case "MENU_CATEGORIES" -> resolveCategories(context, fnf);
+            case "MENU_ITEMS"      -> resolveItems(context, fnf);
             case "DELIVERY_AREAS"  -> resolveDeliveryAreas();
-            case "DELIVERY_DATES"  -> resolveDeliveryDates(context);
+            case "DELIVERY_DATES"  -> resolveDeliveryDates(context, fnf);
             default -> throw new IllegalArgumentException("Unknown dataSource: " + dataSource);
         };
     }
 
-    private List<WhatsAppMessage.Section> resolveCategories(Map<String, Object> context) {
+    private List<WhatsAppMessage.Section> resolveCategories(Map<String, Object> context, boolean fnf) {
         final LocalDate day = parseDeliveryDate(context);
         List<WhatsAppMessage.Row> rows = categoryRepository
                 .findAllByActiveTrueOrderByDisplayOrderAsc()
                 .stream()
-                .filter(c -> day == null || categoryHasItemsForDate(c, day))
+                .filter(c -> day == null || categoryHasItemsForDate(c, day, fnf))
                 .map(c -> new WhatsAppMessage.Row(c.getId().toString(), c.getName()))
                 .toList();
         return List.of(new WhatsAppMessage.Section("Categories", rows));
     }
 
     /** True if the category has at least one active item deliverable on the date. */
-    private boolean categoryHasItemsForDate(com.tranche.bakery.menu.MenuCategory category, LocalDate day) {
+    private boolean categoryHasItemsForDate(com.tranche.bakery.menu.MenuCategory category, LocalDate day, boolean fnf) {
         return itemRepository.findAllByCategoryAndActiveTrueOrderByDisplayOrderAsc(category).stream()
-                .anyMatch(i -> deliveryRules.itemDeliverableOn(i.getName(), day));
+                .anyMatch(i -> deliveryRules.itemDeliverableOn(i.getName(), day, fnf));
     }
 
     /** Reads a "deliveryDate" (ISO yyyy-MM-dd) from context, or null if absent/invalid. */
@@ -62,7 +64,7 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         catch (Exception ignored) { return null; }
     }
 
-    private List<WhatsAppMessage.Section> resolveItems(Map<String, Object> context) {
+    private List<WhatsAppMessage.Section> resolveItems(Map<String, Object> context, boolean fnf) {
         Object categoryIdVal = context != null ? context.get("categoryId") : null;
         if (categoryIdVal == null) return List.of();
 
@@ -75,7 +77,7 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         List<WhatsAppMessage.Row> rows = itemRepository
                 .findAllByCategoryAndActiveTrueOrderByDisplayOrderAsc(category)
                 .stream()
-                .filter(i -> day == null || deliveryRules.itemDeliverableOn(i.getName(), day))
+                .filter(i -> day == null || deliveryRules.itemDeliverableOn(i.getName(), day, fnf))
                 .map(i -> {
                     String price = String.format("₹%.0f", i.getPrice());
                     String desc = (i.getDescription() != null && !i.getDescription().isBlank())
@@ -97,10 +99,10 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         return List.of(new WhatsAppMessage.Section("Delivery Areas", rows));
     }
 
-    private List<WhatsAppMessage.Section> resolveDeliveryDates(Map<String, Object> context) {
+    private List<WhatsAppMessage.Section> resolveDeliveryDates(Map<String, Object> context, boolean fnf) {
         Object orderIdVal = context != null ? context.get("orderId") : null;
         Long orderId = orderIdVal != null ? Long.parseLong(orderIdVal.toString()) : null;
-        DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(orderId);
+        DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(orderId, fnf);
 
         // Earliest date accounts for cutoff + the 48h bagel lead time.
         LocalDate start = deliveryRules.earliestDate(flags);

@@ -228,7 +228,7 @@ public class FlowEngine {
         }
 
         if (state.getEntryMessage() != null) {
-            sendEntryMessage(phone, state, conversation.getContext());
+            sendEntryMessage(phone, state, conversation.getContext(), customer);
         }
 
         if (state.getAutoTransition() != null) {
@@ -242,30 +242,57 @@ public class FlowEngine {
             executeAction(stateConfig.getEntryAction(),
                     buildActionContext(customer, conversation, "", "", null));
         } else if (stateConfig.getEntryMessage() != null) {
-            sendEntryMessage(phone, stateConfig, conversation.getContext());
+            sendEntryMessage(phone, stateConfig, conversation.getContext(), customer);
         }
     }
 
-    private void sendEntryMessage(String phone, StateConfig state, Map<String, Object> context) {
+    private void sendEntryMessage(String phone, StateConfig state, Map<String, Object> context, Customer customer) {
         MessageConfig msg = state.getEntryMessage();
+        String body = personalize(msg.getBody(), customer);
         switch (msg.getType()) {
-            case "text" -> whatsAppClient.sendText(phone, msg.getBody());
-            case "buttons" -> whatsAppClient.sendButtons(phone, msg.getBody(),
+            case "text" -> whatsAppClient.sendText(phone, body);
+            case "buttons" -> whatsAppClient.sendButtons(phone, body,
                     msg.getButtons().stream()
                             .map(b -> new WhatsAppMessage.Button(b.getId(), b.getTitle()))
                             .toList());
             case "list" -> {
                 List<WhatsAppMessage.Section> sections = msg.getDataSource() != null
-                        ? dataSourceResolver.resolve(msg.getDataSource(), context)
+                        ? dataSourceResolver.resolve(msg.getDataSource(), context, customer)
                         : List.of();
                 if (sections.isEmpty() || sections.stream().allMatch(s -> s.getRows().isEmpty())) {
                     whatsAppClient.sendText(phone,
                             "Nothing is available right now. Send *hi* to return to the main menu.");
                     return;
                 }
-                whatsAppClient.sendList(phone, msg.getBody(), msg.getButtonLabel(), sections);
+                whatsAppClient.sendList(phone, body, msg.getButtonLabel(), sections);
             }
         }
+    }
+
+    // Resolves the {greeting} token. Friends & Family (any live pricing override) get a warm
+    // F&F line; a returning customer with a saved name gets a personal welcome-back; otherwise
+    // the neutral brand welcome is used.
+    private String personalize(String body, Customer customer) {
+        if (body == null || !body.contains("{greeting}")) return body;
+        String first = firstName(customer);
+        String greeting;
+        if (customer != null && customer.isFriendsAndFamily()) {
+            String who = first != null ? first : "there";
+            greeting = "Hi " + who + "! \uD83D\uDC9B You're one of our Tranch\u00e9 family & friends — "
+                    + "you get special flat pricing, and you can order any item on any delivery day.\n\n";
+        } else if (first != null) {
+            greeting = "Hi " + first + "! \uD83D\uDC4B Welcome back to Tranch\u00e9 Bakery.\n\n";
+        } else {
+            greeting = "Welcome to Tranch\u00e9 Bakery. \uD83E\uDD56\n\n";
+        }
+        return body.replace("{greeting}", greeting);
+    }
+
+    private String firstName(Customer customer) {
+        if (customer == null || customer.getName() == null) return null;
+        String n = customer.getName().trim();
+        if (n.isEmpty()) return null;
+        return n.split("\\s+")[0];
     }
 
     private TransitionConfig findTransition(StateConfig state, String input, String messageType) {

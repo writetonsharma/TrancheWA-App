@@ -188,9 +188,9 @@ public class OrderService {
 
         StringBuilder sb = new StringBuilder("🧾 *Your Order*\n\n");
         for (OrderItem item : items) {
-            if (hasOverride) {
-                BigDecimal discountedSubtotal = customer.getPricingOverride()
-                        .multiply(BigDecimal.valueOf(item.getQuantity()));
+            BigDecimal unit = hasOverride ? customer.unitPriceForCategory(categoryNameOf(item)) : null;
+            if (unit != null) {
+                BigDecimal discountedSubtotal = unit.multiply(BigDecimal.valueOf(item.getQuantity()));
                 sb.append(String.format("• %s × %d — ₹%.0f _(special rate)_\n",
                         item.getMenuItem().getName(),
                         item.getQuantity(),
@@ -276,6 +276,21 @@ public class OrderService {
         recalculateTotal(order);
     }
 
+    // Line amount for an item under an active F&F override: the category (or global) flat
+    // unit price × qty, or the item's normal subtotal when no flat price covers its category.
+    private BigDecimal overrideLineAmount(Customer customer, OrderItem item) {
+        BigDecimal unit = customer.unitPriceForCategory(categoryNameOf(item));
+        return unit != null
+                ? unit.multiply(BigDecimal.valueOf(item.getQuantity()))
+                : item.getSubtotal();
+    }
+
+    private String categoryNameOf(OrderItem item) {
+        return item.getMenuItem() != null && item.getMenuItem().getCategory() != null
+                ? item.getMenuItem().getCategory().getName()
+                : null;
+    }
+
     private void recalculateTotal(Order order) {
         List<OrderItem> items = orderItemRepository.findAllByOrderId(order.getId());
 
@@ -289,8 +304,10 @@ public class OrderService {
         int completedOrders = 0;
         if (customer != null) {
             if (customer.hasActiveOverride()) {
-                int totalQty = items.stream().mapToInt(OrderItem::getQuantity).sum();
-                overrideTotal = customer.getPricingOverride().multiply(BigDecimal.valueOf(totalQty));
+                overrideTotal = BigDecimal.ZERO;
+                for (OrderItem it : items) {
+                    overrideTotal = overrideTotal.add(overrideLineAmount(customer, it));
+                }
             }
             freeDeliveryFlag = customer.isFreeDelivery();
             completedOrders = (int) orderRepository.countByCustomerIdAndStatus(

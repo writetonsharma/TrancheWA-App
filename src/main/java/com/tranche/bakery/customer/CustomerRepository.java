@@ -10,6 +10,8 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     Optional<Customer> findByPhone(String phone);
     List<Customer> findByPhoneContainingOrNameContainingIgnoreCase(String phone, String name);
 
-    @Query("SELECT c FROM Customer c WHERE c.pricingOverride IS NOT NULL ORDER BY c.overrideExpiresAt ASC NULLS LAST")
+    List<Customer> findAllByOrderByCreatedAtDesc();
+
+    @Query("SELECT c FROM Customer c WHERE c.pricingOverride IS NOT NULL OR SIZE(c.categoryPrices) > 0 ORDER BY c.overrideExpiresAt ASC NULLS LAST")
     List<Customer> findAllWithPricingOverride();
 }

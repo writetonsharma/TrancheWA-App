@@ -63,7 +63,7 @@ public class DeliveryRules {
         return BATCH_DEMAND_STATUSES;
     }
 
-    public record CartFlags(boolean hasBagel, boolean hasWeekendOnly, int itemCount) {}
+    public record CartFlags(boolean hasBagel, boolean hasWeekendOnly, int itemCount, boolean friendsAndFamily) {}
 
     /** Focaccia and the sweet rolls (cinnamon, babka, cardamom) deliver on weekends only. */
     private static boolean isWeekendOnly(String lowerName) {
@@ -74,7 +74,7 @@ public class DeliveryRules {
     }
 
     /** Inspect an order's items to determine flags and total quantity. */
-    public CartFlags flagsForOrder(Long orderId) {
+    public CartFlags flagsForOrder(Long orderId, boolean friendsAndFamily) {
         boolean hasBagel = false;
         boolean hasWeekendOnly = false;
         int itemCount = 0;
@@ -86,12 +86,12 @@ public class DeliveryRules {
                 itemCount += item.getQuantity();
             }
         }
-        return new CartFlags(hasBagel, hasWeekendOnly, itemCount);
+        return new CartFlags(hasBagel, hasWeekendOnly, itemCount, friendsAndFamily);
     }
 
     /** The next {@code count} deliverable days (ignoring cart constraints), for nudges. */
     public List<LocalDate> upcomingDeliverableDays(int count) {
-        CartFlags empty = new CartFlags(false, false, 0);
+        CartFlags empty = new CartFlags(false, false, 0, false);
         List<LocalDate> days = new ArrayList<>();
         LocalDate d = earliestDate(empty);
         int scanned = 0;
@@ -136,7 +136,8 @@ public class DeliveryRules {
         if (dow == DayOfWeek.WEDNESDAY) {
             return false;
         }
-        if (flags.hasWeekendOnly()
+        // Friends & Family may take weekend-only items on any (non-Wednesday) delivery day.
+        if (flags.hasWeekendOnly() && !flags.friendsAndFamily()
                 && dow != DayOfWeek.FRIDAY
                 && dow != DayOfWeek.SATURDAY
                 && dow != DayOfWeek.SUNDAY) {
@@ -161,9 +162,9 @@ public class DeliveryRules {
      * date-first menu to hide items that do not fit the customer chosen morning
      * (e.g. focaccia on a weekday, or a bagel that cannot clear its 48h ferment).
      */
-    public boolean itemDeliverableOn(String itemName, LocalDate date) {
+    public boolean itemDeliverableOn(String itemName, LocalDate date, boolean friendsAndFamily) {
         String n = itemName == null ? "" : itemName.toLowerCase();
-        CartFlags flags = new CartFlags(n.contains("bagel"), isWeekendOnly(n), 1);
+        CartFlags flags = new CartFlags(n.contains("bagel"), isWeekendOnly(n), 1, friendsAndFamily);
         return isDeliverableDay(date, flags) && !date.isBefore(earliestDate(flags));
     }
 

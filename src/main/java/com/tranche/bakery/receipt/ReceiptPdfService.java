@@ -169,8 +169,9 @@ public class ReceiptPdfService {
         t.addCell(headCell("Amount", Element.ALIGN_RIGHT));
 
         for (OrderItem it : items) {
-            BigDecimal lineAmt = override
-                    ? c.getPricingOverride().multiply(BigDecimal.valueOf(it.getQuantity()))
+            BigDecimal unit = override ? c.unitPriceForCategory(categoryName(it)) : null;
+            BigDecimal lineAmt = unit != null
+                    ? unit.multiply(BigDecimal.valueOf(it.getQuantity()))
                     : it.getSubtotal();
             t.addCell(bodyCell(it.getMenuItem().getName(), Element.ALIGN_LEFT));
             t.addCell(bodyCell(String.valueOf(it.getQuantity()), Element.ALIGN_CENTER));
@@ -285,6 +286,12 @@ public class ReceiptPdfService {
     }
 
     private static boolean notBlank(String s) { return s != null && !s.isBlank(); }
+
+    private static String categoryName(OrderItem it) {
+        return it.getMenuItem() != null && it.getMenuItem().getCategory() != null
+                ? it.getMenuItem().getCategory().getName()
+                : null;
+    }
 
     private static boolean positive(BigDecimal b) { return b != null && b.compareTo(BigDecimal.ZERO) > 0; }
 
