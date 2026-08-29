@@ -33,7 +33,7 @@ public class RouteToReorderOrBrowseAction implements FlowAction {
         boolean hasPreviousOrder = orderRepository
                 .findTopByCustomerIdAndStatusInOrderByCreatedAtDesc(
                         ctx.getCustomer().getId(),
-                        List.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING, OrderStatus.COMPLETED))
+                        List.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.COMPLETED))
                 .isPresent();
 
         // Date-first: a brand-new order asks for the delivery day before browsing,

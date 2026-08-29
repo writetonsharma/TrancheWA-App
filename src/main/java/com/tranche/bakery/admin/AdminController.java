@@ -156,6 +156,15 @@ public class AdminController {
         return redirectTo(returnTo, "/admin");
     }
 
+    @PostMapping("/orders/{id}/out-for-delivery")
+    public String markOutForDelivery(@PathVariable Long id,
+                                     @RequestParam(required = false) String returnTo,
+                                     RedirectAttributes redirectAttributes) {
+        adminService.markOutForDelivery(id);
+        redirectAttributes.addFlashAttribute("flash", "Order marked as Out for Delivery — customer notified.");
+        return redirectTo(returnTo, "/admin");
+    }
+
     @PostMapping("/orders/{id}/complete")
     public String markCompleted(@PathVariable Long id,
                                  @RequestParam(required = false) String returnTo,

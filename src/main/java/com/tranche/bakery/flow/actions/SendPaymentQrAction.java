@@ -87,7 +87,7 @@ public class SendPaymentQrAction implements FlowAction {
             String mediaId = whatsAppClient.uploadMedia(qrPng, "payment-qr.png");
             log.info("Media uploaded, mediaId={}", mediaId);
             String caption = String.format(
-                    "*Order %s — ₹%.2f*%n%nScan the QR code above with any UPI app, or pay manually to *%s*.%n%nOnce paid, please share the screenshot here. We'll verify the payment and message you when your order is confirmed.",
+                    "*Order %s — ₹%.2f*%n%nScan the QR code above with any UPI app, or pay manually to *%s*.%n%n📸 *Important — after paying, share the payment screenshot here.* That's the final step to confirm your order.",
                     order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId(),
                     amount, upiId);
             whatsAppClient.sendImage(ctx.getCustomer().getPhone(), mediaId, caption);
@@ -99,8 +99,7 @@ public class SendPaymentQrAction implements FlowAction {
                     order.getId(), ctx.getCustomer().getPhone());
             whatsAppClient.sendText(ctx.getCustomer().getPhone(),
                     String.format("*Order %s — please complete payment of ₹%.2f.*%n%n" +
-                            "*UPI ID:* %s%n%n" +
-                            "Once paid, please share the screenshot here. We'll verify the payment and message you when your order is confirmed.",
+                            "*UPI ID:* %s%n%n📸 *Important — after paying, share the payment screenshot here.* That's the final step to confirm your order.",
                             order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId(),
                             amount, upiId));
         }

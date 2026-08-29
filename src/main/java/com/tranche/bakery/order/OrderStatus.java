@@ -9,6 +9,7 @@ public enum OrderStatus {
     PAYMENT_REVIEW_REQUIRED,
     CONFIRMED,
     IN_BAKING,
+    OUT_FOR_DELIVERY,
     CANCELLED,
     COMPLETED
 }

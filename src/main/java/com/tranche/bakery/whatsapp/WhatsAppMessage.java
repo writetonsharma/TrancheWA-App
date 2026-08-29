@@ -2,6 +2,7 @@ package com.tranche.bakery.whatsapp;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;
+import java.util.ArrayList;
 import java.util.List;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -203,5 +204,84 @@ public class WhatsAppMessage {
 
     public static DocumentMessage documentMessage(String to, String mediaId, String filename, String caption) {
         return new DocumentMessage(to, new DocumentPayload(mediaId, filename, caption));
+    }
+
+    // --- Template messages (Utility) ---
+
+    public static TemplateMessage templateMessage(String to, String name, String languageCode,
+                                                  List<String> bodyParams, String docMediaId, String docFilename) {
+        List<Component> components = new ArrayList<>();
+        if (docMediaId != null && !docMediaId.isBlank()) {
+            components.add(new Component("header", List.of(Parameter.document(docMediaId, docFilename))));
+        }
+        if (bodyParams != null && !bodyParams.isEmpty()) {
+            List<Parameter> params = new ArrayList<>();
+            for (String value : bodyParams) params.add(Parameter.text(value));
+            components.add(new Component("body", params));
+        }
+        return new TemplateMessage(to, new Template(name, new Language(languageCode), components));
+    }
+
+    @Data
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class TemplateMessage {
+        private String messaging_product = "whatsapp";
+        private String to;
+        private String type = "template";
+        private Template template;
+
+        TemplateMessage(String to, Template template) {
+            this.to = to;
+            this.template = template;
+        }
+    }
+
+    @Data @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class Template {
+        private String name;
+        private Language language;
+        private List<Component> components;
+    }
+
+    @Data @AllArgsConstructor
+    public static class Language {
+        private String code;
+    }
+
+    @Data @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class Component {
+        private String type;
+        private List<Parameter> parameters;
+    }
+
+    @Data
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class Parameter {
+        private String type;
+        private String text;
+        private DocumentParam document;
+
+        static Parameter text(String value) {
+            Parameter p = new Parameter();
+            p.type = "text";
+            p.text = value;
+            return p;
+        }
+
+        static Parameter document(String id, String filename) {
+            Parameter p = new Parameter();
+            p.type = "document";
+            p.document = new DocumentParam(id, filename);
+            return p;
+        }
+    }
+
+    @Data @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class DocumentParam {
+        private String id;
+        private String filename;
     }
 }

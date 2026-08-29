@@ -14,7 +14,7 @@
     "MAIN_MENU": {
       "entryMessage": {
         "type": "buttons",
-        "body": "{greeting}Small-batch, European-inspired breads baked fresh for each day's orders. Orders placed before *5 PM* are usually prepared for next-day delivery.\n\nHow can we help you today?\n\n_Send *hi* anytime to return to the main menu._",
+        "body": "{greeting}Small-batch, European-inspired breads baked fresh for each day's orders. Orders placed before *5 PM* are usually prepared for next-day delivery.\n\n🛍️ See our full menu with photos at tranchebakery.in\n\nHow can we help you today?\n\n_Send *hi* anytime to return to the main menu._",
         "buttons": [
           {
             "id": "order",
@@ -61,10 +61,6 @@
           {
             "id": "order_status",
             "title": "My Order Status"
-          },
-          {
-            "id": "view_menu",
-            "title": "View Menu"
           }
         ]
       },
@@ -76,10 +72,6 @@
         {
           "match": "order_status",
           "nextState": "ORDER_STATUS"
-        },
-        {
-          "match": "view_menu",
-          "nextState": "VIEW_MENU"
         },
         {
           "match": "*",
@@ -97,7 +89,7 @@
     "HOURS_INFO": {
       "entryMessage": {
         "type": "text",
-        "body": "🕐 *Hours & Delivery*\n\n*Delivery:* every morning *6–8 AM*, except *Wednesdays*.\n\n*Order Cutoff:* 5 PM daily\nMost available products ordered before 5 PM can be delivered the next morning between *6–8 AM*. Some products need more preparation time or are available only on certain days (sweet rolls and focaccia are weekend-only, Fri–Sun); the order calendar will show the available delivery mornings.\n\n*Messaging Hours:* 8 AM – 5 PM\nYou can place orders anytime — we read and respond to messages between 8 AM and 5 PM."
+        "body": "🕐 *Hours & Delivery*\n\n*Delivery:* every morning, except *Wednesdays*.\n\n*Order Cutoff:* 5 PM daily\nMost available products ordered before 5 PM can be delivered the next morning. Some products need more preparation time or are available only on certain days (sweet rolls and focaccia are weekend-only, Fri–Sun); the order calendar will show the available delivery mornings.\n\n*Messaging Hours:* 8 AM – 5 PM\nYou can place orders anytime — we read and respond to messages between 8 AM and 5 PM."
       },
       "autoTransition": "MAIN_MENU"
     },
@@ -301,7 +293,7 @@
       "entryAction": "NOTIFY_DATE_CAPACITY",
       "entryMessage": {
         "type": "list",
-        "body": "When would you like your order delivered? 🗓️\n\nWe deliver between *6–8 AM*. Choose your preferred morning below:\n\n_A quick note:_ your date shapes the menu. 🥐 *Bagels* need a 48-hour head start, and 🍞 *focaccia* is baked for weekends only (Fri–Sun) — so they only appear on the days we can bake them fresh.",
+        "body": "When would you like your order delivered? 🗓️\n\nWe deliver in the morning. Choose your preferred morning below:\n\n_A quick note:_ your date shapes the menu. 🥐 *Bagels* need a 48-hour head start, and 🍞 *focaccia* is baked for weekends only (Fri–Sun) — so they only appear on the days we can bake them fresh.",
         "buttonLabel": "Choose Date",
         "dataSource": "DELIVERY_DATES"
       },

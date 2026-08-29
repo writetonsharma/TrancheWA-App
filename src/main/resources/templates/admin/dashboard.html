@@ -244,11 +244,15 @@
                 <span th:unless="${v.mapsUrl != null}" class="text-muted">—</span>
               </td>
               <td>
-                <form th:if="${v.order.status.name() != 'IN_BAKING'}"
+                <form th:if="${v.order.status.name() != 'IN_BAKING' and v.order.status.name() != 'OUT_FOR_DELIVERY'}"
                       th:action="@{/admin/orders/{id}/mark-baking(id=${v.order.id})}" method="post" class="d-inline">
                   <button type="submit" class="btn btn-sm btn-warning">🔥 Baking</button>
                 </form>
                 <form th:if="${v.order.status.name() == 'IN_BAKING'}"
+                      th:action="@{/admin/orders/{id}/out-for-delivery(id=${v.order.id})}" method="post" class="d-inline">
+                  <button type="submit" class="btn btn-sm btn-primary">🚚 Out for Delivery</button>
+                </form>
+                <form th:if="${v.order.status.name() == 'OUT_FOR_DELIVERY'}"
                       th:action="@{/admin/orders/{id}/complete(id=${v.order.id})}" method="post" class="d-inline">
                   <button type="submit" class="btn btn-sm btn-success">✅ Delivered</button>
                 </form>

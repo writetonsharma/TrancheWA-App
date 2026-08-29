@@ -14,6 +14,7 @@ public class AlertService {
 
     private final AlertRepository alertRepository;
     private final WhatsAppClient whatsAppClient;
+    private final TelegramNotifier telegramNotifier;
 
     @Value("${bakery.admin.phone:}")
     private String adminPhone;
@@ -28,12 +29,20 @@ public class AlertService {
         alertRepository.save(alert);
         log.warn("ALERT [{}] order={} customer={} — {}", type, orderId, customerPhone, message);
 
-        if (adminPhone != null && !adminPhone.isBlank()) {
+        String adminText = "⚠️ *Bakery Alert* [" + type + "]\n\n" + message +
+                (orderId != null ? "\nOrder ID: " + orderId : "") +
+                (customerPhone != null ? "\nCustomer: " + customerPhone : "");
+
+        // Telegram — reliable admin channel, not subject to WhatsApp's 24h window.
+        telegramNotifier.send(adminText);
+
+        // Never WhatsApp the admin about a WhatsApp delivery failure: the same channel is down,
+        // so this send fails too and each failure spawns another failure alert — a loop that
+        // floods the dashboard. Delivery failures are still recorded above for the dashboard.
+        boolean isDeliveryFailure = "DELIVERY_FAILURE".equals(type);
+        if (adminPhone != null && !adminPhone.isBlank() && !isDeliveryFailure) {
             try {
-                whatsAppClient.sendText(adminPhone,
-                        "⚠️ *Bakery Alert* [" + type + "]\n\n" + message +
-                        (orderId != null ? "\nOrder ID: " + orderId : "") +
-                        (customerPhone != null ? "\nCustomer: " + customerPhone : ""));
+                whatsAppClient.sendText(adminPhone, adminText);
             } catch (Exception e) {
                 log.error("Failed to send admin WhatsApp alert: {}", e.getMessage());
             }

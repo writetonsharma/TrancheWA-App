@@ -12,6 +12,9 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
 
     boolean existsByTypeAndOrderIdAndResolvedFalse(String type, Long orderId);
 
+    // One-shot reminders must never re-send once recorded, even if the alert was resolved.
+    boolean existsByTypeAndOrderId(String type, Long orderId);
+
     @Modifying
     @Query("UPDATE Alert a SET a.resolved = true, a.resolvedAt = CURRENT_TIMESTAMP WHERE a.resolved = false")
     void resolveAll();

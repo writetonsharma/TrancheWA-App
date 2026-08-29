@@ -31,8 +31,7 @@ import com.tranche.bakery.order.OrderItemRepository;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.payment.PaymentRepository;
-import com.tranche.bakery.receipt.ReceiptService;
-import com.tranche.bakery.whatsapp.WhatsAppClient;
+import com.tranche.bakery.whatsapp.CustomerNotifier;
 
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -49,10 +48,9 @@ public class AdminService {
     private final FeedbackRepository feedbackRepository;
     private final AlertRepository alertRepository;
     private final AlertService alertService;
-    private final WhatsAppClient whatsAppClient;
     private final CustomerRepository customerRepository;
     private final AdminMessageRepository adminMessageRepository;
-    private final ReceiptService receiptService;
+    private final CustomerNotifier customerNotifier;
 
     @Transactional(readOnly = true)
     public AdminDashboard buildDashboard() {
@@ -60,7 +58,7 @@ public class AdminService {
 
         List<AdminOrderView> deliveringToday = loadViews(
                 orderRepository.findAllByStatusInAndDeliveryDateOrderByDeliveryDateAsc(
-                        Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING), today));
+                        Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING, OrderStatus.OUT_FOR_DELIVERY), today));
 
         List<AdminOrderView> deliveringTomorrow = loadViews(
                 orderRepository.findAllByStatusInAndDeliveryDateOrderByDeliveryDateAsc(
@@ -134,21 +132,7 @@ public class AdminService {
                 payment.setStatus(com.tranche.bakery.payment.PaymentStatus.SCREENSHOT_VERIFIED);
                 paymentRepository.save(payment);
             });
-            receiptService.sendReceipt(order);
-            try {
-                String ref = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
-                String delivery = order.getDeliveryDate() != null
-                    ? " We'll deliver on *" + order.getDeliveryDate().format(
-                        java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM")) +
-                        "* between *6–8 AM*."
-                    : " We'll confirm the delivery morning with you shortly.";
-                whatsAppClient.sendText(order.getCustomer().getPhone(),
-                    "✅ *Payment verified — order confirmed!*\n\n" +
-                    "Order *" + ref + "* is confirmed." + delivery + "\n\n" +
-                    "Thank you for ordering from Tranché Bakery. 🥖");
-            } catch (Exception e) {
-                log.warn("Could not notify customer after payment approval: {}", e.getMessage());
-            }
+            customerNotifier.orderConfirmed(order);
             log.info("Admin approved payment for order {}", orderId);
         });
     }
@@ -164,14 +148,23 @@ public class AdminService {
 
     @Transactional
     public void sendMessage(String phone, String message) {
-        whatsAppClient.sendText(phone, message);
-        customerRepository.findByPhone(phone).ifPresent(customer -> {
+        Customer customer = customerRepository.findByPhone(phone).orElse(null);
+        String customerName = customer != null ? customer.getName() : null;
+        String orderRef = null;
+        if (customer != null) {
+            orderRef = orderRepository.findAllByCustomerIdOrderByCreatedAtDesc(customer.getId()).stream()
+                    .findFirst()
+                    .map(o -> o.getOrderNumber() != null ? o.getOrderNumber() : "#" + o.getId())
+                    .orElse(null);
+        }
+        customerNotifier.customerUpdate(phone, message, customerName, orderRef);
+        if (customer != null) {
             AdminMessage msg = new AdminMessage();
             msg.setCustomer(customer);
             msg.setDirection(AdminMessage.Direction.OUTBOUND);
             msg.setMessage(message);
             adminMessageRepository.save(msg);
-        });
+        }
         log.info("Admin sent message to {}", phone);
     }
 
@@ -216,16 +209,18 @@ public class AdminService {
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.IN_BAKING);
             orderRepository.save(order);
-            try {
-                String ref = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
-                whatsAppClient.sendText(order.getCustomer().getPhone(),
-                        "🔥 *Great news — your order is being baked right now!*\n\n" +
-                        "Order *" + ref + "* is in the oven. " +
-                        "We'll deliver between 6–8 AM tomorrow morning. 🥖");
-            } catch (Exception e) {
-                log.warn("Could not notify customer after marking in baking: {}", e.getMessage());
-            }
+            customerNotifier.orderInBaking(order);
             log.info("Admin marked order {} as IN_BAKING", orderId);
+        });
+    }
+
+    @Transactional
+    public void markOutForDelivery(Long orderId) {
+        orderRepository.findById(orderId).ifPresent(order -> {
+            order.setStatus(OrderStatus.OUT_FOR_DELIVERY);
+            orderRepository.save(order);
+            customerNotifier.orderOutForDelivery(order);
+            log.info("Admin marked order {} as OUT_FOR_DELIVERY", orderId);
         });
     }
 
@@ -234,15 +229,7 @@ public class AdminService {
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.COMPLETED);
             orderRepository.save(order);
-            try {
-                String ref = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
-                whatsAppClient.sendText(order.getCustomer().getPhone(),
-                        "✅ Your order *" + ref + "* has been delivered! " +
-                        "Thank you for choosing Tranché Bakery. We hope you enjoy it! 🥖\n\n" +
-                        "Send *hi* to place a new order anytime.");
-            } catch (Exception e) {
-                log.warn("Could not notify customer after marking order completed: {}", e.getMessage());
-            }
+            customerNotifier.orderDelivered(order);
             log.info("Admin marked order {} as COMPLETED", orderId);
         });
     }
@@ -252,14 +239,7 @@ public class AdminService {
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.CANCELLED);
             orderRepository.save(order);
-            try {
-                String ref = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
-                whatsAppClient.sendText(order.getCustomer().getPhone(),
-                        "Your order *" + ref + "* has been cancelled. " +
-                        "If you have any questions, please message us.\n\nSend *hi* to place a new order. 🥖");
-            } catch (Exception e) {
-                log.warn("Could not notify customer after order cancellation: {}", e.getMessage());
-            }
+            customerNotifier.orderCancelled(order, null);
             log.info("Admin cancelled order {}", orderId);
         });
     }

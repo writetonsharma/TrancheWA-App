@@ -36,6 +36,7 @@ public class ShowOrderStatusAction implements FlowAction {
 
         List<Order> active = new ArrayList<>();
         active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.IN_BAKING));
+        active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.OUT_FOR_DELIVERY));
         active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.CONFIRMED));
         active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PAYMENT_SCREENSHOT_RECEIVED));
         active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PAYMENT_REVIEW_REQUIRED));
@@ -117,8 +118,9 @@ public class ShowOrderStatusAction implements FlowAction {
             case PENDING_CONFIRMATION -> "⏳ *Awaiting payment.*\nPlease complete payment and share the screenshot to confirm your order.";
             case PAYMENT_SCREENSHOT_RECEIVED -> "📸 *Payment screenshot received.*\nWe're verifying it and will message you when the order is confirmed.";
             case PAYMENT_REVIEW_REQUIRED -> "🔎 *Payment verification in progress.*\nWe need a little more time to check the payment and will message you when it is confirmed.";
-            case CONFIRMED            -> "✅ *Confirmed.*\nPayment received. We'll bake fresh and deliver between 6–8 AM.";
+            case CONFIRMED            -> "✅ *Confirmed.*\nPayment received. We'll bake fresh and deliver in the morning.";
             case IN_BAKING            -> "🔥 *Baking right now!*\nFreshness in progress — delivery follows shortly.";
+            case OUT_FOR_DELIVERY     -> "🚚 *Out for delivery!*\nYour order is on its way — arriving this morning.";
             default                   -> "Being processed. We'll update you shortly.";
         };
     }
@@ -130,6 +132,7 @@ public class ShowOrderStatusAction implements FlowAction {
             case PAYMENT_REVIEW_REQUIRED -> "🔎 payment review";
             case CONFIRMED            -> "✅ confirmed";
             case IN_BAKING            -> "🔥 baking now";
+            case OUT_FOR_DELIVERY     -> "🚚 out for delivery";
             default                   -> s.name().toLowerCase();
         };
     }

@@ -49,9 +49,18 @@ public class WebhookHandler {
                     String statusVal = status.path("status").asText();
                     JsonNode errors  = status.path("errors");
                     if (!errors.isMissingNode() && errors.isArray() && !errors.isEmpty()) {
-                        log.error("Message {} status={} errors={}", statusId, statusVal, errors);
+                        // recipient_id + error code/title tell us WHO the failed message was for
+                        // and WHY, so the dashboard alert is attributable to a real number/scenario.
+                        String recipient = status.path("recipient_id").asText("unknown");
+                        JsonNode firstError = errors.get(0);
+                        String code  = firstError.path("code").asText("");
+                        String title = firstError.path("title").asText("");
+                        log.error("Message {} to {} status={} errors={}", statusId, recipient, statusVal, errors);
                         alertService.raise("DELIVERY_FAILURE",
-                                "WhatsApp message " + statusId + " failed: " + errors);
+                                "WhatsApp message to " + recipient + " failed" +
+                                (code.isBlank() ? "" : " [" + code + "]") +
+                                (title.isBlank() ? "" : " " + title),
+                                null, recipient);
                     } else {
                         log.info("Message {} status={}", statusId, statusVal);
                     }

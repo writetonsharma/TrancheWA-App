@@ -20,23 +20,26 @@ public class ReceiptService {
     private final ReceiptPdfService pdfService;
     private final WhatsAppClient whatsAppClient;
 
-    public void sendReceipt(Order order) {
-        if (!props.isEnabled()) return;
-        if (order == null || order.getCustomer() == null) return;
+    public record ReceiptMedia(String mediaId, String filename) {}
+
+    /** Renders the receipt PDF and uploads it to WhatsApp, returning the media handle (or null if disabled/unavailable). */
+    public ReceiptMedia prepare(Order order) {
+        if (!props.isEnabled()) return null;
+        if (order == null || order.getCustomer() == null) return null;
 
         String phone = order.getCustomer().getPhone();
-        if (phone == null || phone.isBlank()) return;
+        if (phone == null || phone.isBlank()) return null;
 
         String receiptNo = order.getOrderNumber() != null ? order.getOrderNumber() : "" + order.getId();
         try {
             byte[] pdf = pdfService.build(order);
             String filename = "Tranche-Receipt-" + receiptNo.replace("#", "") + ".pdf";
             String mediaId = whatsAppClient.uploadMedia(pdf, filename, "application/pdf");
-            whatsAppClient.sendDocument(phone, mediaId, filename,
-                    "Here is your receipt. Thank you for ordering from " + props.getBusinessName() + ".");
-            log.info("Receipt sent for order {} to {}", receiptNo, phone);
+            if (mediaId == null || mediaId.isBlank()) return null;
+            return new ReceiptMedia(mediaId, filename);
         } catch (Exception e) {
-            log.warn("Could not send receipt for order {}: {}", receiptNo, e.getMessage());
+            log.warn("Could not prepare receipt for order {}: {}", receiptNo, e.getMessage());
+            return null;
         }
     }
 }

@@ -10,44 +10,39 @@
           "displayOrder": 1
         },
         {
-          "name": "Whole Wheat Loaf 50%",
+          "name": "Whole Wheat Loaf",
           "price": 260.0,
           "displayOrder": 2
         },
         {
-          "name": "Whole Wheat Loaf 80%",
-          "price": 260.0,
-          "displayOrder": 3
-        },
-        {
           "name": "Multi-Seed Loaf",
           "price": 320.0,
-          "displayOrder": 4
+          "displayOrder": 3
         },
         {
           "name": "Milk & Butter Loaf",
           "price": 360.0,
-          "displayOrder": 5
+          "displayOrder": 4
         },
         {
           "name": "Honey & Walnut Loaf",
           "price": 380.0,
-          "displayOrder": 6
+          "displayOrder": 5
         },
         {
           "name": "Olive Loaf",
           "price": 400.0,
-          "displayOrder": 7
+          "displayOrder": 6
         },
         {
           "name": "Caramelized Onion Loaf",
           "price": 300.0,
-          "displayOrder": 8
+          "displayOrder": 7
         },
         {
           "name": "Honey & Oat Loaf",
           "price": 360.0,
-          "displayOrder": 9
+          "displayOrder": 8
         }
       ]
     },

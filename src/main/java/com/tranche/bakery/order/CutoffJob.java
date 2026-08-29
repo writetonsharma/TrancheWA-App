@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.tranche.bakery.conversation.ConversationRepository;
+import com.tranche.bakery.whatsapp.CustomerNotifier;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class CutoffJob {
     private final OrderRepository orderRepository;
     private final ConversationRepository conversationRepository;
     private final WhatsAppClient whatsAppClient;
+    private final CustomerNotifier customerNotifier;
 
     private static final String CUTOFF_MESSAGE =
             "⏰ A gentle note — it's 5 PM and your order is still incomplete, so it has been set aside for today.\n\n" +
@@ -66,13 +68,21 @@ public class CutoffJob {
                         conv.setContext(null);
                         conversationRepository.save(conv);
                     });
+        }
 
+        // Drafts were mid-flow (recent activity) → free-form is in-window.
+        for (Order order : drafts) {
             try {
                 whatsAppClient.sendText(order.getCustomer().getPhone(), CUTOFF_MESSAGE);
             } catch (Exception e) {
-                log.warn("Cutoff job: failed to notify customer {} — {}",
+                log.warn("Cutoff job: failed to notify draft customer {} — {}",
                         order.getCustomer().getPhone(), e.getMessage());
             }
+        }
+
+        // Unpaid confirmed orders may be advance orders (last message >24h ago) → template fallback.
+        for (Order order : pendingPayment) {
+            customerNotifier.orderCancelled(order, "Payment was not received before the daily cut-off.");
         }
     }
 }

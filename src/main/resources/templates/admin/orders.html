@@ -125,6 +125,11 @@
                   <button type="submit" class="btn btn-sm btn-outline-primary">In Baking</button>
                 </form>
                 <form th:if="${v.order.status.name() == 'IN_BAKING'}"
+                      th:action="@{/admin/orders/{id}/out-for-delivery(id=${v.order.id})}" method="post" class="d-inline">
+                  <input type="hidden" name="returnTo" th:value="@{/admin/orders(from=${fFrom},to=${fTo},status=${fStatus},customer=${fCustomer},page=${orderPage.page})}">
+                  <button type="submit" class="btn btn-sm btn-outline-primary">🚚 Out for Delivery</button>
+                </form>
+                <form th:if="${v.order.status.name() == 'OUT_FOR_DELIVERY'}"
                       th:action="@{/admin/orders/{id}/complete(id=${v.order.id})}" method="post" class="d-inline">
                   <input type="hidden" name="returnTo" th:value="@{/admin/orders(from=${fFrom},to=${fTo},status=${fStatus},customer=${fCustomer},page=${orderPage.page})}">
                   <button type="submit" class="btn btn-sm btn-primary"

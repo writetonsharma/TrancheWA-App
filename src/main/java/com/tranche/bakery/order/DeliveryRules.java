@@ -42,7 +42,8 @@ public class DeliveryRules {
             OrderStatus.PAYMENT_SCREENSHOT_VERIFIED,
             OrderStatus.PAYMENT_REVIEW_REQUIRED,
             OrderStatus.CONFIRMED,
-            OrderStatus.IN_BAKING);
+            OrderStatus.IN_BAKING,
+            OrderStatus.OUT_FOR_DELIVERY);
 
     /** Statuses that reserve a baking slot (daily capacity check). */
     public static Set<OrderStatus> capacityStatuses() {
@@ -56,7 +57,8 @@ public class DeliveryRules {
      */
     private static final Set<OrderStatus> BATCH_DEMAND_STATUSES = Set.of(
             OrderStatus.CONFIRMED,
-            OrderStatus.IN_BAKING);
+            OrderStatus.IN_BAKING,
+            OrderStatus.OUT_FOR_DELIVERY);
 
     /** Confirmed/paid statuses that count toward batch-discount demand. */
     public static Set<OrderStatus> batchDemandStatuses() {
