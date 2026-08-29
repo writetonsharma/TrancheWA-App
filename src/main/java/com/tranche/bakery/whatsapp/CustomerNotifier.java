@@ -25,7 +25,7 @@ public class CustomerNotifier {
     private final WhatsAppClient whatsAppClient;
     private final ReceiptService receiptService;
 
-    static final String T_CONFIRMED = "order_confirmed";
+    static final String T_CONFIRMED = "order_confirmation";
     static final String T_IN_BAKING = "order_in_baking";
     static final String T_OUT_FOR_DELIVERY = "order_out_for_delivery";
     static final String T_DELIVERED = "order_delivered";

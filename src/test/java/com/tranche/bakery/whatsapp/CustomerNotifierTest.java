@@ -80,7 +80,7 @@ class CustomerNotifierTest {
 
         new CustomerNotifier(client, receipt).orderConfirmed(order("Naveen", "9199", "TRB-1"));
 
-        verify(client).sendTemplateWithDocument("9199", "order_confirmed", "MID", "r.pdf",
+        verify(client).sendTemplateWithDocument("9199", "order_confirmation", "MID", "r.pdf",
                 List.of("Naveen", "TRB-1", expectedDate));
         verify(client, never()).sendText(any(), any());
     }
