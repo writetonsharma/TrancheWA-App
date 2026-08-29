@@ -37,34 +37,34 @@ public class WhatsAppClient {
     }
 
     public SendOutcome sendText(String to, String body) {
-        return send(WhatsAppMessage.text(to, body));
+        return send(to, WhatsAppMessage.text(to, body));
     }
 
     public SendOutcome sendButtons(String to, String bodyText, java.util.List<WhatsAppMessage.Button> buttons) {
-        return send(WhatsAppMessage.buttonMessage(to, bodyText, buttons));
+        return send(to, WhatsAppMessage.buttonMessage(to, bodyText, buttons));
     }
 
     public SendOutcome sendList(String to, String bodyText, String buttonLabel, java.util.List<WhatsAppMessage.Section> sections) {
-        return send(WhatsAppMessage.listMessage(to, bodyText, buttonLabel, sections));
+        return send(to, WhatsAppMessage.listMessage(to, bodyText, buttonLabel, sections));
     }
 
     public SendOutcome sendImage(String to, String mediaId, String caption) {
-        return send(WhatsAppMessage.imageMessage(to, mediaId, caption));
+        return send(to, WhatsAppMessage.imageMessage(to, mediaId, caption));
     }
 
     public SendOutcome sendDocument(String to, String mediaId, String filename, String caption) {
-        return send(WhatsAppMessage.documentMessage(to, mediaId, filename, caption));
+        return send(to, WhatsAppMessage.documentMessage(to, mediaId, filename, caption));
     }
 
     /** Utility-template send (no header). */
     public SendOutcome sendTemplate(String to, String templateName, List<String> bodyParams) {
-        return send(WhatsAppMessage.templateMessage(to, templateName, templateLanguage, bodyParams, null, null));
+        return send(to, WhatsAppMessage.templateMessage(to, templateName, templateLanguage, bodyParams, null, null));
     }
 
     /** Utility-template send whose header carries a previously uploaded document (e.g. the receipt PDF). */
     public SendOutcome sendTemplateWithDocument(String to, String templateName, String mediaId,
                                                 String filename, List<String> bodyParams) {
-        return send(WhatsAppMessage.templateMessage(to, templateName, templateLanguage, bodyParams, mediaId, filename));
+        return send(to, WhatsAppMessage.templateMessage(to, templateName, templateLanguage, bodyParams, mediaId, filename));
     }
 
     public String uploadMedia(byte[] imageBytes, String filename) {
@@ -95,7 +95,7 @@ public class WhatsAppClient {
         }
     }
 
-    private SendOutcome send(Object message) {
+    private SendOutcome send(String to, Object message) {
         try {
             String response = restClient.post()
                     .uri("/{phoneNumberId}/messages", phoneNumberId)
@@ -103,19 +103,29 @@ public class WhatsAppClient {
                     .body(message)
                     .retrieve()
                     .body(String.class);
-            log.info("WhatsApp API response: {}", response);
+            log.info("WhatsApp message accepted to {}: {}", to, response);
             return SendOutcome.SENT;
         } catch (HttpStatusCodeException e) {
             String responseBody = e.getResponseBodyAsString();
             if (isOutside24hWindow(responseBody)) {
-                log.warn("WhatsApp send blocked by the 24h customer-service window (131047).");
+                log.warn("WhatsApp send to {} blocked by the 24h window (131047) — will fall back to a template if one applies.", to);
                 return SendOutcome.WINDOW_CLOSED;
             }
-            log.error("Failed to send WhatsApp message: {} {}", e.getStatusCode(), responseBody);
+            log.error("WhatsApp send to {} FAILED: status={} response={} payload={}",
+                    to, e.getStatusCode(), responseBody, payloadJson(message));
             return SendOutcome.FAILED;
         } catch (Exception e) {
-            log.error("Failed to send WhatsApp message: {}", e.getMessage());
+            log.error("WhatsApp send to {} FAILED: {} payload={}", to, e.getMessage(), payloadJson(message));
             return SendOutcome.FAILED;
+        }
+    }
+
+    // Serialise the outbound message (recipient + body/params) so a failure log shows exactly what didn't send.
+    private String payloadJson(Object message) {
+        try {
+            return objectMapper.writeValueAsString(message);
+        } catch (Exception e) {
+            return String.valueOf(message);
         }
     }
 
