@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 @Setter
 public class ReceiptProperties {
     private boolean enabled = true;
-    private String businessName = "Tranche";
+    private String businessName = "Tranché";
     private String tagline = "Artisan Bakery";
     private String contactPhone = "";
     private String location = "";
