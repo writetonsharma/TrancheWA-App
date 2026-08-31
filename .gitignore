@@ -1,2 +1,4 @@
 *.class
 target/
+unpack-tranche-changes.ps1
+tranche-changes.bundle.txt
