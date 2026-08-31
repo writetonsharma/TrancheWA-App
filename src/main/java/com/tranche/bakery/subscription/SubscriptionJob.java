@@ -19,4 +19,10 @@ public class SubscriptionJob {
         subscriptionService.generateDueOrders();
         subscriptionService.completeFinished();
     }
+
+    // Evening: clear out unpaid draft subscriptions so they don't block the customer re-subscribing.
+    @Scheduled(cron = "0 0 20 * * *", zone = "Asia/Kolkata")
+    public void expireDrafts() {
+        subscriptionService.expireStalePendingPayments();
+    }
 }

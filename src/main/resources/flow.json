@@ -33,7 +33,7 @@
       "transitions": [
         {
           "match": "order",
-          "nextState": "ORDER_GATE"
+          "nextState": "ORDER_CHOICE_GATE"
         },
         {
           "match": "message",
@@ -130,6 +130,24 @@
           "saveContext": "customerName",
           "action": "SAVE_NAME"
         }
+      ]
+    },
+    "ORDER_CHOICE_GATE": {
+      "entryAction": "ROUTE_ORDER_ENTRY"
+    },
+    "ORDER_CHOICE": {
+      "entryMessage": {
+        "type": "buttons",
+        "body": "Would you like to place a one-time order, or start a weekly subscription?",
+        "buttons": [
+          { "id": "one_time", "title": "One-time Order" },
+          { "id": "subscription", "title": "Weekly Subscription" }
+        ]
+      },
+      "transitions": [
+        { "match": "one_time", "nextState": "ORDER_GATE" },
+        { "match": "subscription", "nextState": "SUB_START" },
+        { "match": "*", "nextState": "ORDER_CHOICE" }
       ]
     },
     "ORDER_GATE": {
@@ -534,6 +552,7 @@
       "autoTransition": "IDLE"
     },
     "SUB_START": {
+      "entryAction": "SUB_GUARD",
       "entryMessage": {
         "type": "list",
         "body": "💛 *Tranché Weekly Subscriptions*\n\nPrepaid weekly bakes, delivered fresh on your chosen day. Choose a plan to begin:",
@@ -588,7 +607,8 @@
     "SUB_PAYMENT": {
       "entryAction": "SUB_SEND_QR",
       "transitions": [
-        { "matchType": "image", "nextState": "IDLE", "action": "SUB_SAVE_SCREENSHOT" }
+        { "matchType": "image", "nextState": "IDLE", "action": "SUB_SAVE_SCREENSHOT" },
+        { "match": "sub_cancel", "nextState": "MAIN_MENU", "action": "SUB_CANCEL" }
       ]
     },
     "LATE_PAYMENT_DATE": {

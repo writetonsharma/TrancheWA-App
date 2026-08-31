@@ -3,6 +3,7 @@ package com.tranche.bakery.subscription;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.subscription.SubscriptionCatalog.PlanConfig;
 import com.tranche.bakery.whatsapp.CustomerNotifier;
+import com.tranche.bakery.whatsapp.WhatsAppClient;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +45,7 @@ public class SubscriptionService {
     private final OrderItemRepository orderItemRepository;
     private final OrderNumberGenerator orderNumberGenerator;
     private final CustomerNotifier customerNotifier;
+    private final WhatsAppClient whatsAppClient;
 
     /** One chosen bundle line, resolved from the plan option + the customer's pick. */
     public record ChosenItem(String itemName, int quantity, String portion) {}
@@ -127,6 +130,36 @@ public class SubscriptionService {
             subscriptionRepository.save(sub);
             log.info("Subscription {} cancelled", subscriptionId);
         });
+    }
+
+    /** Customer self-cancel: only their own, still-cancellable subscription. Returns true if cancelled. */
+    @Transactional
+    public boolean cancelForCustomer(Long subscriptionId, Long customerId) {
+        Subscription sub = subscriptionRepository.findById(subscriptionId).orElse(null);
+        if (sub == null || !sub.getCustomer().getId().equals(customerId)) return false;
+        if (sub.getStatus() == SubscriptionStatus.CANCELLED || sub.getStatus() == SubscriptionStatus.COMPLETED) return false;
+        sub.setStatus(SubscriptionStatus.CANCELLED);
+        subscriptionRepository.save(sub);
+        log.info("Subscription {} cancelled by customer {}", subscriptionId, customerId);
+        return true;
+    }
+
+    /** Evening cleanup: cancel unpaid draft subscriptions created before today's cutoff, and notify. */
+    @Transactional
+    public void expireStalePendingPayments() {
+        LocalDateTime cutoff = LocalDate.now().atTime(18, 0);
+        for (Subscription sub : subscriptionRepository.findAllByStatus(SubscriptionStatus.PENDING_PAYMENT)) {
+            if (sub.getCreatedAt() != null && sub.getCreatedAt().isBefore(cutoff)) {
+                sub.setStatus(SubscriptionStatus.CANCELLED);
+                subscriptionRepository.save(sub);
+                if (sub.getCustomer() != null && sub.getCustomer().getPhone() != null) {
+                    whatsAppClient.sendText(sub.getCustomer().getPhone(),
+                            "Your subscription request expired as payment wasn't received. " +
+                            "Send *hi* to start again whenever you're ready. \uD83E\uDD56");
+                }
+                log.info("Subscription {} expired (unpaid draft)", sub.getId());
+            }
+        }
     }
 
     // Generate any not-yet-created weekly orders for this subscription that are within the lead window.

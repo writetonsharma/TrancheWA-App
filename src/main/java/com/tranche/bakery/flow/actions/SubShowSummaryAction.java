@@ -62,8 +62,7 @@ public class SubShowSummaryAction implements FlowAction {
                 .append("* — ").append(weeks).append(" weeks of bakes + delivery, prepaid.");
 
         whatsAppClient.sendButtons(phone, sb.toString(), List.of(
-                new WhatsAppMessage.Button("sub_confirm", "Confirm & Pay"),
-                new WhatsAppMessage.Button("sub_cancel", "Cancel")));
+                new WhatsAppMessage.Button("sub_confirm", "Confirm & Pay")));
     }
 
     private String portionLabel(ComponentConfig c) {

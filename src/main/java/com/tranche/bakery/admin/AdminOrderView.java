@@ -12,7 +12,8 @@ public record AdminOrderView(
         List<OrderItem> items,
         Payment payment,
         String mapsUrl,
-        String itemsSummary
+        String itemsSummary,
+        boolean subscription
 ) {
     public static AdminOrderView of(Order order, List<OrderItem> items, Payment payment) {
         String mapsUrl = null;
@@ -23,10 +24,12 @@ public record AdminOrderView(
             mapsUrl = "https://maps.google.com/?q=" + lat + "," + lng;
         }
 
-        String summary = items.stream()
-                .map(i -> i.getMenuItem().getName() + " × " + i.getQuantity())
+        boolean subscription = order.getSubscriptionId() != null;
+        String summary = (subscription ? "🗓️ [Subscription] " : "") + items.stream()
+                .map(i -> i.getMenuItem().getName() + " × " + i.getQuantity()
+                        + (i.getNote() != null ? " (" + i.getNote() + ")" : ""))
                 .collect(Collectors.joining(", "));
 
-        return new AdminOrderView(order, items, payment, mapsUrl, summary);
+        return new AdminOrderView(order, items, payment, mapsUrl, summary, subscription);
     }
 }

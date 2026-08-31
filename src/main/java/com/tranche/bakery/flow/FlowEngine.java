@@ -15,6 +15,10 @@ import com.tranche.bakery.conversation.WhatsappConversation;
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderService;
+import com.tranche.bakery.subscription.Subscription;
+import com.tranche.bakery.subscription.SubscriptionRepository;
+import com.tranche.bakery.subscription.SubscriptionService;
+import com.tranche.bakery.subscription.SubscriptionStatus;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import com.tranche.bakery.whatsapp.WhatsAppMessage;
 
@@ -56,6 +60,8 @@ public class FlowEngine {
     private final ConversationRepository conversationRepository;
     private final WhatsAppClient whatsAppClient;
     private final OrderService orderService;
+    private final SubscriptionService subscriptionService;
+    private final SubscriptionRepository subscriptionRepository;
     private final List<FlowAction> actions;
 
     @Transactional
@@ -138,6 +144,37 @@ public class FlowEngine {
                 whatsAppClient.sendText(phone,
                         "This order can no longer be paid \u2014 it may already be confirmed or cancelled. " +
                         "Send *hi* to return to the main menu.");
+            }
+            return;
+        }
+
+        // Global subcancel_<id> — cancel a pending/active subscription from the status screen.
+        if (input.trim().matches("subcancel_\\d+")) {
+            long targetId = Long.parseLong(input.trim().substring("subcancel_".length()));
+            boolean cancelled = subscriptionService.cancelForCustomer(targetId, customer.getId());
+            whatsAppClient.sendText(phone, cancelled
+                    ? "Your subscription has been cancelled. Send *hi* whenever you'd like to start again. 🥖"
+                    : "That subscription can no longer be cancelled. Send *hi* to return to the main menu.");
+            conversation.setContext(new HashMap<>());
+            enterState(customer, conversation, "IDLE", input, messageType, rawMessage);
+            return;
+        }
+
+        // Global subpay_<id> — re-surface the QR for a pending subscription.
+        if (input.trim().matches("subpay_\\d+")) {
+            long targetId = Long.parseLong(input.trim().substring("subpay_".length()));
+            Subscription sub = subscriptionRepository.findById(targetId)
+                    .filter(s -> s.getCustomer().getId().equals(customer.getId()))
+                    .filter(s -> s.getStatus() == SubscriptionStatus.PENDING_PAYMENT)
+                    .orElse(null);
+            if (sub != null) {
+                Map<String, Object> subCtx = new HashMap<>();
+                subCtx.put("subId", sub.getId().toString());
+                conversation.setContext(subCtx);
+                enterState(customer, conversation, "SUB_PAYMENT", input, messageType, rawMessage);
+            } else {
+                whatsAppClient.sendText(phone,
+                        "This subscription can no longer be paid. Send *hi* to return to the main menu.");
             }
             return;
         }
@@ -300,9 +337,6 @@ public class FlowEngine {
             greeting = "Hi " + first + "! \uD83D\uDC4B Welcome back to Tranch\u00e9 Bakery.\n\n";
         } else {
             greeting = "Welcome to Tranch\u00e9 Bakery. \uD83E\uDD56\n\n";
-        }
-        if (customer != null && customer.isSubscriptionEligible()) {
-            greeting += "\uD83D\uDDD3\uFE0F You can also start a *weekly subscription* — just send *subscribe*.\n\n";
         }
         return body.replace("{greeting}", greeting);
     }

@@ -13,9 +13,12 @@ import com.tranche.bakery.payment.QrCodeService;
 import com.tranche.bakery.subscription.Subscription;
 import com.tranche.bakery.subscription.SubscriptionRepository;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
+import com.tranche.bakery.whatsapp.WhatsAppMessage;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.List;
 
 /** Sends the UPI QR for the subscription's prepaid upfront amount. */
 @Component
@@ -74,5 +77,9 @@ public class SubSendQrAction implements FlowAction {
                     "📸 *After paying, share the payment screenshot here* to activate your subscription.",
                     sub.getPlanName(), amount.stripTrailingZeros().toPlainString(), upiId));
         }
+
+        whatsAppClient.sendButtons(phone,
+                "Once paid, share the screenshot here to activate. Changed your mind? You can cancel below.",
+                List.of(new WhatsAppMessage.Button("sub_cancel", "Cancel")));
     }
 }

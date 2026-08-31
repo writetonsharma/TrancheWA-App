@@ -96,4 +96,29 @@ class SubscriptionServiceTest extends FlowScenarioBase {
         assertThat(subscriptionRepository.findById(sub.getId()).orElseThrow().getStatus())
                 .isEqualTo(SubscriptionStatus.COMPLETED);
     }
+
+    @Test
+    void cancelForCustomer_onlyOwnCancellableSubscription() {
+        Subscription sub = subscriptionService.createPending(customer, "FF_NORMAL",
+                List.of(new ChosenItem("Classic Table White", 1, "HALF")), DayOfWeek.MONDAY);
+
+        assertThat(subscriptionService.cancelForCustomer(sub.getId(), 999_999L)).isFalse();
+        assertThat(subscriptionService.cancelForCustomer(sub.getId(), customer.getId())).isTrue();
+        assertThat(subscriptionRepository.findById(sub.getId()).orElseThrow().getStatus())
+                .isEqualTo(SubscriptionStatus.CANCELLED);
+    }
+
+    @Test
+    void status_showsPendingSubscription() {
+        customer.setSubscriptionEligible(true);
+        customerRepository.save(customer);
+        subscriptionService.createPending(customer, "FF_NORMAL",
+                List.of(new ChosenItem("Classic Table White", 1, "HALF")), DayOfWeek.MONDAY);
+
+        send("hi");
+        send("info");
+        send("order_status");
+
+        assertThat(sentButtonBodies).anyMatch(b -> b.contains("awaiting payment"));
+    }
 }

@@ -5,12 +5,16 @@ import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
+import com.tranche.bakery.subscription.Subscription;
+import com.tranche.bakery.subscription.SubscriptionRepository;
+import com.tranche.bakery.subscription.SubscriptionStatus;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import com.tranche.bakery.whatsapp.WhatsAppMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -21,6 +25,7 @@ import java.util.Locale;
 public class ShowOrderStatusAction implements FlowAction {
 
     private final OrderRepository orderRepository;
+    private final SubscriptionRepository subscriptionRepository;
     private final WhatsAppClient whatsAppClient;
 
     private static final DateTimeFormatter DATE_FMT =
@@ -41,8 +46,15 @@ public class ShowOrderStatusAction implements FlowAction {
         active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PAYMENT_SCREENSHOT_RECEIVED));
         active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PAYMENT_REVIEW_REQUIRED));
         active.addAll(orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PENDING_CONFIRMATION));
+        // Subscription weekly deliveries are represented by the subscription section below, not as loose orders.
+        active.removeIf(o -> o.getSubscriptionId() != null);
 
-        if (active.isEmpty()) {
+        List<Subscription> subs = subscriptionRepository.findAllByCustomerIdOrderByCreatedAtDesc(customerId).stream()
+                .filter(s -> s.getStatus() == SubscriptionStatus.PENDING_PAYMENT
+                        || s.getStatus() == SubscriptionStatus.ACTIVE)
+                .toList();
+
+        if (active.isEmpty() && subs.isEmpty()) {
             orderRepository.findTopByCustomerIdAndStatusInOrderByCreatedAtDesc(
                     customerId, List.of(OrderStatus.COMPLETED))
                     .ifPresentOrElse(
@@ -54,6 +66,16 @@ public class ShowOrderStatusAction implements FlowAction {
             return;
         }
 
+        if (!active.isEmpty()) {
+            showOrders(ctx, active, phone);
+        }
+        if (!subs.isEmpty()) {
+            showSubscriptions(subs, phone);
+            ctx.setRedirectState("IDLE");
+        }
+    }
+
+    private void showOrders(ActionContext ctx, List<Order> active, String phone) {
         List<Order> pendingPayment = active.stream()
                 .filter(o -> o.getStatus() == OrderStatus.PENDING_CONFIRMATION)
                 .toList();
@@ -102,6 +124,30 @@ public class ShowOrderStatusAction implements FlowAction {
             ctx.setRedirectState("IDLE");
         } else {
             whatsAppClient.sendText(phone, sb.toString().trim());
+        }
+    }
+
+    private void showSubscriptions(List<Subscription> subs, String phone) {
+        for (Subscription s : subs) {
+            String day = s.getDeliveryDay() != null
+                    ? s.getDeliveryDay().getDisplayName(TextStyle.FULL, Locale.ENGLISH) : "your chosen day";
+            if (s.getStatus() == SubscriptionStatus.PENDING_PAYMENT) {
+                String upfront = s.getUpfrontAmount() != null
+                        ? s.getUpfrontAmount().stripTrailingZeros().toPlainString() : "";
+                String body = "🗓️ *Subscription — awaiting payment*\n\n"
+                        + s.getPlanName() + ", delivered every *" + day + "*.\n"
+                        + (upfront.isEmpty() ? "" : "₹" + upfront + " for " + s.getCommitmentWeeks() + " weeks.\n")
+                        + "\nPay to activate, or cancel below.";
+                whatsAppClient.sendButtons(phone, body, List.of(
+                        new WhatsAppMessage.Button("subpay_" + s.getId(), "Pay Now"),
+                        new WhatsAppMessage.Button("subcancel_" + s.getId(), "Cancel")));
+            } else {
+                String body = "🗓️ *Active subscription*\n\n"
+                        + s.getPlanName() + ", delivered every *" + day + "*"
+                        + (s.getEndDate() != null ? " through " + s.getEndDate().format(DATE_FMT) : "") + ".";
+                whatsAppClient.sendButtons(phone, body, List.of(
+                        new WhatsAppMessage.Button("subcancel_" + s.getId(), "Cancel Subscription")));
+            }
         }
     }
 
