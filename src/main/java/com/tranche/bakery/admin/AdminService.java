@@ -149,7 +149,6 @@ public class AdminService {
     @Transactional
     public void sendMessage(String phone, String message) {
         Customer customer = customerRepository.findByPhone(phone).orElse(null);
-        String customerName = customer != null ? customer.getName() : null;
         String orderRef = null;
         if (customer != null) {
             orderRef = orderRepository.findAllByCustomerIdOrderByCreatedAtDesc(customer.getId()).stream()
@@ -157,7 +156,7 @@ public class AdminService {
                     .map(o -> o.getOrderNumber() != null ? o.getOrderNumber() : "#" + o.getId())
                     .orElse(null);
         }
-        customerNotifier.customerUpdate(phone, message, customerName, orderRef);
+        customerNotifier.customerUpdate(customer, phone, message, orderRef);
         if (customer != null) {
             AdminMessage msg = new AdminMessage();
             msg.setCustomer(customer);

@@ -58,6 +58,9 @@ public class Customer {
     @Column(columnDefinition = "TEXT")
     private String overrideNote;
 
+    // Last time this customer messaged us — anchors WhatsApp's 24h free-form window.
+    private LocalDateTime lastInboundAt;
+
     // Flat per-unit price per menu category (by category name). A category entry wins
     // over pricingOverride; a category with no entry falls back to the item's list price.
     @ElementCollection(fetch = FetchType.EAGER)

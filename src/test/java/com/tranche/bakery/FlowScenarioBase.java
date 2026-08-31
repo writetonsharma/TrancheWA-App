@@ -24,6 +24,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -74,6 +75,8 @@ public abstract class FlowScenarioBase {
         customer.setDeliveryAddress("Flat 1, Test Tower, Sector 50");
         customer.setLocationLat(new BigDecimal("28.456789"));
         customer.setLocationLng(new BigDecimal("77.123456"));
+        // Flow scenarios represent an actively-messaging customer, so they're inside WhatsApp's 24h window.
+        customer.setLastInboundAt(LocalDateTime.now());
         customer = customerRepository.save(customer);
 
         conversation = new WhatsappConversation();

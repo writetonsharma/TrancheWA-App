@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderRepository;
@@ -30,6 +31,7 @@ public class StuckOrderAlertJob {
             "_Orders that aren't completed by 5 PM will be set aside for the day._";
 
     @Scheduled(cron = "0 0 * * * *", zone = "Asia/Kolkata")
+    @Transactional
     public void checkStuckDrafts() {
         LocalDateTime cutoff = LocalDateTime.now().minusHours(2);
         List<Order> stuckDrafts = orderRepository.findAllByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(

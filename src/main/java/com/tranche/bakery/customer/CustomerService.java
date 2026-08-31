@@ -1,8 +1,11 @@
 package com.tranche.bakery.customer;
 
-import lombok.RequiredArgsConstructor;
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -12,11 +15,14 @@ public class CustomerService {
 
     @Transactional
     public Customer findOrCreate(String phone) {
-        return customerRepository.findByPhone(phone)
+        Customer customer = customerRepository.findByPhone(phone)
                 .orElseGet(() -> {
                     Customer c = new Customer();
                     c.setPhone(phone);
-                    return customerRepository.save(c);
+                    return c;
                 });
+        // Every inbound message re-anchors WhatsApp's 24h free-form window.
+        customer.setLastInboundAt(LocalDateTime.now());
+        return customerRepository.save(customer);
     }
 }
