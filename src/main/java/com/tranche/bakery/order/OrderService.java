@@ -188,7 +188,7 @@ public class OrderService {
 
         StringBuilder sb = new StringBuilder("🧾 *Your Order*\n\n");
         for (OrderItem item : items) {
-            BigDecimal unit = hasOverride ? customer.unitPriceForCategory(categoryNameOf(item)) : null;
+            BigDecimal unit = hasOverride ? customer.unitPriceFor(itemNameOf(item), categoryNameOf(item)) : null;
             if (unit != null) {
                 BigDecimal discountedSubtotal = unit.multiply(BigDecimal.valueOf(item.getQuantity()));
                 sb.append(String.format("• %s × %d — ₹%.0f _(special rate)_\n",
@@ -276,13 +276,17 @@ public class OrderService {
         recalculateTotal(order);
     }
 
-    // Line amount for an item under an active F&F override: the category (or global) flat
-    // unit price × qty, or the item's normal subtotal when no flat price covers its category.
+    // Line amount for an item under an active F&F override: the item/category (or global) flat
+    // unit price × qty, or the item's normal subtotal when no flat price covers it.
     private BigDecimal overrideLineAmount(Customer customer, OrderItem item) {
-        BigDecimal unit = customer.unitPriceForCategory(categoryNameOf(item));
+        BigDecimal unit = customer.unitPriceFor(itemNameOf(item), categoryNameOf(item));
         return unit != null
                 ? unit.multiply(BigDecimal.valueOf(item.getQuantity()))
                 : item.getSubtotal();
+    }
+
+    private String itemNameOf(OrderItem item) {
+        return item.getMenuItem() != null ? item.getMenuItem().getName() : null;
     }
 
     private String categoryNameOf(OrderItem item) {

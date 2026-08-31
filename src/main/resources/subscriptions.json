@@ -1,0 +1,84 @@
+{
+  "itemTiers": {
+    "LOAF": {
+      "NORMAL": ["Classic Table White", "Whole Wheat Loaf", "Multi-Seed Loaf"],
+      "PREMIUM": ["Olive Loaf", "Caramelized Onion Loaf", "Milk & Butter Loaf", "Honey & Walnut Loaf", "Honey & Oat Loaf"]
+    },
+    "ROLL": {
+      "NORMAL": ["Whole Wheat Rolls", "Multi-Seed Rolls", "Sesame Burger Buns", "Potato Buns"],
+      "PREMIUM": ["Bavarian Pretzel Buns", "Kaiser Rolls", "Milk Buns"]
+    },
+    "SWEET": {
+      "NORMAL": ["Cinnamon Rolls", "Nordic Cardamom Buns"],
+      "PREMIUM": ["Chocolate Babka Buns"]
+    }
+  },
+  "plans": [
+    {
+      "code": "FF_NORMAL",
+      "name": "Weekly Bakes",
+      "tier": "NORMAL",
+      "audience": "FF",
+      "weeklyPrice": 200,
+      "deliveryCharge": 65,
+      "commitmentWeeks": 4,
+      "active": true,
+      "options": [
+        {
+          "label": "Half loaf + 4 rolls",
+          "components": [
+            { "type": "LOAF", "portion": "HALF", "qty": 1 },
+            { "type": "ROLL", "portion": "FULL", "qty": 4 }
+          ]
+        },
+        {
+          "label": "Half loaf + 1 sweet roll",
+          "components": [
+            { "type": "LOAF", "portion": "HALF", "qty": 1 },
+            { "type": "SWEET", "portion": "FULL", "qty": 1 }
+          ]
+        },
+        {
+          "label": "4 rolls + 1 sweet roll",
+          "components": [
+            { "type": "ROLL", "portion": "FULL", "qty": 4 },
+            { "type": "SWEET", "portion": "FULL", "qty": 1 }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "FF_PREMIUM",
+      "name": "Weekly Bakes — Premium",
+      "tier": "PREMIUM",
+      "audience": "FF",
+      "weeklyPrice": 275,
+      "deliveryCharge": 65,
+      "commitmentWeeks": 4,
+      "active": true,
+      "options": [
+        {
+          "label": "Half loaf + 4 rolls",
+          "components": [
+            { "type": "LOAF", "portion": "HALF", "qty": 1 },
+            { "type": "ROLL", "portion": "FULL", "qty": 4 }
+          ]
+        },
+        {
+          "label": "Half loaf + 1 sweet roll",
+          "components": [
+            { "type": "LOAF", "portion": "HALF", "qty": 1 },
+            { "type": "SWEET", "portion": "FULL", "qty": 1 }
+          ]
+        },
+        {
+          "label": "4 rolls + 1 sweet roll",
+          "components": [
+            { "type": "ROLL", "portion": "FULL", "qty": 4 },
+            { "type": "SWEET", "portion": "FULL", "qty": 1 }
+          ]
+        }
+      ]
+    }
+  ]
+}

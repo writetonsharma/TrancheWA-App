@@ -1,9 +1,12 @@
 package com.tranche.bakery.flow;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.springframework.stereotype.Component;
@@ -14,6 +17,7 @@ import com.tranche.bakery.menu.MenuCategory;
 import com.tranche.bakery.menu.MenuCategoryRepository;
 import com.tranche.bakery.menu.MenuItemRepository;
 import com.tranche.bakery.order.DeliveryRules;
+import com.tranche.bakery.subscription.SubscriptionCatalog;
 import com.tranche.bakery.whatsapp.WhatsAppMessage;
 
 import lombok.RequiredArgsConstructor;
@@ -26,6 +30,7 @@ public class MenuDataSourceResolver implements DataSourceResolver {
     private final MenuItemRepository itemRepository;
     private final DeliveryAreaLoader deliveryAreaLoader;
     private final DeliveryRules deliveryRules;
+    private final SubscriptionCatalog subscriptionCatalog;
 
     @Override
     public List<WhatsAppMessage.Section> resolve(String dataSource, Map<String, Object> context, Customer customer) {
@@ -35,6 +40,10 @@ public class MenuDataSourceResolver implements DataSourceResolver {
             case "MENU_ITEMS"      -> resolveItems(context, fnf);
             case "DELIVERY_AREAS"  -> resolveDeliveryAreas();
             case "DELIVERY_DATES"  -> resolveDeliveryDates(context, fnf);
+            case "SUBSCRIPTION_PLANS"   -> resolveSubscriptionPlans();
+            case "SUBSCRIPTION_OPTIONS" -> resolveSubscriptionOptions(context);
+            case "SUBSCRIPTION_ITEMS"   -> resolveSubscriptionItems(context);
+            case "SUBSCRIPTION_DAYS"    -> resolveSubscriptionDays();
             default -> throw new IllegalArgumentException("Unknown dataSource: " + dataSource);
         };
     }
@@ -97,6 +106,71 @@ public class MenuDataSourceResolver implements DataSourceResolver {
                 .map(a -> new WhatsAppMessage.Row(a.id(), a.name()))
                 .toList();
         return List.of(new WhatsAppMessage.Section("Delivery Areas", rows));
+    }
+
+    private List<WhatsAppMessage.Section> resolveSubscriptionPlans() {
+        List<WhatsAppMessage.Row> rows = subscriptionCatalog.activePlansForAudience("FF").stream()
+                .map(p -> new WhatsAppMessage.Row(p.getCode(), p.getName(),
+                        String.format("₹%s/week · %d weeks",
+                                p.getWeeklyPrice().stripTrailingZeros().toPlainString(),
+                                p.getCommitmentWeeks())))
+                .toList();
+        return List.of(new WhatsAppMessage.Section("Subscription Plans", rows));
+    }
+
+    private List<WhatsAppMessage.Section> resolveSubscriptionOptions(Map<String, Object> context) {
+        SubscriptionCatalog.PlanConfig plan = subscriptionCatalog.plan(str(context, "subPlan")).orElse(null);
+        if (plan == null) return List.of();
+        List<WhatsAppMessage.Row> rows = new ArrayList<>();
+        for (int i = 0; i < plan.getOptions().size(); i++) {
+            rows.add(new WhatsAppMessage.Row("opt" + i, plan.getOptions().get(i).getLabel()));
+        }
+        return List.of(new WhatsAppMessage.Section("Choose your bundle", rows));
+    }
+
+    private List<WhatsAppMessage.Section> resolveSubscriptionItems(Map<String, Object> context) {
+        SubscriptionCatalog.PlanConfig plan = subscriptionCatalog.plan(str(context, "subPlan")).orElse(null);
+        if (plan == null) return List.of();
+        int optIdx = intVal(context, "subOption", 0);
+        int comp = intVal(context, "subComp", 0);
+        if (optIdx >= plan.getOptions().size()) return List.of();
+        SubscriptionCatalog.OptionConfig option = plan.getOptions().get(optIdx);
+        if (comp >= option.getComponents().size()) return List.of();
+        SubscriptionCatalog.ComponentConfig component = option.getComponents().get(comp);
+        List<WhatsAppMessage.Row> rows = subscriptionCatalog.chooseFrom(component.getType(), plan.getTier()).stream()
+                .map(name -> new WhatsAppMessage.Row(name, name))
+                .toList();
+        return List.of(new WhatsAppMessage.Section("Choose your " + typeLabel(component.getType()), rows));
+    }
+
+    private List<WhatsAppMessage.Section> resolveSubscriptionDays() {
+        DayOfWeek[] days = { DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.THURSDAY,
+                DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY };
+        List<WhatsAppMessage.Row> rows = new ArrayList<>();
+        for (DayOfWeek d : days) {
+            rows.add(new WhatsAppMessage.Row(d.name(), d.getDisplayName(TextStyle.FULL, Locale.ENGLISH)));
+        }
+        return List.of(new WhatsAppMessage.Section("Choose delivery day", rows));
+    }
+
+    private static String typeLabel(String type) {
+        return switch (type) {
+            case "LOAF" -> "loaf";
+            case "ROLL" -> "rolls";
+            case "SWEET" -> "sweet roll";
+            default -> "item";
+        };
+    }
+
+    private static String str(Map<String, Object> ctx, String key) {
+        Object v = ctx != null ? ctx.get(key) : null;
+        return v != null ? v.toString() : null;
+    }
+
+    private static int intVal(Map<String, Object> ctx, String key, int def) {
+        String s = str(ctx, key);
+        if (s == null) return def;
+        try { return Integer.parseInt(s); } catch (NumberFormatException e) { return def; }
     }
 
     private List<WhatsAppMessage.Section> resolveDeliveryDates(Map<String, Object> context, boolean fnf) {

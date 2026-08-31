@@ -42,8 +42,9 @@
     <div class="card-body">
       <p class="text-muted small mb-3">
         Give a customer flat per-unit pricing. Set a price per category (e.g. all rolls at ₹150),
-        and/or an <em>all-items</em> flat rate as a catch-all — a category price always wins over it,
-        and any category left blank charges the normal menu price. Anyone with pricing here is treated
+        override individual items under a category (e.g. Chocolate Babka at ₹450), and/or an
+        <em>all-items</em> flat rate as a catch-all. Precedence: <strong>item price → category price → all-items</strong>;
+        anything left blank charges the normal menu price. Anyone with pricing here is treated
         as Friends & Family. The customer must have messaged the bot at least once (so their number exists).
       </p>
       <form th:action="@{/admin/pricing/set}" method="post">
@@ -66,13 +67,27 @@
           </div>
         </div>
 
-        <label class="form-label fw-semibold mt-3">Per-category flat price (₹ per unit)</label>
+        <label class="form-label fw-semibold mt-3">Per-category &amp; per-item flat price (₹ per unit)</label>
         <div class="row g-3">
-          <div class="col-md-3" th:each="cat : ${categories}">
-            <label class="form-label small text-muted mb-1" th:text="${cat.name}">Category</label>
-            <input type="hidden" name="categoryNames" th:value="${cat.name}">
-            <input type="number" name="categoryPrices" class="form-control" step="0.01" min="1"
-                   placeholder="list price">
+          <div class="col-md-6 col-lg-4" th:each="entry : ${itemsByCategory}">
+            <div class="border rounded p-2 h-100">
+              <div class="mb-2">
+                <label class="form-label small fw-semibold mb-1" th:text="${entry.key.name}">Category</label>
+                <input type="hidden" name="categoryNames" th:value="${entry.key.name}">
+                <input type="number" name="categoryPrices" class="form-control form-control-sm" step="0.01" min="1"
+                       placeholder="whole category (list price if blank)">
+              </div>
+              <div class="ms-2" th:if="${!entry.value.isEmpty()}">
+                <div class="row g-1 align-items-center mb-1" th:each="item : ${entry.value}">
+                  <div class="col-7 small text-muted" th:text="${item.name}">Item</div>
+                  <div class="col-5">
+                    <input type="hidden" name="itemNames" th:value="${item.name}">
+                    <input type="number" name="itemPrices" class="form-control form-control-sm" step="0.01" min="1"
+                           placeholder="item ₹">
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -81,6 +96,10 @@
             <div class="form-check">
               <input class="form-check-input" type="checkbox" name="freeDelivery" id="freeDelivery" value="true">
               <label class="form-check-label" for="freeDelivery">Free delivery</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="subscriptionEligible" id="subscriptionEligible" value="true" checked>
+              <label class="form-check-label" for="subscriptionEligible">Eligible for subscription (shows the Subscribe option in WhatsApp)</label>
             </div>
           </div>
         </div>
@@ -107,6 +126,7 @@
               <th>Name</th>
               <th>Flat Pricing</th>
               <th>Free Delivery</th>
+              <th>Subscription</th>
               <th>Expires</th>
               <th>Note</th>
               <th>Status</th>
@@ -123,11 +143,17 @@
                       th:text="'All ₹' + ${c.pricingOverride}"></span>
                 <span th:each="entry : ${c.categoryPrices}" class="badge bg-secondary me-1"
                       th:text="${entry.key} + ' ₹' + ${entry.value}"></span>
-                <span th:if="${c.pricingOverride == null and c.categoryPrices.isEmpty()}" class="text-muted">—</span>
+                <span th:each="entry : ${c.itemPrices}" class="badge bg-info text-dark me-1"
+                      th:text="${entry.key} + ' ₹' + ${entry.value}"></span>
+                <span th:if="${c.pricingOverride == null and c.categoryPrices.isEmpty() and c.itemPrices.isEmpty()}" class="text-muted">—</span>
               </td>
               <td>
                 <span th:if="${c.freeDelivery}" class="badge bg-success">Yes</span>
                 <span th:unless="${c.freeDelivery}" class="text-muted">No</span>
+              </td>
+              <td>
+                <span th:if="${c.subscriptionEligible}" class="badge bg-success">Yes</span>
+                <span th:unless="${c.subscriptionEligible}" class="text-muted">No</span>
               </td>
               <td>
                 <span th:if="${c.overrideExpiresAt != null}" th:text="${#temporals.format(c.overrideExpiresAt, 'd MMM yyyy')}"></span>

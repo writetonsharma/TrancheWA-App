@@ -533,6 +533,64 @@
       "entryAction": "AUTO_CONFIRM_ORDER",
       "autoTransition": "IDLE"
     },
+    "SUB_START": {
+      "entryMessage": {
+        "type": "list",
+        "body": "💛 *Tranché Weekly Subscriptions*\n\nPrepaid weekly bakes, delivered fresh on your chosen day. Choose a plan to begin:",
+        "buttonLabel": "View Plans",
+        "dataSource": "SUBSCRIPTION_PLANS"
+      },
+      "transitions": [
+        { "match": "*", "action": "SUB_SELECT_PLAN" }
+      ]
+    },
+    "SUB_CHOOSE_OPTION": {
+      "entryMessage": {
+        "type": "list",
+        "body": "Great choice! Pick the weekly bundle you'd like:",
+        "buttonLabel": "Choose Bundle",
+        "dataSource": "SUBSCRIPTION_OPTIONS"
+      },
+      "transitions": [
+        { "match": "*", "action": "SUB_SELECT_OPTION" }
+      ]
+    },
+    "SUB_CHOOSE_ITEMS": {
+      "entryMessage": {
+        "type": "list",
+        "body": "Pick an item for your weekly bundle:",
+        "buttonLabel": "Choose",
+        "dataSource": "SUBSCRIPTION_ITEMS"
+      },
+      "transitions": [
+        { "match": "*", "action": "SUB_SELECT_ITEM" }
+      ]
+    },
+    "SUB_CHOOSE_DAY": {
+      "entryMessage": {
+        "type": "list",
+        "body": "Which morning would you like your weekly delivery? (We don't deliver on Wednesdays.)",
+        "buttonLabel": "Choose Day",
+        "dataSource": "SUBSCRIPTION_DAYS"
+      },
+      "transitions": [
+        { "match": "*", "action": "SUB_SELECT_DAY" }
+      ]
+    },
+    "SUB_CONFIRM": {
+      "entryAction": "SUB_SHOW_SUMMARY",
+      "transitions": [
+        { "match": "sub_confirm", "nextState": "SUB_PAYMENT", "action": "SUB_CREATE" },
+        { "match": "sub_cancel", "nextState": "MAIN_MENU" },
+        { "match": "*", "nextState": "SUB_CONFIRM" }
+      ]
+    },
+    "SUB_PAYMENT": {
+      "entryAction": "SUB_SEND_QR",
+      "transitions": [
+        { "matchType": "image", "nextState": "IDLE", "action": "SUB_SAVE_SCREENSHOT" }
+      ]
+    },
     "LATE_PAYMENT_DATE": {
       "entryMessage": {
         "type": "list",

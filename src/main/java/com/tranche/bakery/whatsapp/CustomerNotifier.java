@@ -37,6 +37,8 @@ public class CustomerNotifier {
     static final String T_CANCELLED = "order_cancelled";
     static final String T_UPDATE = "order_update";
     static final String T_PAYMENT_REMINDER = "payment_reminder";
+    static final String T_SUB_CONFIRMED = "subscription_confirmed";
+    static final String T_SUB_RENEWAL = "subscription_renewal";
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("EEEE, d MMMM");
 
@@ -168,6 +170,35 @@ public class CustomerNotifier {
     private boolean withinWindow(Customer customer) {
         LocalDateTime last = customer.getLastInboundAt();
         return last != null && last.isAfter(LocalDateTime.now().minus(SESSION_WINDOW));
+    }
+
+    /** Subscription activated (may be out of window when the admin verifies payment later). */
+    public void subscriptionConfirmed(Customer customer, String planName, java.time.LocalDate firstDelivery) {
+        if (customer == null || customer.getPhone() == null) return;
+        String phone = customer.getPhone();
+        String day = firstDelivery != null ? firstDelivery.format(DATE_FMT) : "soon";
+        if (withinWindow(customer)) {
+            whatsAppClient.sendText(phone, "🎉 *Your " + clean(planName) + " subscription is active!*\n\n" +
+                    "Your first weekly delivery is on *" + day + "*, and we'll bring fresh bakes every week. " +
+                    "Thank you for subscribing to Tranché Bakery. 🥖");
+        } else {
+            whatsAppClient.sendTemplate(phone, T_SUB_CONFIRMED,
+                    List.of(firstName(customer.getName()), clean(planName), day));
+        }
+    }
+
+    /** Subscription's final delivery is near — nudge to renew (usually out of window). */
+    public void subscriptionRenewal(Customer customer, java.time.LocalDate lastDelivery) {
+        if (customer == null || customer.getPhone() == null) return;
+        String phone = customer.getPhone();
+        String day = lastDelivery != null ? lastDelivery.format(DATE_FMT) : "soon";
+        if (withinWindow(customer)) {
+            whatsAppClient.sendText(phone, "Your Tranché subscription's final delivery is on *" + day + "*. " +
+                    "Reply *renew* to continue for another few weeks of fresh bakes. 🥖");
+        } else {
+            whatsAppClient.sendTemplate(phone, T_SUB_RENEWAL,
+                    List.of(firstName(customer.getName()), day));
+        }
     }
 
     private String phone(Order order) {

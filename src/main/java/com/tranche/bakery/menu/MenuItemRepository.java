@@ -7,4 +7,5 @@ import java.util.Optional;
 public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     Optional<MenuItem> findByCategoryAndName(MenuCategory category, String name);
     List<MenuItem> findAllByCategoryAndActiveTrueOrderByDisplayOrderAsc(MenuCategory category);
+    Optional<MenuItem> findFirstByNameAndActiveTrue(String name);
 }

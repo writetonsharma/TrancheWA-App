@@ -94,6 +94,10 @@ public class Order {
     @Column(length = 20)
     private String loafPreference;
 
+    // Non-null when this order was generated from a prepaid subscription (billed ₹0, no payment due).
+    @Column(name = "subscription_id")
+    private Long subscriptionId;
+
     @Column(precision = 9, scale = 6)
     private BigDecimal locationLat;
 

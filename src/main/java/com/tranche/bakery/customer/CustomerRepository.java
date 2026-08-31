@@ -12,6 +12,6 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     List<Customer> findAllByOrderByCreatedAtDesc();
 
-    @Query("SELECT c FROM Customer c WHERE c.pricingOverride IS NOT NULL OR SIZE(c.categoryPrices) > 0 ORDER BY c.overrideExpiresAt ASC NULLS LAST")
+    @Query("SELECT c FROM Customer c WHERE c.pricingOverride IS NOT NULL OR SIZE(c.categoryPrices) > 0 OR SIZE(c.itemPrices) > 0 OR c.subscriptionEligible = true ORDER BY c.overrideExpiresAt ASC NULLS LAST")
     List<Customer> findAllWithPricingOverride();
 }

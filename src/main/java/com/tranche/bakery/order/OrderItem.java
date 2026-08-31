@@ -29,4 +29,8 @@ public class OrderItem {
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal subtotal;
+
+    // Optional annotation shown on the bake list, e.g. "½ loaf" for a subscription half portion.
+    @Column(length = 40)
+    private String note;
 }

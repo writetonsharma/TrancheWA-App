@@ -34,6 +34,10 @@ public class FlowEngine {
     private static final Pattern GREETING_PATTERN =
             Pattern.compile("hi\\b.*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
+    // "subscribe" (optionally followed by more text) opens the self-serve subscription flow.
+    private static final Pattern SUBSCRIBE_PATTERN =
+            Pattern.compile("subscribe\\b.*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
     // Legacy website "Message us" deep-links (and older saved links) prefill this exact
     // phrase. It routes the customer to the contact handoff instead of the order menu.
     private static final Pattern CONTACT_PATTERN =
@@ -86,6 +90,18 @@ public class FlowEngine {
         if (CONTACT_PATTERN.matcher(input.trim()).matches() && isAtRestingPoint(conversation)) {
             conversation.setContext(new HashMap<>());
             enterState(customer, conversation, "MESSAGE_CONTACT", input, messageType, rawMessage);
+            return;
+        }
+
+        // Global subscribe shortcut — opens the self-serve subscription flow for eligible (F&F) customers.
+        if (SUBSCRIBE_PATTERN.matcher(input.trim()).matches() && isAtRestingPoint(conversation)) {
+            if (customer.isSubscriptionEligible()) {
+                conversation.setContext(new HashMap<>());
+                enterState(customer, conversation, "SUB_START", input, messageType, rawMessage);
+            } else {
+                whatsAppClient.sendText(phone,
+                        "Weekly subscriptions are invite-only right now. Send *hi* to browse our menu. 🥖");
+            }
             return;
         }
 
@@ -284,6 +300,9 @@ public class FlowEngine {
             greeting = "Hi " + first + "! \uD83D\uDC4B Welcome back to Tranch\u00e9 Bakery.\n\n";
         } else {
             greeting = "Welcome to Tranch\u00e9 Bakery. \uD83E\uDD56\n\n";
+        }
+        if (customer != null && customer.isSubscriptionEligible()) {
+            greeting += "\uD83D\uDDD3\uFE0F You can also start a *weekly subscription* — just send *subscribe*.\n\n";
         }
         return body.replace("{greeting}", greeting);
     }
