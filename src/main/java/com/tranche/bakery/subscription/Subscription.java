@@ -70,6 +70,10 @@ public class Subscription {
     @Column(name = "commitment_weeks", nullable = false)
     private int commitmentWeeks;
 
+    // Free bonus delivery weeks on top of the paid commitment weeks.
+    @Column(name = "bonus_weeks", nullable = false)
+    private int bonusWeeks;
+
     @Column(name = "delivery_day", nullable = false, length = 10)
     @Enumerated(EnumType.STRING)
     private DayOfWeek deliveryDay;

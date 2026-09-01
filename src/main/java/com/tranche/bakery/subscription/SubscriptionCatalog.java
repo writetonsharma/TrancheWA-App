@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
@@ -33,8 +34,13 @@ public class SubscriptionCatalog {
     private final Map<String, PlanConfig> byCode = new LinkedHashMap<>();
     // type (LOAF/ROLL/SWEET) -> tier (NORMAL/PREMIUM) -> item names
     private final Map<String, Map<String, List<String>>> itemTiers;
+    // Fallback delivery charge when a plan omits deliveryCharge (matches the à la carte order charge).
+    private final BigDecimal standardDeliveryCharge;
 
-    public SubscriptionCatalog(ObjectMapper objectMapper) throws IOException {
+    public SubscriptionCatalog(ObjectMapper objectMapper,
+                               @Value("${bakery.order.delivery-charge:65}") BigDecimal standardDeliveryCharge)
+            throws IOException {
+        this.standardDeliveryCharge = standardDeliveryCharge;
         var resource = new ClassPathResource("subscriptions.json");
         Root root = objectMapper.readValue(resource.getInputStream(), Root.class);
         this.itemTiers = root.itemTiers != null ? root.itemTiers : Map.of();
@@ -44,6 +50,29 @@ public class SubscriptionCatalog {
             }
         }
         log.info("Loaded {} subscription plan(s) from subscriptions.json", byCode.size());
+    }
+
+    /** Delivery charge for a plan: its own if set, otherwise the standard à la carte charge. */
+    public BigDecimal effectiveDeliveryCharge(PlanConfig plan) {
+        return plan.getDeliveryCharge() != null ? plan.getDeliveryCharge() : standardDeliveryCharge;
+    }
+
+    /** Total weekly deliveries = paid weeks + free bonus weeks. */
+    public int totalWeeks(PlanConfig plan) {
+        return plan.getCommitmentWeeks() + Math.max(0, plan.getBonusWeeks());
+    }
+
+    /** Prepaid upfront = (weekly price × paid weeks) + (delivery × every delivery week). Bonus weeks: free bread, paid delivery. */
+    public BigDecimal totalUpfront(PlanConfig plan) {
+        BigDecimal bakes = plan.getWeeklyPrice().multiply(BigDecimal.valueOf(plan.getCommitmentWeeks()));
+        BigDecimal delivery = effectiveDeliveryCharge(plan).multiply(BigDecimal.valueOf(totalWeeks(plan)));
+        return bakes.add(delivery);
+    }
+
+    /** Item names a customer may choose for a component, honouring an optional per-component tier override. */
+    public List<String> chooseFrom(ComponentConfig component, String planTier) {
+        String tier = component.getTier() != null ? component.getTier() : planTier;
+        return chooseFrom(component.getType(), tier);
     }
 
     /** Active plans visible to the given audience ("FF" or "PUBLIC"), in file order. */
@@ -91,6 +120,7 @@ public class SubscriptionCatalog {
         private BigDecimal weeklyPrice;
         private BigDecimal deliveryCharge;
         private int commitmentWeeks;
+        private int bonusWeeks;
         private boolean active;
         private List<OptionConfig> options;
     }
@@ -108,5 +138,6 @@ public class SubscriptionCatalog {
         private String type;       // LOAF | ROLL | SWEET
         private String portion;    // FULL | HALF
         private int qty;
+        private String tier;       // optional per-component tier override (else the plan tier)
     }
 }

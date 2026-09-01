@@ -20,8 +20,8 @@
       "tier": "NORMAL",
       "audience": "FF",
       "weeklyPrice": 200,
-      "deliveryCharge": 65,
       "commitmentWeeks": 4,
+      "bonusWeeks": 1,
       "active": true,
       "options": [
         {
@@ -43,6 +43,13 @@
           "components": [
             { "type": "ROLL", "portion": "FULL", "qty": 4 },
             { "type": "SWEET", "portion": "FULL", "qty": 1 }
+          ]
+        },
+        {
+          "label": "Two half loaves (mix & match)",
+          "components": [
+            { "type": "LOAF", "portion": "HALF", "qty": 1 },
+            { "type": "LOAF", "portion": "HALF", "qty": 1 }
           ]
         }
       ]
@@ -53,8 +60,8 @@
       "tier": "PREMIUM",
       "audience": "FF",
       "weeklyPrice": 275,
-      "deliveryCharge": 65,
       "commitmentWeeks": 4,
+      "bonusWeeks": 1,
       "active": true,
       "options": [
         {
@@ -76,6 +83,13 @@
           "components": [
             { "type": "ROLL", "portion": "FULL", "qty": 4 },
             { "type": "SWEET", "portion": "FULL", "qty": 1 }
+          ]
+        },
+        {
+          "label": "Two half loaves (1 premium + 1 everyday)",
+          "components": [
+            { "type": "LOAF", "portion": "HALF", "qty": 1 },
+            { "type": "LOAF", "portion": "HALF", "qty": 1, "tier": "NORMAL" }
           ]
         }
       ]

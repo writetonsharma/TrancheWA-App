@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 public class SubShowSummaryAction implements FlowAction {
 
     private final SubscriptionFlowSupport support;
+    private final com.tranche.bakery.subscription.SubscriptionCatalog catalog;
     private final WhatsAppClient whatsAppClient;
 
     @Override
@@ -41,9 +42,12 @@ public class SubShowSummaryAction implements FlowAction {
             return;
         }
 
-        int weeks = plan.getCommitmentWeeks();
-        BigDecimal upfront = plan.getWeeklyPrice().add(plan.getDeliveryCharge())
-                .multiply(BigDecimal.valueOf(weeks));
+        int paidWeeks = plan.getCommitmentWeeks();
+        int total = catalog.totalWeeks(plan);
+        int bonus = total - paidWeeks;
+        BigDecimal delivery = catalog.effectiveDeliveryCharge(plan);
+        boolean freeDelivery = delivery.signum() == 0;
+        BigDecimal upfront = catalog.totalUpfront(plan);
 
         StringBuilder sb = new StringBuilder("*Confirm your subscription* 🥖\n\n");
         sb.append("*").append(plan.getName()).append("* — ₹")
@@ -55,11 +59,17 @@ public class SubShowSummaryAction implements FlowAction {
                     .append(" — ").append(name).append("\n");
         }
         sb.append("\nDelivered every *").append(day.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
-                .append("* for *").append(weeks).append(" weeks*.\n");
-        sb.append("Delivery: ₹").append(plan.getDeliveryCharge().stripTrailingZeros().toPlainString())
-                .append("/week, included in the total.\n\n");
-        sb.append("*Pay now: ₹").append(upfront.stripTrailingZeros().toPlainString())
-                .append("* — ").append(weeks).append(" weeks of bakes + delivery, prepaid.");
+                .append("* — *").append(total).append(" weekly deliveries*.\n");
+        if (bonus > 0) {
+            sb.append("Your final ")
+                    .append(bonus == 1 ? "week's bread is *free*" : bonus + " weeks' bread are *free*")
+                    .append(" — you pay only delivery.\n");
+        }
+        sb.append(freeDelivery
+                ? "Delivery: *included*.\n\n"
+                : "Delivery: ₹" + delivery.stripTrailingZeros().toPlainString() + "/week, included in the total.\n\n");
+        sb.append("*Pay now: ₹").append(upfront.stripTrailingZeros().toPlainString()).append("*")
+                .append(" — ").append(paidWeeks).append(" weeks of bakes + ").append(total).append(" deliveries, prepaid.");
 
         whatsAppClient.sendButtons(phone, sb.toString(), List.of(
                 new WhatsAppMessage.Button("sub_confirm", "Confirm & Pay")));

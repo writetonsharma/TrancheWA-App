@@ -50,11 +50,6 @@ public class SubscriptionService {
     /** One chosen bundle line, resolved from the plan option + the customer's pick. */
     public record ChosenItem(String itemName, int quantity, String portion) {}
 
-    public BigDecimal totalUpfront(PlanConfig plan) {
-        return plan.getWeeklyPrice().add(plan.getDeliveryCharge())
-                .multiply(BigDecimal.valueOf(plan.getCommitmentWeeks()));
-    }
-
     /** Create a PENDING_PAYMENT subscription snapshotting the plan, chosen items and delivery day. */
     @Transactional
     public Subscription createPending(Customer customer, String planCode,
@@ -68,10 +63,11 @@ public class SubscriptionService {
         sub.setPlanName(plan.getName());
         sub.setTier(plan.getTier());
         sub.setWeeklyPrice(plan.getWeeklyPrice());
-        sub.setDeliveryCharge(plan.getDeliveryCharge());
+        sub.setDeliveryCharge(catalog.effectiveDeliveryCharge(plan));
         sub.setCommitmentWeeks(plan.getCommitmentWeeks());
+        sub.setBonusWeeks(plan.getBonusWeeks());
         sub.setDeliveryDay(deliveryDay);
-        sub.setUpfrontAmount(totalUpfront(plan));
+        sub.setUpfrontAmount(catalog.totalUpfront(plan));
         sub.setStatus(SubscriptionStatus.PENDING_PAYMENT);
         for (ChosenItem ci : chosenItems) {
             SubscriptionItem item = new SubscriptionItem();
@@ -91,14 +87,14 @@ public class SubscriptionService {
 
         LocalDate firstDelivery = nextOccurrence(LocalDate.now().plusDays(1), sub.getDeliveryDay());
         sub.setStartDate(firstDelivery);
-        sub.setEndDate(firstDelivery.plusWeeks(sub.getCommitmentWeeks() - 1L));
+        sub.setEndDate(firstDelivery.plusWeeks(totalWeeks(sub) - 1L));
         sub.setStatus(SubscriptionStatus.ACTIVE);
         subscriptionRepository.save(sub);
 
         customerNotifier.subscriptionConfirmed(sub.getCustomer(), sub.getPlanName(), firstDelivery);
         generateForSubscription(sub);
-        log.info("Subscription {} activated for customer {} — {} weeks from {}, delivery on {}",
-                sub.getId(), sub.getCustomer().getId(), sub.getCommitmentWeeks(), firstDelivery, sub.getDeliveryDay());
+        log.info("Subscription {} activated for customer {} — {} deliveries from {}, delivery on {}",
+                sub.getId(), sub.getCustomer().getId(), totalWeeks(sub), firstDelivery, sub.getDeliveryDay());
     }
 
     /** Scheduled: create the ₹0 order for any subscription week whose delivery is near. */
@@ -165,8 +161,9 @@ public class SubscriptionService {
     // Generate any not-yet-created weekly orders for this subscription that are within the lead window.
     private void generateForSubscription(Subscription sub) {
         if (sub.getStartDate() == null) return;
+        int total = totalWeeks(sub);
         LocalDate horizon = LocalDate.now().plusDays(GENERATE_LEAD_DAYS);
-        for (int week = 1; week <= sub.getCommitmentWeeks(); week++) {
+        for (int week = 1; week <= total; week++) {
             LocalDate deliveryDate = sub.getStartDate().plusWeeks(week - 1L);
             if (deliveryDate.isAfter(horizon)) continue;                 // too far out yet
             if (deliveryDate.isBefore(LocalDate.now())) continue;        // never backfill a past date
@@ -181,10 +178,14 @@ public class SubscriptionService {
             period.setOrderId(order.getId());
             periodRepository.save(period);
 
-            if (week == sub.getCommitmentWeeks()) {
+            if (week == total) {
                 customerNotifier.subscriptionRenewal(sub.getCustomer(), deliveryDate);
             }
         }
+    }
+
+    private int totalWeeks(Subscription sub) {
+        return sub.getCommitmentWeeks() + Math.max(0, sub.getBonusWeeks());
     }
 
     private Order createWeeklyOrder(Subscription sub, LocalDate deliveryDate) {

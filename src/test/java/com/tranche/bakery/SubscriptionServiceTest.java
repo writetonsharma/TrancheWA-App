@@ -44,7 +44,9 @@ class SubscriptionServiceTest extends FlowScenarioBase {
 
         assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
         assertThat(sub.getWeeklyPrice()).isEqualByComparingTo("200");
-        assertThat(sub.getUpfrontAmount()).isEqualByComparingTo("1060"); // (200 + 65) × 4
+        assertThat(sub.getDeliveryCharge()).isEqualByComparingTo("50");   // inherited app-wide charge (test profile)
+        assertThat(sub.getUpfrontAmount()).isEqualByComparingTo("1050");  // (200 × 4 bakes) + (50 × 5 deliveries); 5th week's bread free
+        assertThat(sub.getBonusWeeks()).isEqualTo(1);
         assertThat(sub.getItems()).hasSize(2);
         assertThat(sub.getItems().get(0).getPortion()).isEqualTo("HALF");
     }
@@ -59,7 +61,7 @@ class SubscriptionServiceTest extends FlowScenarioBase {
         Subscription reloaded = subscriptionRepository.findById(sub.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
         assertThat(reloaded.getStartDate().getDayOfWeek()).isEqualTo(day);
-        assertThat(reloaded.getEndDate()).isEqualTo(reloaded.getStartDate().plusWeeks(3));
+        assertThat(reloaded.getEndDate()).isEqualTo(reloaded.getStartDate().plusWeeks(4)); // 4 paid + 1 free
 
         var periods = periodRepository.findAllBySubscriptionId(sub.getId());
         assertThat(periods).hasSize(1);

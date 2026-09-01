@@ -137,10 +137,20 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         SubscriptionCatalog.OptionConfig option = plan.getOptions().get(optIdx);
         if (comp >= option.getComponents().size()) return List.of();
         SubscriptionCatalog.ComponentConfig component = option.getComponents().get(comp);
-        List<WhatsAppMessage.Row> rows = subscriptionCatalog.chooseFrom(component.getType(), plan.getTier()).stream()
+        List<WhatsAppMessage.Row> rows = subscriptionCatalog.chooseFrom(component, plan.getTier()).stream()
                 .map(name -> new WhatsAppMessage.Row(name, name))
                 .toList();
-        return List.of(new WhatsAppMessage.Section("Choose your " + typeLabel(component.getType()), rows));
+        // When an option has more than one component of the same type (e.g. two half loaves),
+        // number the prompts so the customer knows they're choosing a second item, not re-picking.
+        long sameTypeTotal = option.getComponents().stream()
+                .filter(c -> c.getType().equals(component.getType())).count();
+        long sameTypeBefore = option.getComponents().subList(0, comp).stream()
+                .filter(c -> c.getType().equals(component.getType())).count();
+        String label = typeLabel(component.getType());
+        String title = sameTypeTotal > 1
+                ? "Choose your " + ordinal((int) sameTypeBefore + 1) + " " + label
+                : "Choose your " + label;
+        return List.of(new WhatsAppMessage.Section(title, rows));
     }
 
     private List<WhatsAppMessage.Section> resolveSubscriptionDays() {
@@ -159,6 +169,15 @@ public class MenuDataSourceResolver implements DataSourceResolver {
             case "ROLL" -> "rolls";
             case "SWEET" -> "sweet roll";
             default -> "item";
+        };
+    }
+
+    private static String ordinal(int n) {
+        return switch (n) {
+            case 1 -> "first";
+            case 2 -> "second";
+            case 3 -> "third";
+            default -> n + "th";
         };
     }
 

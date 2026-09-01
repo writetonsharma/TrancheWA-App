@@ -39,7 +39,7 @@ public class SubSelectItemAction implements FlowAction {
         }
         ComponentConfig component = option.getComponents().get(comp);
         String name = ctx.getInput() != null ? ctx.getInput().trim() : "";
-        if (!catalog.chooseFrom(component.getType(), plan.getTier()).contains(name)) {
+        if (!catalog.chooseFrom(component, plan.getTier()).contains(name)) {
             ctx.setRedirectState("SUB_CHOOSE_ITEMS");   // invalid pick — re-prompt same component
             return;
         }

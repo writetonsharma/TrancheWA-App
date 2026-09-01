@@ -136,14 +136,7 @@
       "entryAction": "ROUTE_ORDER_ENTRY"
     },
     "ORDER_CHOICE": {
-      "entryMessage": {
-        "type": "buttons",
-        "body": "Would you like to place a one-time order, or start a weekly subscription?",
-        "buttons": [
-          { "id": "one_time", "title": "One-time Order" },
-          { "id": "subscription", "title": "Weekly Subscription" }
-        ]
-      },
+      "entryAction": "SHOW_ORDER_CHOICE",
       "transitions": [
         { "match": "one_time", "nextState": "ORDER_GATE" },
         { "match": "subscription", "nextState": "SUB_START" },
