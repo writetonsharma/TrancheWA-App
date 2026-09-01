@@ -50,8 +50,9 @@ class PaymentReminderJobTest extends FlowScenarioBase {
     @Test
     void earlyReminder_skips_next_day_order() {
         Long orderId = driveToPaymentQr();
-        setDeliveryDate(orderId, LocalDate.now().plusDays(1));            // next-day
-        setPaymentCreatedAt(orderId, LocalDateTime.now().minusHours(2));
+        LocalDateTime placedAt = LocalDateTime.now().minusHours(2);       // QR sent >1h ago
+        setPaymentCreatedAt(orderId, placedAt);
+        setDeliveryDate(orderId, placedAt.toLocalDate().plusDays(1));     // next-day from the order day (midnight-safe)
         sentTexts.clear();
 
         paymentReminderJob.earlyReminder();
