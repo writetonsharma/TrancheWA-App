@@ -2,6 +2,7 @@ package com.tranche.bakery.admin;
 
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.customer.CustomerRepository;
+import com.tranche.bakery.customer.FriendsFamilyPricing;
 import com.tranche.bakery.menu.MenuCategory;
 import com.tranche.bakery.menu.MenuCategoryRepository;
 import com.tranche.bakery.menu.MenuItem;
@@ -26,6 +27,7 @@ public class AdminPricingController {
     private final CustomerRepository customerRepository;
     private final MenuCategoryRepository menuCategoryRepository;
     private final MenuItemRepository menuItemRepository;
+    private final FriendsFamilyPricing friendsFamilyPricing;
 
     @GetMapping
     public String pricingOverrides(Model model) {
@@ -111,6 +113,42 @@ public class AdminPricingController {
                 "Pricing saved for " + phone + " — " + describe(customer) +
                 (freeDelivery ? " + free delivery" : "") +
                 (expiryDays != null && expiryDays > 0 ? " (expires in " + expiryDays + " days)" : " (no expiry)"));
+        return "redirect:/admin/pricing";
+    }
+
+    /** One-click apply of the F&F rate card from friends-family-pricing.json to a customer. */
+    @PostMapping("/apply-preset")
+    public String applyPreset(@RequestParam String phone,
+                              @RequestParam(required = false) boolean freeDelivery,
+                              @RequestParam(required = false) Integer expiryDays,
+                              @RequestParam(required = false) String note,
+                              RedirectAttributes redirectAttributes) {
+        Customer customer = customerRepository.findByPhone(phone).orElse(null);
+        if (customer == null) {
+            redirectAttributes.addFlashAttribute("error",
+                    "Customer with phone " + phone + " not found. They must message the bot at least once before you can set pricing.");
+            return "redirect:/admin/pricing";
+        }
+
+        customer.getCategoryPrices().clear();
+        customer.getCategoryPrices().putAll(friendsFamilyPricing.categoryPrices());
+        customer.getItemPrices().clear();
+        customer.getItemPrices().putAll(friendsFamilyPricing.itemPrices());
+        customer.setPricingOverride(null);
+        customer.setSubscriptionEligible(friendsFamilyPricing.subscriptionEligible());
+        customer.setFreeDelivery(freeDelivery);
+        customer.setOverrideNote(note != null && !note.isBlank() ? note : "F&F preset");
+        if (expiryDays != null && expiryDays > 0) {
+            customer.setOverrideExpiresAt(LocalDateTime.now().plusDays(expiryDays));
+        } else {
+            customer.setOverrideExpiresAt(null);
+        }
+        customerRepository.save(customer);
+
+        redirectAttributes.addFlashAttribute("flash",
+                "Applied F&F preset to " + phone + " — " + friendsFamilyPricing.size() + " prices"
+                + (freeDelivery ? " + free delivery" : "")
+                + (expiryDays != null && expiryDays > 0 ? " (expires in " + expiryDays + " days)" : " (no expiry)"));
         return "redirect:/admin/pricing";
     }
 

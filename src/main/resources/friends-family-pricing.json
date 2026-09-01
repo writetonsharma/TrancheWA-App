@@ -1,0 +1,28 @@
+{
+  "subscriptionEligible": true,
+  "categoryPrices": {
+    "Loaves": 190,
+    "Buns & Rolls": 180
+  },
+  "itemPrices": {
+    "Multi-Seed Loaf": 210,
+    "Milk & Butter Loaf": 210,
+    "Honey & Walnut Loaf": 240,
+    "Olive Loaf": 250,
+    "Caramelized Onion Loaf": 200,
+    "Honey & Oat Loaf": 220,
+    "Multi-Seed Rolls": 200,
+    "Milk Buns": 200,
+    "Sesame Burger Buns": 190,
+    "Potato Buns": 200,
+    "Bavarian Pretzel Buns": 200,
+    "Kaiser Rolls": 200,
+    "Classic New York-Style Bagel": 220,
+    "Caramelized Onion Bagel": 250,
+    "Olive, Tomato & Rosemary Focaccia": 260,
+    "Garlic & Herb Knots": 180,
+    "Cinnamon Rolls": 280,
+    "Chocolate Babka Buns": 350,
+    "Nordic Cardamom Buns": 290
+  }
+}

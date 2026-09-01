@@ -36,6 +36,39 @@
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   </div>
 
+  <!-- ── One-click F&F preset ────────────────────────────────── -->
+  <div class="section-card">
+    <div class="card-header bg-success text-white">Apply Friends &amp; Family Preset</div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        One click stamps the saved F&amp;F rate card (from <code>friends-family-pricing.json</code>) onto a
+        customer — category flats + per-item overrides + subscription access. Edit the JSON to retune the
+        card for everyone going forward. The customer must have messaged the bot at least once.
+      </p>
+      <form th:action="@{/admin/pricing/apply-preset}" method="post" class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Phone (with country code)</label>
+          <input type="text" name="phone" class="form-control" placeholder="919000000001" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold">Expires In (days)</label>
+          <input type="number" name="expiryDays" class="form-control" min="1" placeholder="blank = never">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Note</label>
+          <input type="text" name="note" class="form-control" placeholder="e.g. Family, close friend">
+        </div>
+        <div class="col-md-3">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" name="freeDelivery" id="presetFreeDelivery" value="true">
+            <label class="form-check-label" for="presetFreeDelivery">Free delivery</label>
+          </div>
+          <button type="submit" class="btn btn-success w-100">Apply F&amp;F Preset</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- ── Add/Update Override ─────────────────────────────────── -->
   <div class="section-card">
     <div class="card-header bg-primary text-white">Set Friends & Family Pricing</div>
