@@ -59,11 +59,17 @@ public class SubShowSummaryAction implements FlowAction {
                     .append(" — ").append(name).append("\n");
         }
         sb.append("\nDelivered every *").append(day.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
-                .append("* — *").append(total).append(" weekly deliveries*.\n");
+                .append("*.\n");
         if (bonus > 0) {
-            sb.append("Your final ")
-                    .append(bonus == 1 ? "week's bread is *free*" : bonus + " weeks' bread are *free*")
-                    .append(" — you pay only delivery.\n");
+            String getText = bonus == 1
+                    ? "get week " + (paidWeeks + 1) + " free"
+                    : "get " + bonus + " weeks free";
+            sb.append("*Pay for ").append(paidWeeks).append(" weeks, ").append(getText)
+                    .append("* — you pay only delivery on the free ")
+                    .append(bonus == 1 ? "week" : "weeks").append(".\n");
+            sb.append("That's *").append(total).append(" weekly deliveries* in all.\n");
+        } else {
+            sb.append("*").append(total).append(" weekly deliveries*.\n");
         }
         sb.append(freeDelivery
                 ? "Delivery: *included*.\n\n"

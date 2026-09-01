@@ -44,15 +44,16 @@ public class ShowOrderChoiceAction implements FlowAction {
                 new WhatsAppMessage.Button("subscription", "Weekly Subscription")));
     }
 
-    // "• Your Nth week is FREE — saving ₹X–₹Y every cycle" computed from the active FF plans.
+    // "• Pay for N weeks, get week N+1 FREE — saving ₹X–₹Y every cycle" computed from the active FF plans.
     private String freeWeekLine() {
         List<PlanConfig> plans = catalog.activePlansForAudience("FF");
         BigDecimal minSave = null, maxSave = null;
-        int freeWeeks = 0;
+        int freeWeeks = 0, paidWeeks = 0;
         for (PlanConfig p : plans) {
             int bonus = catalog.totalWeeks(p) - p.getCommitmentWeeks();
             if (bonus <= 0) continue;
             freeWeeks = Math.max(freeWeeks, bonus);
+            paidWeeks = Math.max(paidWeeks, p.getCommitmentWeeks());
             BigDecimal save = p.getWeeklyPrice().multiply(BigDecimal.valueOf(bonus));
             minSave = (minSave == null) ? save : save.min(minSave);
             maxSave = (maxSave == null) ? save : save.max(maxSave);
@@ -62,6 +63,10 @@ public class ShowOrderChoiceAction implements FlowAction {
         String saveText = minSave.compareTo(maxSave) == 0
                 ? "₹" + minSave.stripTrailingZeros().toPlainString()
                 : "₹" + minSave.stripTrailingZeros().toPlainString() + "–₹" + maxSave.stripTrailingZeros().toPlainString();
-        return "• Your final week's bread is *FREE* (you pay only delivery) — saving *" + saveText + "* every cycle\n";
+        String getText = freeWeeks == 1
+                ? "get week " + (paidWeeks + 1) + " free"
+                : "get " + freeWeeks + " weeks free";
+        return "• *Pay for " + paidWeeks + " weeks, " + getText + "* — you cover only delivery, saving *"
+                + saveText + "* every cycle\n";
     }
 }
