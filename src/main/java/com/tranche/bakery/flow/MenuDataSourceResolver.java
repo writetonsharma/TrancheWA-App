@@ -123,9 +123,20 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         if (plan == null) return List.of();
         List<WhatsAppMessage.Row> rows = new ArrayList<>();
         for (int i = 0; i < plan.getOptions().size(); i++) {
-            rows.add(new WhatsAppMessage.Row("opt" + i, plan.getOptions().get(i).getLabel()));
+            SubscriptionCatalog.OptionConfig opt = plan.getOptions().get(i);
+            String title = trunc(opt.getLabel(), 24);           // WhatsApp list-row title cap
+            String desc = trunc(opt.getDescription(), 72);      // WhatsApp list-row description cap
+            rows.add((desc != null && !desc.isBlank())
+                    ? new WhatsAppMessage.Row("opt" + i, title, desc)
+                    : new WhatsAppMessage.Row("opt" + i, title));
         }
         return List.of(new WhatsAppMessage.Section("Choose your bundle", rows));
+    }
+
+    // Keep list text within WhatsApp's per-field limits so Meta doesn't hard-truncate mid-word.
+    private static String trunc(String s, int max) {
+        if (s == null) return null;
+        return s.length() <= max ? s : s.substring(0, max - 1).trim() + "\u2026";
     }
 
     private List<WhatsAppMessage.Section> resolveSubscriptionItems(Map<String, Object> context) {

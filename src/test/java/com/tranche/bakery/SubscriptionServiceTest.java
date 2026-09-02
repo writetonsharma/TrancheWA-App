@@ -111,6 +111,25 @@ class SubscriptionServiceTest extends FlowScenarioBase {
     }
 
     @Test
+    void cancel_alsoCancelsUpcomingWeeklyOrder() {
+        DayOfWeek day = soonDeliveryDay();
+        Subscription sub = subscriptionService.createPending(customer, "FF_NORMAL",
+                List.of(new ChosenItem("Classic Table White", 1, "HALF")), day);
+        subscriptionService.activate(sub.getId());
+
+        Long orderId = periodRepository.findAllBySubscriptionId(sub.getId()).get(0).getOrderId();
+        assertThat(orders.findById(orderId).orElseThrow().getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+
+        subscriptionService.cancel(sub.getId());
+
+        assertThat(subscriptionRepository.findById(sub.getId()).orElseThrow().getStatus())
+                .isEqualTo(SubscriptionStatus.CANCELLED);
+        assertThat(orders.findById(orderId).orElseThrow().getStatus())
+                .as("the generated weekly order is cancelled too")
+                .isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
     void status_showsPendingSubscription() {
         customer.setSubscriptionEligible(true);
         customerRepository.save(customer);

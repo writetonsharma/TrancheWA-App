@@ -83,18 +83,22 @@ public class SubscriptionService {
     @Transactional
     public void activate(Long subscriptionId) {
         Subscription sub = subscriptionRepository.findById(subscriptionId).orElse(null);
-        if (sub == null || sub.getStatus() == SubscriptionStatus.ACTIVE) return;
+        if (sub == null || sub.getStatus() != SubscriptionStatus.PENDING_PAYMENT) return;
 
         LocalDate firstDelivery = nextOccurrence(LocalDate.now().plusDays(1), sub.getDeliveryDay());
-        sub.setStartDate(firstDelivery);
-        sub.setEndDate(firstDelivery.plusWeeks(totalWeeks(sub) - 1L));
-        sub.setStatus(SubscriptionStatus.ACTIVE);
-        subscriptionRepository.save(sub);
+        LocalDate endDate = firstDelivery.plusWeeks(totalWeeks(sub) - 1L);
 
-        customerNotifier.subscriptionConfirmed(sub, firstDelivery);
-        generateForSubscription(sub);
+        // Atomic flip so a duplicate/concurrent approval can't send the confirmation twice.
+        int flipped = subscriptionRepository.activateIfPending(
+                subscriptionId, firstDelivery, endDate,
+                SubscriptionStatus.ACTIVE, SubscriptionStatus.PENDING_PAYMENT);
+        if (flipped == 0) return;
+
+        Subscription active = subscriptionRepository.findById(subscriptionId).orElseThrow();
+        customerNotifier.subscriptionConfirmed(active, firstDelivery);
+        generateForSubscription(active);
         log.info("Subscription {} activated for customer {} — {} deliveries from {}, delivery on {}",
-                sub.getId(), sub.getCustomer().getId(), totalWeeks(sub), firstDelivery, sub.getDeliveryDay());
+                active.getId(), active.getCustomer().getId(), totalWeeks(active), firstDelivery, active.getDeliveryDay());
     }
 
     /** Scheduled: create the ₹0 order for any subscription week whose delivery is near. */
@@ -124,6 +128,7 @@ public class SubscriptionService {
         subscriptionRepository.findById(subscriptionId).ifPresent(sub -> {
             sub.setStatus(SubscriptionStatus.CANCELLED);
             subscriptionRepository.save(sub);
+            cancelUpcomingOrders(subscriptionId);
             log.info("Subscription {} cancelled", subscriptionId);
         });
     }
@@ -136,8 +141,19 @@ public class SubscriptionService {
         if (sub.getStatus() == SubscriptionStatus.CANCELLED || sub.getStatus() == SubscriptionStatus.COMPLETED) return false;
         sub.setStatus(SubscriptionStatus.CANCELLED);
         subscriptionRepository.save(sub);
+        cancelUpcomingOrders(subscriptionId);
         log.info("Subscription {} cancelled by customer {}", subscriptionId, customerId);
         return true;
+    }
+
+    // Cancel any not-yet-delivered weekly orders so they drop off the bake list/dashboard when the plan ends.
+    private void cancelUpcomingOrders(Long subscriptionId) {
+        List<Order> upcoming = orderRepository.findAllBySubscriptionIdAndStatusIn(
+                subscriptionId, List.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING));
+        for (Order order : upcoming) {
+            order.setStatus(OrderStatus.CANCELLED);
+        }
+        orderRepository.saveAll(upcoming);
     }
 
     /** Evening cleanup: cancel unpaid draft subscriptions created before today's cutoff, and notify. */

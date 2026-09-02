@@ -129,6 +129,7 @@ public class SubscriptionCatalog {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class OptionConfig {
         private String label;
+        private String description;   // optional list-row subtitle (title has a 24-char WhatsApp limit)
         private List<ComponentConfig> components;
     }
 

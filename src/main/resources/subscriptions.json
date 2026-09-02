@@ -46,7 +46,8 @@
           ]
         },
         {
-          "label": "Two half loaves (mix & match)",
+          "label": "Two half loaves",
+          "description": "Mix & match any two loaves",
           "components": [
             { "type": "LOAF", "portion": "HALF", "qty": 1 },
             { "type": "LOAF", "portion": "HALF", "qty": 1 }
@@ -86,7 +87,8 @@
           ]
         },
         {
-          "label": "Two half loaves (1 premium + 1 everyday)",
+          "label": "Two half loaves",
+          "description": "1 premium + 1 everyday loaf",
           "components": [
             { "type": "LOAF", "portion": "HALF", "qty": 1 },
             { "type": "LOAF", "portion": "HALF", "qty": 1, "tier": "NORMAL" }

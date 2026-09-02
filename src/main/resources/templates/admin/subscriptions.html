@@ -55,7 +55,7 @@
               </td>
               <td>
                 <span th:each="it : ${s.items}" class="d-block small"
-                      th:text="(${it.quantity} > 1 ? it.quantity + '× ' : '') + it.itemName + (${it.portion} == 'HALF' ? ' (½)' : '')"></span>
+                      th:text="${(it.quantity > 1 ? it.quantity + '× ' : '') + it.itemName + (it.portion == 'HALF' ? ' (½)' : '')}"></span>
               </td>
               <td th:text="${s.deliveryDay}"></td>
               <td th:text="'₹' + ${s.upfrontAmount}"></td>
@@ -104,7 +104,7 @@
               </td>
               <td>
                 <span th:each="it : ${s.items}" class="d-block small"
-                      th:text="(${it.quantity} > 1 ? it.quantity + '× ' : '') + it.itemName + (${it.portion} == 'HALF' ? ' (½)' : '')"></span>
+                      th:text="${(it.quantity > 1 ? it.quantity + '× ' : '') + it.itemName + (it.portion == 'HALF' ? ' (½)' : '')}"></span>
               </td>
               <td th:text="${s.deliveryDay}"></td>
               <td><small th:text="${s.startDate != null ? #temporals.format(s.startDate, 'd MMM') : '—'}"></small></td>
