@@ -34,6 +34,8 @@ public class SubscriptionCatalog {
     private final Map<String, PlanConfig> byCode = new LinkedHashMap<>();
     // type (LOAF/ROLL/SWEET) -> tier (NORMAL/PREMIUM) -> item names
     private final Map<String, Map<String, List<String>>> itemTiers;
+    // Menu category -> pieces per pack (Buns & Rolls = 6, Sweet Bakes = 4); loaves default to 1.
+    private final Map<String, Integer> packSizes;
     // Fallback delivery charge when a plan omits deliveryCharge (matches the à la carte order charge).
     private final BigDecimal standardDeliveryCharge;
 
@@ -44,6 +46,7 @@ public class SubscriptionCatalog {
         var resource = new ClassPathResource("subscriptions.json");
         Root root = objectMapper.readValue(resource.getInputStream(), Root.class);
         this.itemTiers = root.itemTiers != null ? root.itemTiers : Map.of();
+        this.packSizes = root.packSizes != null ? root.packSizes : Map.of();
         if (root.plans != null) {
             for (PlanConfig plan : root.plans) {
                 byCode.put(plan.code, plan);
@@ -55,6 +58,12 @@ public class SubscriptionCatalog {
     /** Delivery charge for a plan: its own if set, otherwise the standard à la carte charge. */
     public BigDecimal effectiveDeliveryCharge(PlanConfig plan) {
         return plan.getDeliveryCharge() != null ? plan.getDeliveryCharge() : standardDeliveryCharge;
+    }
+
+    /** Individual pieces per pack for a menu category (Buns & Rolls = 6, Sweet Bakes = 4); loaves default to 1. */
+    public int packSize(String category) {
+        Integer n = category != null ? packSizes.get(category) : null;
+        return n != null && n > 0 ? n : 1;
     }
 
     /** Total weekly deliveries = paid weeks + free bonus weeks. */
@@ -107,6 +116,7 @@ public class SubscriptionCatalog {
     @JsonIgnoreProperties(ignoreUnknown = true)
     static class Root {
         private Map<String, Map<String, List<String>>> itemTiers;
+        private Map<String, Integer> packSizes;
         private List<PlanConfig> plans;
     }
 

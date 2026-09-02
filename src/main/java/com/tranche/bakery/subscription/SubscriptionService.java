@@ -1,6 +1,7 @@
 package com.tranche.bakery.subscription;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -68,6 +69,7 @@ public class SubscriptionService {
         sub.setBonusWeeks(plan.getBonusWeeks());
         sub.setDeliveryDay(deliveryDay);
         sub.setUpfrontAmount(catalog.totalUpfront(plan));
+        sub.setRegularValue(regularWeeklyValue(chosenItems));
         sub.setStatus(SubscriptionStatus.PENDING_PAYMENT);
         for (ChosenItem ci : chosenItems) {
             SubscriptionItem item = new SubscriptionItem();
@@ -202,6 +204,35 @@ public class SubscriptionService {
 
     private int totalWeeks(Subscription sub) {
         return sub.getCommitmentWeeks() + Math.max(0, sub.getBonusWeeks());
+    }
+
+    /**
+     * À la carte value of one weekly bundle: Σ (item list price × quantity × portion factor), where a
+     * half loaf counts as ½ and a roll/sweet counts as one piece of its pack (e.g. 4 rolls = 4 × pack/6).
+     */
+    public BigDecimal regularWeeklyValue(List<ChosenItem> items) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (ChosenItem ci : items) {
+            MenuItem menuItem = menuItemRepository.findFirstByNameAndActiveTrue(ci.itemName()).orElse(null);
+            if (menuItem == null || menuItem.getPrice() == null) continue;
+            BigDecimal factor;
+            if ("HALF".equalsIgnoreCase(ci.portion())) {
+                factor = new BigDecimal("0.5");
+            } else {
+                String category = menuItem.getCategory() != null ? menuItem.getCategory().getName() : null;
+                factor = BigDecimal.ONE.divide(BigDecimal.valueOf(catalog.packSize(category)), 6, RoundingMode.HALF_UP);
+            }
+            total = total.add(menuItem.getPrice().multiply(BigDecimal.valueOf(ci.quantity())).multiply(factor));
+        }
+        return total.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** Cycle saving vs à la carte: regular weekly value × all delivery weeks − price paid for the bread (paid weeks). */
+    public BigDecimal savingsFor(Subscription sub) {
+        if (sub.getRegularValue() == null) return BigDecimal.ZERO;
+        BigDecimal regularCost = sub.getRegularValue().multiply(BigDecimal.valueOf(totalWeeks(sub)));
+        BigDecimal paid = sub.getWeeklyPrice().multiply(BigDecimal.valueOf(sub.getCommitmentWeeks()));
+        return regularCost.subtract(paid).max(BigDecimal.ZERO).setScale(0, RoundingMode.HALF_UP);
     }
 
     private Order createWeeklyOrder(Subscription sub, LocalDate deliveryDate) {

@@ -320,6 +320,18 @@ public class ReceiptPdfService {
         totalRow(tot, "Total Paid", money(sub.getUpfrontAmount()), true);
         doc.add(tot);
 
+        BigDecimal regular = sub.getRegularValue();
+        if (regular != null && regular.signum() > 0) {
+            BigDecimal saving = regular.multiply(BigDecimal.valueOf(totalWeeks))
+                    .subtract(weekly.multiply(BigDecimal.valueOf(paidWeeks)));
+            if (saving.signum() > 0) {
+                Paragraph saved = new Paragraph("You saved " + money(saving) + " vs buying these weekly at regular prices.",
+                        FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10.5f, PAID));
+                saved.setSpacingBefore(6f);
+                doc.add(saved);
+            }
+        }
+
         String coverage = totalWeeks + " weekly deliveries"
                 + (bonusWeeks > 0 ? " (including " + bonusWeeks + " free)" : "")
                 + (sub.getStartDate() != null ? ", from " + sub.getStartDate().format(DATE_FMT) : "")

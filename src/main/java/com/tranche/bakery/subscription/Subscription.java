@@ -63,6 +63,10 @@ public class Subscription {
     @Column(name = "upfront_amount", precision = 10, scale = 2)
     private BigDecimal upfrontAmount;
 
+    // À la carte value of the weekly bundle (Σ item list price × portion), snapshot at signup for the savings line.
+    @Column(name = "regular_value", precision = 10, scale = 2)
+    private BigDecimal regularValue;
+
     // WhatsApp media id of the payment screenshot the customer shared, pending admin verification.
     @Column(name = "payment_screenshot_media_id", length = 255)
     private String paymentScreenshotMediaId;

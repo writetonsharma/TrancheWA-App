@@ -130,6 +130,7 @@ class ReceiptPdfServiceTest {
         sub.setDeliveryDay(DayOfWeek.THURSDAY);
         sub.setStartDate(LocalDate.of(2026, 9, 10));
         sub.setEndDate(LocalDate.of(2026, 10, 8));
+        sub.setRegularValue(new BigDecimal("303.33"));
 
         SubscriptionItem loaf = new SubscriptionItem();
         loaf.setItemName("Classic Table White");

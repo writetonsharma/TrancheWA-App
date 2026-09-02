@@ -52,6 +52,18 @@ class SubscriptionServiceTest extends FlowScenarioBase {
     }
 
     @Test
+    void regularValueAndSavings_valueBundleByListPrice() {
+        Subscription sub = subscriptionService.createPending(customer, "FF_NORMAL",
+                List.of(new ChosenItem("Classic Table White", 1, "HALF"),
+                        new ChosenItem("Whole Wheat Rolls", 4, "FULL")), DayOfWeek.MONDAY);
+
+        // ½ × ₹260 loaf + 4/6 × ₹260 rolls = 130 + 173.33
+        assertThat(sub.getRegularValue()).isEqualByComparingTo("303.33");
+        // regular 303.33 × 5 weeks − ₹200 × 4 paid weeks
+        assertThat(subscriptionService.savingsFor(sub)).isEqualByComparingTo("717");
+    }
+
+    @Test
     void activate_setsWindowAndGeneratesFirstZeroOrder() {
         DayOfWeek day = soonDeliveryDay();
         Subscription sub = subscriptionService.createPending(customer, "FF_NORMAL", halfLoafPlusRolls(), day);

@@ -1,6 +1,7 @@
 package com.tranche.bakery.flow.actions;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.format.TextStyle;
 import java.util.List;
@@ -13,6 +14,7 @@ import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.subscription.SubscriptionCatalog.ComponentConfig;
 import com.tranche.bakery.subscription.SubscriptionCatalog.OptionConfig;
 import com.tranche.bakery.subscription.SubscriptionCatalog.PlanConfig;
+import com.tranche.bakery.subscription.SubscriptionService;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import com.tranche.bakery.whatsapp.WhatsAppMessage;
 
@@ -25,6 +27,7 @@ public class SubShowSummaryAction implements FlowAction {
 
     private final SubscriptionFlowSupport support;
     private final com.tranche.bakery.subscription.SubscriptionCatalog catalog;
+    private final SubscriptionService subscriptionService;
     private final WhatsAppClient whatsAppClient;
 
     @Override
@@ -74,6 +77,16 @@ public class SubShowSummaryAction implements FlowAction {
         sb.append(freeDelivery
                 ? "Delivery: *included*.\n\n"
                 : "Delivery: ₹" + delivery.stripTrailingZeros().toPlainString() + "/week, included in the total.\n\n");
+
+        BigDecimal regular = subscriptionService.regularWeeklyValue(support.chosenItems(ctx));
+        BigDecimal saving = regular.multiply(BigDecimal.valueOf(total))
+                .subtract(plan.getWeeklyPrice().multiply(BigDecimal.valueOf(paidWeeks)))
+                .max(BigDecimal.ZERO).setScale(0, RoundingMode.HALF_UP);
+        if (saving.signum() > 0) {
+            sb.append("💰 *You save ₹").append(saving.toPlainString())
+                    .append("* vs buying these weekly at regular prices.\n\n");
+        }
+
         sb.append("*Pay now: ₹").append(upfront.stripTrailingZeros().toPlainString()).append("*")
                 .append(" — ").append(paidWeeks).append(" weeks of bakes + ").append(total).append(" deliveries, prepaid.");
 
