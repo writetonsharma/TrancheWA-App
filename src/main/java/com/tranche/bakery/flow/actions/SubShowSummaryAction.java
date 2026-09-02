@@ -18,7 +18,7 @@ import com.tranche.bakery.whatsapp.WhatsAppMessage;
 
 import lombok.RequiredArgsConstructor;
 
-/** Shows the subscription summary + upfront total with a Confirm & Pay / Cancel choice. */
+/** Shows the subscription summary + upfront total with a Confirm Order button (payment QR follows). */
 @Component
 @RequiredArgsConstructor
 public class SubShowSummaryAction implements FlowAction {
@@ -78,7 +78,7 @@ public class SubShowSummaryAction implements FlowAction {
                 .append(" — ").append(paidWeeks).append(" weeks of bakes + ").append(total).append(" deliveries, prepaid.");
 
         whatsAppClient.sendButtons(phone, sb.toString(), List.of(
-                new WhatsAppMessage.Button("sub_confirm", "Confirm & Pay")));
+                new WhatsAppMessage.Button("sub_confirm", "Confirm Order")));
     }
 
     private String portionLabel(ComponentConfig c) {

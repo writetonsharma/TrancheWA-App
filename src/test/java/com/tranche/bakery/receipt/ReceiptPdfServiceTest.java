@@ -6,10 +6,13 @@ import com.tranche.bakery.order.FulfillmentType;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderItem;
 import com.tranche.bakery.order.OrderItemRepository;
+import com.tranche.bakery.subscription.Subscription;
+import com.tranche.bakery.subscription.SubscriptionItem;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -107,5 +110,42 @@ class ReceiptPdfServiceTest {
 
         assertThat(pdf).isNotEmpty();
         assertThat(new String(pdf, 0, 5, StandardCharsets.ISO_8859_1)).isEqualTo("%PDF-");
+    }
+
+    @Test
+    void buildsValidPdfForSubscription() {
+        Customer c = new Customer();
+        c.setName("Aarav Sharma");
+        c.setPhone("919999999999");
+
+        Subscription sub = new Subscription();
+        sub.setId(55L);
+        sub.setCustomer(c);
+        sub.setPlanName("Weekly Bakes");
+        sub.setWeeklyPrice(new BigDecimal("200"));
+        sub.setDeliveryCharge(new BigDecimal("65"));
+        sub.setCommitmentWeeks(4);
+        sub.setBonusWeeks(1);
+        sub.setUpfrontAmount(new BigDecimal("1125"));
+        sub.setDeliveryDay(DayOfWeek.THURSDAY);
+        sub.setStartDate(LocalDate.of(2026, 9, 10));
+        sub.setEndDate(LocalDate.of(2026, 10, 8));
+
+        SubscriptionItem loaf = new SubscriptionItem();
+        loaf.setItemName("Classic Table White");
+        loaf.setQuantity(1);
+        loaf.setPortion("HALF");
+        sub.addItem(loaf);
+        SubscriptionItem rolls = new SubscriptionItem();
+        rolls.setItemName("Whole Wheat Rolls");
+        rolls.setQuantity(4);
+        rolls.setPortion("FULL");
+        sub.addItem(rolls);
+
+        byte[] pdf = new ReceiptPdfService(props(), itemRepo).build(sub);
+
+        assertThat(pdf).isNotEmpty();
+        assertThat(new String(pdf, 0, 5, StandardCharsets.ISO_8859_1)).isEqualTo("%PDF-");
+        assertThat(pdf.length).isGreaterThan(800);
     }
 }

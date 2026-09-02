@@ -91,7 +91,7 @@ public class SubscriptionService {
         sub.setStatus(SubscriptionStatus.ACTIVE);
         subscriptionRepository.save(sub);
 
-        customerNotifier.subscriptionConfirmed(sub.getCustomer(), sub.getPlanName(), firstDelivery);
+        customerNotifier.subscriptionConfirmed(sub, firstDelivery);
         generateForSubscription(sub);
         log.info("Subscription {} activated for customer {} — {} deliveries from {}, delivery on {}",
                 sub.getId(), sub.getCustomer().getId(), totalWeeks(sub), firstDelivery, sub.getDeliveryDay());

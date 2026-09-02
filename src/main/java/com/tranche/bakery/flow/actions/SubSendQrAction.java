@@ -1,7 +1,6 @@
 package com.tranche.bakery.flow.actions;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -9,6 +8,7 @@ import org.springframework.stereotype.Component;
 import com.tranche.bakery.alert.AlertService;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
+import com.tranche.bakery.payment.PaymentTestMode;
 import com.tranche.bakery.payment.QrCodeService;
 import com.tranche.bakery.subscription.Subscription;
 import com.tranche.bakery.subscription.SubscriptionRepository;
@@ -30,15 +30,13 @@ public class SubSendQrAction implements FlowAction {
     private final QrCodeService qrCodeService;
     private final WhatsAppClient whatsAppClient;
     private final AlertService alertService;
+    private final PaymentTestMode paymentTestMode;
 
     @Value("${bakery.payment.upi-id}")
     private String upiId;
 
     @Value("${bakery.payment.upi-name}")
     private String upiName;
-
-    @Value("${bakery.payment.test-mode:false}")
-    private boolean testMode;
 
     @Override
     public String getName() { return "SUB_SEND_QR"; }
@@ -53,9 +51,7 @@ public class SubSendQrAction implements FlowAction {
             return;
         }
 
-        BigDecimal amount = testMode
-                ? BigDecimal.valueOf(1.0 + (int) (Math.random() * 99) / 100.0).setScale(2, RoundingMode.HALF_UP)
-                : sub.getUpfrontAmount();
+        BigDecimal amount = paymentTestMode.amountFor(phone, sub.getUpfrontAmount());
         String note = ("Tranche Bakery Subscription " + sub.getId())
                 .replaceAll("[^A-Za-z0-9 ]", " ").replaceAll(" +", " ").trim();
 

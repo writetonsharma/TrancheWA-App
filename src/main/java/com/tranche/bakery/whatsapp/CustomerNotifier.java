@@ -173,11 +173,18 @@ public class CustomerNotifier {
     }
 
     /** Subscription activated (may be out of window when the admin verifies payment later). */
-    public void subscriptionConfirmed(Customer customer, String planName, java.time.LocalDate firstDelivery) {
-        if (customer == null || customer.getPhone() == null) return;
+    public void subscriptionConfirmed(com.tranche.bakery.subscription.Subscription sub, java.time.LocalDate firstDelivery) {
+        if (sub == null || sub.getCustomer() == null || sub.getCustomer().getPhone() == null) return;
+        Customer customer = sub.getCustomer();
         String phone = customer.getPhone();
+        String planName = sub.getPlanName();
         String day = firstDelivery != null ? firstDelivery.format(DATE_FMT) : "soon";
         if (withinWindow(customer)) {
+            ReceiptService.ReceiptMedia media = receiptService.prepareSubscription(sub);
+            if (media != null) {
+                whatsAppClient.sendDocument(phone, media.mediaId(), media.filename(),
+                        "Here is your subscription receipt. Thank you for subscribing to Tranché Bakery.");
+            }
             whatsAppClient.sendText(phone, "🎉 *Your " + clean(planName) + " subscription is active!*\n\n" +
                     "Your first weekly delivery is on *" + day + "*, and we'll bring fresh bakes every week. " +
                     "Thank you for subscribing to Tranché Bakery. 🥖");

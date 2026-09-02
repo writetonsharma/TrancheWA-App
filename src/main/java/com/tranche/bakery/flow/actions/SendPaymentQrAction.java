@@ -13,6 +13,7 @@ import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.payment.Payment;
 import com.tranche.bakery.payment.PaymentRepository;
+import com.tranche.bakery.payment.PaymentTestMode;
 import com.tranche.bakery.payment.QrCodeService;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import com.tranche.bakery.whatsapp.WhatsAppMessage;
@@ -30,15 +31,13 @@ public class SendPaymentQrAction implements FlowAction {
     private final QrCodeService qrCodeService;
     private final WhatsAppClient whatsAppClient;
     private final AlertService alertService;
+    private final PaymentTestMode paymentTestMode;
 
     @Value("${bakery.payment.upi-id}")
     private String upiId;
 
     @Value("${bakery.payment.upi-name}")
     private String upiName;
-
-    @Value("${bakery.payment.test-mode:false}")
-    private boolean testMode;
 
     @Override
     public String getName() { return "SEND_PAYMENT_QR"; }
@@ -59,9 +58,7 @@ public class SendPaymentQrAction implements FlowAction {
             return;
         }
 
-        BigDecimal amount = testMode
-                ? BigDecimal.valueOf(1.0 + (int)(Math.random() * 99) / 100.0).setScale(2, java.math.RoundingMode.HALF_UP)
-                : order.getTotalAmount();
+        BigDecimal amount = paymentTestMode.amountFor(ctx.getCustomer().getPhone(), order.getTotalAmount());
         String orderRef = order.getOrderNumber() != null ? order.getOrderNumber() : String.valueOf(order.getId());
         // UPI/WhatsApp note accepts letters, numbers and spaces only — turn any other char into a space.
         String note = ("Tranche Bakery Order " + orderRef).replaceAll("[^A-Za-z0-9 ]", " ").replaceAll(" +", " ").trim();

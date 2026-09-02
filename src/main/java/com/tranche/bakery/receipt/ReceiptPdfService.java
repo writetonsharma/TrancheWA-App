@@ -17,6 +17,8 @@ import com.tranche.bakery.order.FulfillmentType;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderItem;
 import com.tranche.bakery.order.OrderItemRepository;
+import com.tranche.bakery.subscription.Subscription;
+import com.tranche.bakery.subscription.SubscriptionItem;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +28,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
 import java.util.List;
 import java.util.Locale;
 
@@ -62,6 +65,23 @@ public class ReceiptPdfService {
         titleRow(doc, order);
         parties(doc, order);
         itemsTable(doc, order);
+        footer(doc);
+
+        doc.close();
+        return out.toByteArray();
+    }
+
+    /** Receipt for a prepaid weekly subscription (upfront payment for the whole commitment). */
+    public byte[] build(Subscription sub) {
+        Document doc = new Document(PageSize.A4, 48, 48, 46, 46);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PdfWriter.getInstance(doc, out);
+        doc.open();
+
+        header(doc);
+        subscriptionTitleRow(doc, sub);
+        subscriptionParties(doc, sub);
+        subscriptionBody(doc, sub);
         footer(doc);
 
         doc.close();
@@ -205,6 +225,98 @@ public class ReceiptPdfService {
         doc.add(tot);
     }
 
+    private void subscriptionTitleRow(Document doc, Subscription sub) {
+        PdfPTable t = new PdfPTable(2);
+        t.setWidthPercentage(100);
+        t.setSpacingBefore(10f);
+        t.setSpacingAfter(6f);
+
+        Font titleF = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 13, INK);
+        PdfPCell left = borderless(new Phrase("SUBSCRIPTION RECEIPT", titleF));
+
+        Font paidF = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 13, PAID);
+        PdfPCell right = borderless(new Phrase("PAID", paidF));
+        right.setHorizontalAlignment(Element.ALIGN_RIGHT);
+
+        t.addCell(left);
+        t.addCell(right);
+        doc.add(t);
+
+        Font metaF = FontFactory.getFont(FontFactory.HELVETICA, 9.5f, MUTED);
+        doc.add(new Paragraph("Receipt No: SUB-" + sub.getId(), metaF));
+        doc.add(new Paragraph("Issued: " + LocalDateTime.now().format(STAMP_FMT), metaF));
+    }
+
+    private void subscriptionParties(Document doc, Subscription sub) {
+        Customer c = sub.getCustomer();
+        Font labelF = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9.5f, INK);
+        Font valF = FontFactory.getFont(FontFactory.HELVETICA, 9.5f, INK);
+
+        PdfPTable t = new PdfPTable(2);
+        t.setWidthPercentage(100);
+        t.setSpacingBefore(10f);
+        t.setSpacingAfter(4f);
+
+        StringBuilder bill = new StringBuilder();
+        String cname = c != null && notBlank(c.getName()) ? c.getName() : "Customer";
+        bill.append(cname);
+        if (c != null && notBlank(c.getPhone())) bill.append("\n").append(c.getPhone());
+
+        StringBuilder plan = new StringBuilder();
+        plan.append(sub.getPlanName()).append("\nWeekly subscription");
+        if (sub.getDeliveryDay() != null)
+            plan.append("\nEvery ").append(sub.getDeliveryDay().getDisplayName(TextStyle.FULL, Locale.ENGLISH));
+
+        t.addCell(labelledCell("Billed to", bill.toString(), labelF, valF, Element.ALIGN_LEFT));
+        t.addCell(labelledCell("Plan", plan.toString(), labelF, valF, Element.ALIGN_RIGHT));
+        doc.add(t);
+    }
+
+    private void subscriptionBody(Document doc, Subscription sub) {
+        int paidWeeks = sub.getCommitmentWeeks();
+        int bonusWeeks = sub.getBonusWeeks();
+        int totalWeeks = paidWeeks + bonusWeeks;
+        BigDecimal weekly = sub.getWeeklyPrice() != null ? sub.getWeeklyPrice() : BigDecimal.ZERO;
+        BigDecimal delivery = sub.getDeliveryCharge() != null ? sub.getDeliveryCharge() : BigDecimal.ZERO;
+
+        PdfPTable t = new PdfPTable(new float[]{ 7.4f, 2.4f });
+        t.setWidthPercentage(100);
+        t.setSpacingBefore(12f);
+        t.addCell(headCell("Weekly bundle", Element.ALIGN_LEFT));
+        t.addCell(headCell("Qty", Element.ALIGN_CENTER));
+        for (SubscriptionItem it : sub.getItems()) {
+            String name = "HALF".equalsIgnoreCase(it.getPortion())
+                    ? "\u00bd " + it.getItemName() + " (half loaf)"
+                    : it.getItemName();
+            t.addCell(bodyCell(name, Element.ALIGN_LEFT));
+            t.addCell(bodyCell(String.valueOf(it.getQuantity()), Element.ALIGN_CENTER));
+        }
+        doc.add(t);
+
+        PdfPTable tot = new PdfPTable(new float[]{ 6.6f, 3.2f });
+        tot.setWidthPercentage(100);
+        tot.setSpacingBefore(2f);
+        totalRow(tot, "Bakes (Rs. " + plain(weekly) + " x " + paidWeeks + " weeks)",
+                money(weekly.multiply(BigDecimal.valueOf(paidWeeks))), false);
+        if (positive(delivery))
+            totalRow(tot, "Delivery (Rs. " + plain(delivery) + " x " + totalWeeks + " weeks)",
+                    money(delivery.multiply(BigDecimal.valueOf(totalWeeks))), false);
+        else
+            totalRow(tot, "Delivery", "Free", false);
+        if (bonusWeeks > 0)
+            totalRow(tot, "Bonus " + (bonusWeeks == 1 ? "week" : bonusWeeks + " weeks") + " bread", "Free", false);
+        totalRow(tot, "Total Paid", money(sub.getUpfrontAmount()), true);
+        doc.add(tot);
+
+        String coverage = totalWeeks + " weekly deliveries"
+                + (bonusWeeks > 0 ? " (including " + bonusWeeks + " free)" : "")
+                + (sub.getStartDate() != null ? ", from " + sub.getStartDate().format(DATE_FMT) : "")
+                + (sub.getEndDate() != null ? " to " + sub.getEndDate().format(DATE_FMT) : "") + ".";
+        Paragraph note = new Paragraph(coverage, FontFactory.getFont(FontFactory.HELVETICA, 9f, MUTED));
+        note.setSpacingBefore(8f);
+        doc.add(note);
+    }
+
     private void footer(Document doc) {
         Paragraph note = new Paragraph(
                 "GST not applicable. Prices are inclusive of all charges shown.",
@@ -302,5 +414,10 @@ public class ReceiptPdfService {
     private static String money(BigDecimal b) {
         if (b == null) b = BigDecimal.ZERO;
         return "Rs. " + b.setScale(0, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private static String plain(BigDecimal b) {
+        if (b == null) b = BigDecimal.ZERO;
+        return b.setScale(0, RoundingMode.HALF_UP).toPlainString();
     }
 }
