@@ -193,7 +193,11 @@ public class ReceiptPdfService {
             BigDecimal lineAmt = unit != null
                     ? unit.multiply(BigDecimal.valueOf(it.getQuantity()))
                     : it.getSubtotal();
-            t.addCell(bodyCell(it.getMenuItem().getName(), Element.ALIGN_LEFT));
+            String name = it.getMenuItem().getName();
+            if (unit != null && lineAmt.compareTo(it.getSubtotal()) < 0) {
+                name = name + "  (was " + money(it.getSubtotal()) + ")";
+            }
+            t.addCell(bodyCell(name, Element.ALIGN_LEFT));
             t.addCell(bodyCell(String.valueOf(it.getQuantity()), Element.ALIGN_CENTER));
             t.addCell(bodyCell(money(lineAmt), Element.ALIGN_RIGHT));
         }
@@ -223,6 +227,14 @@ public class ReceiptPdfService {
         }
         totalRow(tot, "Total Paid", money(order.getTotalAmount()), true);
         doc.add(tot);
+
+        BigDecimal savings = nz(order.getDiscountAmount()).add(nz(order.getBatchDiscountAmount()));
+        if (savings.signum() > 0) {
+            Paragraph saved = new Paragraph("You saved " + money(savings) + " on this order.",
+                    FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10.5f, PAID));
+            saved.setSpacingBefore(6f);
+            doc.add(saved);
+        }
     }
 
     private void subscriptionTitleRow(Document doc, Subscription sub) {
@@ -410,6 +422,8 @@ public class ReceiptPdfService {
     }
 
     private static boolean positive(BigDecimal b) { return b != null && b.compareTo(BigDecimal.ZERO) > 0; }
+
+    private static BigDecimal nz(BigDecimal b) { return b == null ? BigDecimal.ZERO : b; }
 
     private static String money(BigDecimal b) {
         if (b == null) b = BigDecimal.ZERO;

@@ -189,17 +189,15 @@ public class OrderService {
         StringBuilder sb = new StringBuilder("🧾 *Your Order*\n\n");
         for (OrderItem item : items) {
             BigDecimal unit = hasOverride ? customer.unitPriceFor(itemNameOf(item), categoryNameOf(item)) : null;
-            if (unit != null) {
-                BigDecimal discountedSubtotal = unit.multiply(BigDecimal.valueOf(item.getQuantity()));
-                sb.append(String.format("• %s × %d — ₹%.0f _(special rate)_\n",
-                        item.getMenuItem().getName(),
-                        item.getQuantity(),
-                        discountedSubtotal));
+            BigDecimal special = unit != null ? unit.multiply(BigDecimal.valueOf(item.getQuantity())) : null;
+            if (special != null && special.compareTo(item.getSubtotal()) < 0) {
+                // F&F flat price below list — strike the list price so the per-item saving is visible.
+                sb.append(String.format("• %s × %d — ~₹%.0f~ *₹%.0f*\n",
+                        item.getMenuItem().getName(), item.getQuantity(), item.getSubtotal(), special));
             } else {
+                BigDecimal shown = special != null ? special : item.getSubtotal();
                 sb.append(String.format("• %s × %d — ₹%.0f\n",
-                        item.getMenuItem().getName(),
-                        item.getQuantity(),
-                        item.getSubtotal()));
+                        item.getMenuItem().getName(), item.getQuantity(), shown));
             }
         }
 
@@ -226,6 +224,12 @@ public class OrderService {
         }
 
         sb.append(String.format("\n*Total: ₹%.0f*", order.getTotalAmount()));
+
+        BigDecimal savings = savingsFor(order);
+        if (savings.compareTo(BigDecimal.ZERO) > 0) {
+            sb.append(String.format("\n💰 *You saved ₹%.0f* %s 🎉", savings,
+                    hasOverride ? "with your Friends & Family pricing" : "with today's offer"));
+        }
 
         if (order.getDeliveryPreference() != null) {
             String prefLabel = switch (order.getDeliveryPreference()) {
@@ -293,6 +297,15 @@ public class OrderService {
         return item.getMenuItem() != null && item.getMenuItem().getCategory() != null
                 ? item.getMenuItem().getCategory().getName()
                 : null;
+    }
+
+    // Total the customer saved on items (F&F special-rate or offers/batch), excluding delivery.
+    public BigDecimal savingsFor(Order order) {
+        return nz(order.getDiscountAmount()).add(nz(order.getBatchDiscountAmount()));
+    }
+
+    private static BigDecimal nz(BigDecimal b) {
+        return b == null ? BigDecimal.ZERO : b;
     }
 
     private void recalculateTotal(Order order) {

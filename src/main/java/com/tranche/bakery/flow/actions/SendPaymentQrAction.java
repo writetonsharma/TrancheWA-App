@@ -84,9 +84,9 @@ public class SendPaymentQrAction implements FlowAction {
             String mediaId = whatsAppClient.uploadMedia(qrPng, "payment-qr.png");
             log.info("Media uploaded, mediaId={}", mediaId);
             String caption = String.format(
-                    "*Order %s — ₹%.2f*%n%nScan the QR code above with any UPI app, or pay manually to *%s*.%n%n📸 *Important — after paying, share the payment screenshot here.* That's the final step to confirm your order.",
+                    "*Order %s — ₹%.2f*%s%n%nScan the QR code above with any UPI app, or pay manually to *%s*.%n%n📸 *Important — after paying, share the payment screenshot here.* That's the final step to confirm your order.",
                     order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId(),
-                    amount, upiId);
+                    amount, savingsLine(order), upiId);
             whatsAppClient.sendImage(ctx.getCustomer().getPhone(), mediaId, caption);
             log.info("sendImage called for order {}", order.getId());
         } catch (Exception e) {
@@ -108,5 +108,15 @@ public class SendPaymentQrAction implements FlowAction {
         } catch (Exception e) {
             log.error("Failed to send cancel button for order {}: {}", order.getId(), e.getMessage());
         }
+    }
+
+    // "💰 You're saving ₹X on this order!" — surfaced on the payment prompt to encourage completion.
+    private String savingsLine(Order order) {
+        BigDecimal disc = order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal batch = order.getBatchDiscountAmount() != null ? order.getBatchDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal savings = disc.add(batch);
+        return savings.signum() > 0
+                ? String.format("%n\uD83D\uDCB0 *You're saving \u20B9%.0f on this order!*", savings)
+                : "";
     }
 }

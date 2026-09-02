@@ -8,12 +8,29 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderService;
 import com.tranche.bakery.payment.Payment;
 import com.tranche.bakery.payment.PaymentRepository;
 
 class PricingOverrideFlowTest extends FlowScenarioBase {
 
     @Autowired private PaymentRepository paymentRepository;
+    @Autowired private OrderService orderService;
+
+    @Test
+    void pricingOverride_summaryShowsSavings() {
+        customer.setPricingOverride(new BigDecimal("150.00"));
+        customer.setFreeDelivery(true);
+        customer = customerRepository.save(customer);
+
+        Long orderId = driveToPaymentQr();
+        Order order = orderRepository.findById(orderId).orElseThrow();
+
+        assertThat(orderService.savingsFor(order)).as("F&F saving = list − flat rate")
+                .isGreaterThan(BigDecimal.ZERO);
+        assertThat(sentTexts).as("order summary surfaces the saving")
+                .anyMatch(t -> t.contains("You saved"));
+    }
 
     @Test
     void pricingOverride_perItemFlatRate() {
