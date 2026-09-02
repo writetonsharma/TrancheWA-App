@@ -16,6 +16,10 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     Optional<Order> findTopByCustomerIdAndStatusInOrderByCreatedAtDesc(Long customerId, Collection<OrderStatus> statuses);
 
+    // "Last order" / reorder must ignore ₹0 subscription weekly orders (subscriptionId IS NULL) so it repeats a real order.
+    Optional<Order> findTopByCustomerIdAndSubscriptionIdIsNullAndStatusInOrderByCreatedAtDesc(
+            Long customerId, Collection<OrderStatus> statuses);
+
     List<Order> findAllByStatusOrderByCreatedAtDesc(OrderStatus status);
 
     List<Order> findAllByStatusIn(Collection<OrderStatus> statuses);

@@ -55,7 +55,7 @@ public class ShowOrderStatusAction implements FlowAction {
                 .toList();
 
         if (active.isEmpty() && subs.isEmpty()) {
-            orderRepository.findTopByCustomerIdAndStatusInOrderByCreatedAtDesc(
+            orderRepository.findTopByCustomerIdAndSubscriptionIdIsNullAndStatusInOrderByCreatedAtDesc(
                     customerId, List.of(OrderStatus.COMPLETED))
                     .ifPresentOrElse(
                             o -> whatsAppClient.sendText(phone,

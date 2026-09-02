@@ -24,7 +24,7 @@ public class ShowLastOrderSuggestionAction implements FlowAction {
 
     @Override
     public void execute(ActionContext ctx) {
-        Optional<Order> last = orderRepository.findTopByCustomerIdAndStatusInOrderByCreatedAtDesc(
+        Optional<Order> last = orderRepository.findTopByCustomerIdAndSubscriptionIdIsNullAndStatusInOrderByCreatedAtDesc(
                 ctx.getCustomer().getId(),
                 List.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.COMPLETED));
 

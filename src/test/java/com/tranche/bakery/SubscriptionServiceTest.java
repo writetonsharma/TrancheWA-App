@@ -111,6 +111,28 @@ class SubscriptionServiceTest extends FlowScenarioBase {
     }
 
     @Test
+    void reorderLookup_ignoresSubscriptionOrders() {
+        // A real one-time order, then an activated subscription whose ₹0 weekly order is more recent.
+        Order realOrder = new Order();
+        realOrder.setCustomer(customer);
+        realOrder.setStatus(OrderStatus.COMPLETED);
+        orders.save(realOrder);
+
+        Subscription sub = subscriptionService.createPending(customer, "FF_NORMAL",
+                List.of(new ChosenItem("Classic Table White", 1, "HALF"),
+                        new ChosenItem("Whole Wheat Rolls", 4, "FULL")), soonDeliveryDay());
+        subscriptionService.activate(sub.getId());
+
+        Order last = orders.findTopByCustomerIdAndSubscriptionIdIsNullAndStatusInOrderByCreatedAtDesc(
+                customer.getId(),
+                List.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.COMPLETED))
+                .orElseThrow();
+
+        assertThat(last.getSubscriptionId()).as("reorder must skip ₹0 subscription orders").isNull();
+        assertThat(last.getId()).isEqualTo(realOrder.getId());
+    }
+
+    @Test
     void cancel_alsoCancelsUpcomingWeeklyOrder() {
         DayOfWeek day = soonDeliveryDay();
         Subscription sub = subscriptionService.createPending(customer, "FF_NORMAL",

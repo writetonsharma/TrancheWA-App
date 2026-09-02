@@ -31,7 +31,7 @@ public class RouteToReorderOrBrowseAction implements FlowAction {
         context.remove("categoryId");
 
         boolean hasPreviousOrder = orderRepository
-                .findTopByCustomerIdAndStatusInOrderByCreatedAtDesc(
+                .findTopByCustomerIdAndSubscriptionIdIsNullAndStatusInOrderByCreatedAtDesc(
                         ctx.getCustomer().getId(),
                         List.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.COMPLETED))
                 .isPresent();
