@@ -156,6 +156,17 @@ public class OrderService {
         recalculateTotal(order);
     }
 
+    /** Remove one line from the draft (only if it belongs to this order), then recompute totals. */
+    @Transactional
+    public void removeItem(Order order, Long orderItemId) {
+        orderItemRepository.findById(orderItemId)
+                .filter(it -> it.getOrder() != null && it.getOrder().getId().equals(order.getId()))
+                .ifPresent(it -> {
+                    orderItemRepository.delete(it);
+                    recalculateTotal(order);
+                });
+    }
+
     @Transactional
     public void confirm(Order order) {
         order.setStatus(OrderStatus.PENDING_CONFIRMATION);

@@ -198,7 +198,7 @@
     "ORDER_SELECT_QUANTITY": {
       "entryMessage": {
         "type": "buttons",
-        "body": "How many would you like? _(up to 3 total units per order)_\n\n_Your order can contain up to 3 units across all products. For a larger order, tap *Message Us* on the main menu and we'll take care of it._",
+        "body": "How many would you like?\n\n_Tap 1, 2, or 3. To add more, choose *Add Another* on the next screen — you can fill up to the day's fresh-bake capacity._",
         "buttons": [
           {
             "id": "1",
@@ -235,25 +235,12 @@
         },
         {
           "match": "*",
-          "errorMessage": "Each order can contain up to 3 total units across all products. Please tap 1, 2, or 3.\n\n_For a larger order, tap *Message Us* on the main menu._"
+          "errorMessage": "Please tap *1*, *2*, or *3*. To add more of this item, choose *Add Another* afterwards."
         }
       ]
     },
     "ORDER_ADD_MORE": {
-      "entryMessage": {
-        "type": "buttons",
-        "body": "Added to your order.\n\nWould you like to add anything else, or review your order?",
-        "buttons": [
-          {
-            "id": "add_item",
-            "title": "Add Another"
-          },
-          {
-            "id": "view_order",
-            "title": "View Order"
-          }
-        ]
-      },
+      "entryAction": "SHOW_CART",
       "transitions": [
         {
           "match": "add_item",
@@ -264,15 +251,33 @@
           "nextState": "PRE_CONFIRM_GATE"
         },
         {
+          "match": "remove_menu",
+          "nextState": "CART_REMOVE_SELECT"
+        },
+        {
           "match": "*",
           "nextState": "ORDER_ADD_MORE"
+        }
+      ]
+    },
+    "CART_REMOVE_SELECT": {
+      "entryAction": "SHOW_CART_REMOVE",
+      "transitions": [
+        {
+          "match": "cart_back",
+          "nextState": "ORDER_ADD_MORE"
+        },
+        {
+          "match": "*",
+          "nextState": "ORDER_ADD_MORE",
+          "action": "REMOVE_ITEM"
         }
       ]
     },
     "ORDER_BULK_LIMIT": {
       "entryMessage": {
         "type": "buttons",
-        "body": "Your cart holds up to *3 total units* across all products, so it's now full.\n\nWould you like to place this order with the items already in your cart? Tap *No, thanks* to empty the cart and start over. For a larger order, tap *Message Us* on the main menu and we'll arrange it with you.",
+        "body": "That's as much as we can freshly bake for that day. 🍞\n\nWould you like to place this order with the items already in your cart? Tap *No, thanks* to empty the cart and start over. For a much larger order, tap *Message Us* on the main menu and we'll arrange it with you.",
         "buttons": [
           {
             "id": "checkout",
