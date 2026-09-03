@@ -143,7 +143,7 @@ class ReceiptPdfServiceTest {
         rolls.setPortion("FULL");
         sub.addItem(rolls);
 
-        byte[] pdf = new ReceiptPdfService(props(), itemRepo).build(sub);
+        byte[] pdf = new ReceiptPdfService(props(), itemRepo).build(sub, "TRB-SUB-20260903-AB12");
 
         assertThat(pdf).isNotEmpty();
         assertThat(new String(pdf, 0, 5, StandardCharsets.ISO_8859_1)).isEqualTo("%PDF-");

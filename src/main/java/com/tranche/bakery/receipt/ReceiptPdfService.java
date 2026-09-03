@@ -72,14 +72,14 @@ public class ReceiptPdfService {
     }
 
     /** Receipt for a prepaid weekly subscription (upfront payment for the whole commitment). */
-    public byte[] build(Subscription sub) {
+    public byte[] build(Subscription sub, String receiptNo) {
         Document doc = new Document(PageSize.A4, 48, 48, 46, 46);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         PdfWriter.getInstance(doc, out);
         doc.open();
 
         header(doc);
-        subscriptionTitleRow(doc, sub);
+        subscriptionTitleRow(doc, receiptNo);
         subscriptionParties(doc, sub);
         subscriptionBody(doc, sub);
         footer(doc);
@@ -92,8 +92,8 @@ public class ReceiptPdfService {
         Font nameF = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 22, ACCENT);
         Paragraph name = new Paragraph(props.getBusinessName(), nameF);
         name.setSpacingAfter(1f);
-        doc.add(name);
 
+        Paragraph subLine = null;
         StringBuilder sub = new StringBuilder();
         if (notBlank(props.getTagline())) sub.append(props.getTagline());
         if (notBlank(props.getLocation())) {
@@ -101,9 +101,9 @@ public class ReceiptPdfService {
             sub.append(props.getLocation());
         }
         if (sub.length() > 0) {
-            doc.add(new Paragraph(sub.toString(),
-                    FontFactory.getFont(FontFactory.HELVETICA, 9.5f, MUTED)));
+            subLine = new Paragraph(sub.toString(), FontFactory.getFont(FontFactory.HELVETICA, 9.5f, MUTED));
         }
+        Paragraph contactLine = null;
         StringBuilder line2 = new StringBuilder();
         if (notBlank(props.getContactPhone())) line2.append("Contact: ").append(props.getContactPhone());
         if (notBlank(props.getFssai())) {
@@ -111,12 +111,44 @@ public class ReceiptPdfService {
             line2.append("FSSAI Lic. No: ").append(props.getFssai());
         }
         if (line2.length() > 0) {
-            Paragraph l2 = new Paragraph(line2.toString(),
-                    FontFactory.getFont(FontFactory.HELVETICA, 9.5f, MUTED));
-            l2.setSpacingAfter(8f);
-            doc.add(l2);
+            contactLine = new Paragraph(line2.toString(), FontFactory.getFont(FontFactory.HELVETICA, 9.5f, MUTED));
+        }
+
+        com.lowagie.text.Image logo = loadLogo();
+        if (logo != null) {
+            logo.scaleToFit(54, 54);
+            PdfPTable t = new PdfPTable(new float[]{ 1.1f, 8.9f });
+            t.setWidthPercentage(100);
+            t.setSpacingAfter(8f);
+            PdfPCell logoCell = new PdfPCell(logo, false);
+            logoCell.setBorder(Rectangle.NO_BORDER);
+            logoCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            t.addCell(logoCell);
+            PdfPCell textCell = new PdfPCell();
+            textCell.setBorder(Rectangle.NO_BORDER);
+            textCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            textCell.addElement(name);
+            if (subLine != null) textCell.addElement(subLine);
+            if (contactLine != null) textCell.addElement(contactLine);
+            t.addCell(textCell);
+            doc.add(t);
+        } else {
+            doc.add(name);
+            if (subLine != null) doc.add(subLine);
+            if (contactLine != null) { contactLine.setSpacingAfter(8f); doc.add(contactLine); }
         }
         doc.add(divider());
+    }
+
+    // Optional brand logo for the receipt header; never blocks a receipt if missing.
+    private com.lowagie.text.Image loadLogo() {
+        try {
+            byte[] bytes = new org.springframework.core.io.ClassPathResource("receipt/logo.png")
+                    .getInputStream().readAllBytes();
+            return com.lowagie.text.Image.getInstance(bytes);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private void titleRow(Document doc, Order order) {
@@ -237,7 +269,7 @@ public class ReceiptPdfService {
         }
     }
 
-    private void subscriptionTitleRow(Document doc, Subscription sub) {
+    private void subscriptionTitleRow(Document doc, String receiptNo) {
         PdfPTable t = new PdfPTable(2);
         t.setWidthPercentage(100);
         t.setSpacingBefore(10f);
@@ -255,7 +287,7 @@ public class ReceiptPdfService {
         doc.add(t);
 
         Font metaF = FontFactory.getFont(FontFactory.HELVETICA, 9.5f, MUTED);
-        doc.add(new Paragraph("Receipt No: SUB-" + sub.getId(), metaF));
+        doc.add(new Paragraph("Receipt No: " + receiptNo, metaF));
         doc.add(new Paragraph("Issued: " + LocalDateTime.now().format(STAMP_FMT), metaF));
     }
 
@@ -273,6 +305,7 @@ public class ReceiptPdfService {
         String cname = c != null && notBlank(c.getName()) ? c.getName() : "Customer";
         bill.append(cname);
         if (c != null && notBlank(c.getPhone())) bill.append("\n").append(c.getPhone());
+        if (c != null && notBlank(c.getDeliveryAddress())) bill.append("\n").append(c.getDeliveryAddress());
 
         StringBuilder plan = new StringBuilder();
         plan.append(sub.getPlanName()).append("\nWeekly subscription");

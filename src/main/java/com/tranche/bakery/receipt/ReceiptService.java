@@ -20,6 +20,7 @@ public class ReceiptService {
     private final ReceiptProperties props;
     private final ReceiptPdfService pdfService;
     private final WhatsAppClient whatsAppClient;
+    private final com.tranche.bakery.order.OrderNumberGenerator orderNumberGenerator;
 
     public record ReceiptMedia(String mediaId, String filename) {}
 
@@ -53,8 +54,9 @@ public class ReceiptService {
         if (phone == null || phone.isBlank()) return null;
 
         try {
-            byte[] pdf = pdfService.build(sub);
-            String filename = "Tranche-Subscription-Receipt-" + sub.getId() + ".pdf";
+            String receiptNo = subscriptionReceiptNo(sub);
+            byte[] pdf = pdfService.build(sub, receiptNo);
+            String filename = "Tranche-Receipt-" + receiptNo + ".pdf";
             String mediaId = whatsAppClient.uploadMedia(pdf, filename, "application/pdf");
             if (mediaId == null || mediaId.isBlank()) return null;
             return new ReceiptMedia(mediaId, filename);
@@ -62,5 +64,11 @@ public class ReceiptService {
             log.warn("Could not prepare subscription receipt for {}: {}", sub.getId(), e.getMessage());
             return null;
         }
+    }
+
+    // Subscription receipt number in the same TRB style as orders, marked SUB and non-sequential.
+    private String subscriptionReceiptNo(Subscription sub) {
+        java.time.LocalDateTime created = sub.getCreatedAt() != null ? sub.getCreatedAt() : java.time.LocalDateTime.now();
+        return orderNumberGenerator.generate(sub.getId(), created).replaceFirst("TRB-", "TRB-SUB-");
     }
 }
