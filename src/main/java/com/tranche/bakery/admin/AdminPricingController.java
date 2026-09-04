@@ -46,6 +46,7 @@ public class AdminPricingController {
 
     @PostMapping("/set")
     public String setOverride(@RequestParam String phone,
+                              @RequestParam(required = false) String name,
                               @RequestParam(required = false) BigDecimal amount,
                               @RequestParam(required = false) boolean freeDelivery,
                               @RequestParam(required = false) boolean subscriptionEligible,
@@ -56,11 +57,19 @@ public class AdminPricingController {
                               @RequestParam(required = false) List<String> itemNames,
                               @RequestParam(required = false) List<String> itemPrices,
                               RedirectAttributes redirectAttributes) {
-        Customer customer = customerRepository.findByPhone(phone).orElse(null);
+        String normalizedPhone = normalizePhone(phone);
+        Customer customer = customerRepository.findByPhone(normalizedPhone).orElse(null);
         if (customer == null) {
-            redirectAttributes.addFlashAttribute("error",
-                    "Customer with phone " + phone + " not found. They must message the bot at least once before you can set pricing.");
-            return "redirect:/admin/pricing";
+            if (name == null || name.isBlank()) {
+                redirectAttributes.addFlashAttribute("error",
+                        "No customer with phone " + normalizedPhone + " yet. Add their name here to create them, or ask them to message the bot first.");
+                return "redirect:/admin/pricing";
+            }
+            customer = new Customer();
+            customer.setPhone(normalizedPhone);
+            customer.setName(name.trim());
+        } else if (name != null && !name.isBlank() && (customer.getName() == null || customer.getName().isBlank())) {
+            customer.setName(name.trim());
         }
 
         // Zip the parallel category name/price inputs; a blank price clears that category.
@@ -94,7 +103,7 @@ public class AdminPricingController {
         if (amount == null && customer.getCategoryPrices().isEmpty() && customer.getItemPrices().isEmpty()
                 && !subscriptionEligible) {
             redirectAttributes.addFlashAttribute("error",
-                    "Enter an all-items flat rate, at least one category or item price, or tick subscription access for " + phone + ".");
+                    "Enter an all-items flat rate, at least one category or item price, or tick subscription access for " + normalizedPhone + ".");
             return "redirect:/admin/pricing";
         }
 
@@ -110,7 +119,7 @@ public class AdminPricingController {
         customerRepository.save(customer);
 
         redirectAttributes.addFlashAttribute("flash",
-                "Pricing saved for " + phone + " — " + describe(customer) +
+                "Pricing saved for " + normalizedPhone + " — " + describe(customer) +
                 (freeDelivery ? " + free delivery" : "") +
                 (expiryDays != null && expiryDays > 0 ? " (expires in " + expiryDays + " days)" : " (no expiry)"));
         return "redirect:/admin/pricing";
@@ -119,15 +128,26 @@ public class AdminPricingController {
     /** One-click apply of the F&F rate card from friends-family-pricing.json to a customer. */
     @PostMapping("/apply-preset")
     public String applyPreset(@RequestParam String phone,
+                              @RequestParam(required = false) String name,
                               @RequestParam(required = false) boolean freeDelivery,
                               @RequestParam(required = false) Integer expiryDays,
                               @RequestParam(required = false) String note,
                               RedirectAttributes redirectAttributes) {
-        Customer customer = customerRepository.findByPhone(phone).orElse(null);
+        String normalizedPhone = normalizePhone(phone);
+        Customer customer = customerRepository.findByPhone(normalizedPhone).orElse(null);
+        boolean created = false;
         if (customer == null) {
-            redirectAttributes.addFlashAttribute("error",
-                    "Customer with phone " + phone + " not found. They must message the bot at least once before you can set pricing.");
-            return "redirect:/admin/pricing";
+            if (name == null || name.isBlank()) {
+                redirectAttributes.addFlashAttribute("error",
+                        "No customer with phone " + normalizedPhone + " yet. Add their name here to create them, or ask them to message the bot first.");
+                return "redirect:/admin/pricing";
+            }
+            customer = new Customer();
+            customer.setPhone(normalizedPhone);
+            customer.setName(name.trim());
+            created = true;
+        } else if (name != null && !name.isBlank() && (customer.getName() == null || customer.getName().isBlank())) {
+            customer.setName(name.trim());
         }
 
         customer.getCategoryPrices().clear();
@@ -146,10 +166,18 @@ public class AdminPricingController {
         customerRepository.save(customer);
 
         redirectAttributes.addFlashAttribute("flash",
-                "Applied F&F preset to " + phone + " — " + friendsFamilyPricing.size() + " prices"
+                (created ? "Added " + customer.getName() + " and applied" : "Applied") + " F&F preset to " + normalizedPhone
+                + " — " + friendsFamilyPricing.size() + " prices"
                 + (freeDelivery ? " + free delivery" : "")
                 + (expiryDays != null && expiryDays > 0 ? " (expires in " + expiryDays + " days)" : " (no expiry)"));
         return "redirect:/admin/pricing";
+    }
+
+    /** Normalizes an admin-entered phone to the WhatsApp "91XXXXXXXXXX" form the webhook stores. */
+    private static String normalizePhone(String raw) {
+        if (raw == null) return "";
+        String digits = raw.replaceAll("\\D", "");
+        return digits.length() == 10 ? "91" + digits : digits;
     }
 
     private String describe(Customer customer) {

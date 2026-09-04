@@ -43,22 +43,26 @@
       <p class="text-muted small mb-3">
         One click stamps the saved F&amp;F rate card (from <code>friends-family-pricing.json</code>) onto a
         customer — category flats + per-item overrides + subscription access. Edit the JSON to retune the
-        card for everyone going forward. The customer must have messaged the bot at least once.
+        card for everyone going forward. If they haven&rsquo;t messaged the bot yet, add their name and we&rsquo;ll create them here.
       </p>
       <form th:action="@{/admin/pricing/apply-preset}" method="post" class="row g-3 align-items-end">
-        <div class="col-md-4">
+        <div class="col-md-3">
           <label class="form-label fw-semibold">Phone (with country code)</label>
           <input type="text" name="phone" class="form-control" placeholder="919000000001" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Name</label>
+          <input type="text" name="name" class="form-control" placeholder="Needed for new customers">
         </div>
         <div class="col-md-2">
           <label class="form-label fw-semibold">Expires In (days)</label>
           <input type="number" name="expiryDays" class="form-control" min="1" placeholder="blank = never">
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label fw-semibold">Note</label>
-          <input type="text" name="note" class="form-control" placeholder="e.g. Family, close friend">
+          <input type="text" name="note" class="form-control" placeholder="e.g. Family">
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
           <div class="form-check mb-2">
             <input class="form-check-input" type="checkbox" name="freeDelivery" id="presetFreeDelivery" value="true">
             <label class="form-check-label" for="presetFreeDelivery">Free delivery</label>
@@ -78,25 +82,29 @@
         override individual items under a category (e.g. Chocolate Babka at ₹450), and/or an
         <em>all-items</em> flat rate as a catch-all. Precedence: <strong>item price → category price → all-items</strong>;
         anything left blank charges the normal menu price. Anyone with pricing here is treated
-        as Friends & Family. The customer must have messaged the bot at least once (so their number exists).
+        as Friends &amp; Family. If they haven&rsquo;t messaged yet, enter their name and we&rsquo;ll add them here.
       </p>
       <form th:action="@{/admin/pricing/set}" method="post">
         <div class="row g-3">
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label fw-semibold">Phone (with country code)</label>
             <input type="text" name="phone" class="form-control" placeholder="919000000001" required>
           </div>
           <div class="col-md-3">
+            <label class="form-label fw-semibold">Name</label>
+            <input type="text" name="name" class="form-control" placeholder="Needed for new customers">
+          </div>
+          <div class="col-md-2">
             <label class="form-label fw-semibold">Flat rate — all items (₹)</label>
-            <input type="number" name="amount" class="form-control" step="0.01" min="1" placeholder="optional catch-all">
+            <input type="number" name="amount" class="form-control" step="0.01" min="1" placeholder="catch-all">
           </div>
           <div class="col-md-2">
             <label class="form-label fw-semibold">Expires In (days)</label>
             <input type="number" name="expiryDays" class="form-control" min="1" placeholder="blank = never">
           </div>
-          <div class="col-md-3">
+          <div class="col-md-2">
             <label class="form-label fw-semibold">Note</label>
-            <input type="text" name="note" class="form-control" placeholder="e.g. Family, close friend">
+            <input type="text" name="note" class="form-control" placeholder="e.g. Family">
           </div>
         </div>
 
