@@ -63,6 +63,10 @@ public class SubShowSummaryAction implements FlowAction {
         }
         sb.append("\nDelivered every *").append(day.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
                 .append("*.\n");
+        String address = ctx.getCustomer().getDeliveryAddress();
+        if (address != null && !address.isBlank()) {
+            sb.append("To: _").append(address).append("_\n");
+        }
         if (bonus > 0) {
             String getText = bonus == 1
                     ? "get week " + (paidWeeks + 1) + " free"

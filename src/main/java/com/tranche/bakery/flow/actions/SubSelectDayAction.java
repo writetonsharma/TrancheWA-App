@@ -29,7 +29,7 @@ public class SubSelectDayAction implements FlowAction {
             return;
         }
         support.put(ctx, Map.of("subDay", day.name()));
-        ctx.setRedirectState("SUB_CONFIRM");
+        ctx.setRedirectState("SUB_ADDRESS_GATE");
     }
 
     private DayOfWeek parse(String in) {

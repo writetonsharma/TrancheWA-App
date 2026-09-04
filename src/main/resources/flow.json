@@ -594,6 +594,63 @@
         { "match": "*", "action": "SUB_SELECT_DAY" }
       ]
     },
+    "SUB_ADDRESS_GATE": {
+      "entryAction": "SUB_ROUTE_TO_ADDRESS"
+    },
+    "SUB_ADDRESS_COLLECT": {
+      "entryMessage": {
+        "type": "text",
+        "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_We currently deliver in and around DLF Phase 5, Gurgaon. If you're a bit further out, we'll message you to confirm — and refund in full if we can't reach you._\n\n_We'll save this as your default delivery address._"
+      },
+      "transitions": [
+        {
+          "match": "*",
+          "nextState": "SUB_LOCATION_SHARE",
+          "saveContext": "deliveryAddress",
+          "action": "SAVE_DELIVERY_ADDRESS"
+        }
+      ]
+    },
+    "SUB_ADDRESS_CONFIRM": {
+      "entryAction": "SHOW_SAVED_ADDRESS",
+      "transitions": [
+        {
+          "match": "use_address",
+          "nextState": "SUB_CONFIRM"
+        },
+        {
+          "match": "change_address",
+          "nextState": "SUB_ADDRESS_COLLECT"
+        },
+        {
+          "match": "*",
+          "nextState": "SUB_ADDRESS_CONFIRM"
+        }
+      ]
+    },
+    "SUB_LOCATION_SHARE": {
+      "entryMessage": {
+        "type": "buttons",
+        "body": "📌 Almost done — please share a *pinned location* so our delivery team can find you easily.\n\n*How to share:*\n📱 *iPhone:* Tap *+* (bottom left) → *Location* → *Send Your Current Location*\n📱 *Android:* Tap *📎* (paperclip) → *Location* → *Send your current location*\n\n⚠️ _Please do not share live location._\n\n_If you're unable to share, tap Skip — but this helps us deliver faster._",
+        "buttons": [
+          {
+            "id": "skip_location",
+            "title": "Skip"
+          }
+        ]
+      },
+      "transitions": [
+        {
+          "matchType": "location",
+          "nextState": "SUB_CONFIRM",
+          "action": "SAVE_LOCATION"
+        },
+        {
+          "match": "skip_location",
+          "nextState": "SUB_CONFIRM"
+        }
+      ]
+    },
     "SUB_CONFIRM": {
       "entryAction": "SUB_SHOW_SUMMARY",
       "transitions": [

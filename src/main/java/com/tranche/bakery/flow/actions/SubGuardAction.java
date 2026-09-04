@@ -37,15 +37,7 @@ public class SubGuardAction implements FlowAction {
             whatsAppClient.sendText(phone,
                     "You already have a subscription in progress. Tap *Info → My Order Status* to view or manage it. 🥖");
             ctx.setRedirectState("MAIN_MENU");
-            return;
         }
-
-        if (customer.getDeliveryAddress() == null || customer.getDeliveryAddress().isBlank()) {
-            whatsAppClient.sendText(phone,
-                    "Before subscribing, we need your delivery address on file. Please place a one-time order first " +
-                    "(we'll save your address), then you can start a weekly subscription. Send *hi* to begin. 🥖");
-            ctx.setRedirectState("IDLE");
-        }
-        // Otherwise no redirect — SUB_START's plan list is shown.
+        // Address is collected in-flow (SUB_ADDRESS_GATE) before the summary — no pre-order required.
     }
 }

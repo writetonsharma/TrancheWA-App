@@ -1,5 +1,6 @@
 package com.tranche.bakery.flow;
 
+import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -37,7 +38,7 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         boolean fnf = customer != null && customer.isFriendsAndFamily();
         return switch (dataSource) {
             case "MENU_CATEGORIES" -> resolveCategories(context, fnf);
-            case "MENU_ITEMS"      -> resolveItems(context, fnf);
+            case "MENU_ITEMS"      -> resolveItems(context, customer);
             case "DELIVERY_AREAS"  -> resolveDeliveryAreas();
             case "DELIVERY_DATES"  -> resolveDeliveryDates(context, fnf);
             case "SUBSCRIPTION_PLANS"   -> resolveSubscriptionPlans();
@@ -73,7 +74,7 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         catch (Exception ignored) { return null; }
     }
 
-    private List<WhatsAppMessage.Section> resolveItems(Map<String, Object> context, boolean fnf) {
+    private List<WhatsAppMessage.Section> resolveItems(Map<String, Object> context, Customer customer) {
         Object categoryIdVal = context != null ? context.get("categoryId") : null;
         if (categoryIdVal == null) return List.of();
 
@@ -81,6 +82,7 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         MenuCategory category = categoryRepository.findById(categoryId).orElse(null);
         if (category == null) return List.of();
 
+        final boolean fnf = customer != null && customer.isFriendsAndFamily();
         final LocalDate day = parseDeliveryDate(context);
 
         List<WhatsAppMessage.Row> rows = itemRepository
@@ -88,14 +90,19 @@ public class MenuDataSourceResolver implements DataSourceResolver {
                 .stream()
                 .filter(i -> day == null || deliveryRules.itemDeliverableOn(i.getName(), day, fnf))
                 .map(i -> {
-                    String price = String.format("₹%.0f", i.getPrice());
+                    BigDecimal list = i.getPrice();
+                    BigDecimal special = customer != null ? customer.unitPriceFor(i.getName(), category.getName()) : null;
+                    // WhatsApp list rows are plain text (no strikethrough), so show "now · was".
+                    String pricePart = (special != null && special.compareTo(list) < 0)
+                            ? String.format("₹%.0f · was ₹%.0f", special, list)
+                            : String.format("₹%.0f", list);
                     String desc = (i.getDescription() != null && !i.getDescription().isBlank())
-                            ? price + " · " + i.getDescription()
-                            : price;
+                            ? pricePart + " · " + i.getDescription()
+                            : pricePart;
                     String title = (i.getListTitle() != null && !i.getListTitle().isBlank())
                             ? i.getListTitle()
                             : i.getName();
-                    return new WhatsAppMessage.Row(i.getId().toString(), title, desc);
+                    return new WhatsAppMessage.Row(i.getId().toString(), title, trunc(desc, 72));
                 })
                 .toList();
         return List.of(new WhatsAppMessage.Section(category.getName(), rows));
