@@ -81,15 +81,18 @@ public class PromotionEngine {
         }
 
         // --- Stage 3: GIFT group (threshold on discounted subtotal) ---
+        // Customers on a bespoke F&F rate already get their discount, so they don't also get the gift.
         String giftLabel = null;
-        int giftPriority = Integer.MIN_VALUE;
-        for (Offer o : live) {
-            if (o.getStackGroup() != OfferGroup.GIFT || o.getKind() != OfferKind.FREE_ITEM_OVER) continue;
-            if (o.getThresholdAmount() == null) continue;
-            if (itemsTotal.compareTo(o.getThresholdAmount()) >= 0 && o.getPriority() > giftPriority) {
-                giftLabel = (o.getGiftLabel() != null && !o.getGiftLabel().isBlank())
-                        ? o.getGiftLabel() : o.getLabel();
-                giftPriority = o.getPriority();
+        if (ctx.overrideTotal() == null) {
+            int giftPriority = Integer.MIN_VALUE;
+            for (Offer o : live) {
+                if (o.getStackGroup() != OfferGroup.GIFT || o.getKind() != OfferKind.FREE_ITEM_OVER) continue;
+                if (o.getThresholdAmount() == null) continue;
+                if (itemsTotal.compareTo(o.getThresholdAmount()) >= 0 && o.getPriority() > giftPriority) {
+                    giftLabel = (o.getGiftLabel() != null && !o.getGiftLabel().isBlank())
+                            ? o.getGiftLabel() : o.getLabel();
+                    giftPriority = o.getPriority();
+                }
             }
         }
         if (giftLabel != null) applied.add(giftLabel);

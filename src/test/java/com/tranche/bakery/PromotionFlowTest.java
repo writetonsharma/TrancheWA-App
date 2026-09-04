@@ -164,6 +164,19 @@ class PromotionFlowTest extends FlowScenarioBase {
         assertThat(order.getTotalAmount()).isEqualByComparingTo(item.getPrice().add(DELIVERY_FEE));
     }
 
+    // 7. Friends & Family (bespoke rate) customer over the gift threshold: no complimentary roll.
+    @Test
+    void friendsAndFamily_noGiftEvenOverThreshold() {
+        customer.setPricingOverride(new BigDecimal("200")); // bespoke F&F rate, below list
+        customer.setOverrideExpiresAt(LocalDateTime.now().plusDays(1));
+        customer = customerRepository.save(customer);
+
+        MenuItem item = anyItem();
+        Order order = draftWith(item, 3); // 3 × ₹200 = ₹600, over the ₹450 gift threshold
+
+        assertThat(order.getGiftLabel()).isNull();
+    }
+
     // --- helpers: find a quantity whose 20%-discounted subtotal lands in a range ---
 
     private int[] itemAndQtyForDiscountedRange(int lo, int hi) {
