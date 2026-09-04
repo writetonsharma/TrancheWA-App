@@ -1,7 +1,7 @@
 {
   "itemTiers": {
     "LOAF": {
-      "NORMAL": ["Classic Table White", "Whole Wheat Loaf", "Multi-Seed Loaf"],
+      "NORMAL": ["Classic Table White", "100% Whole Wheat Loaf", "Multi-Seed Loaf"],
       "PREMIUM": ["Olive Loaf", "Caramelized Onion Loaf", "Milk & Butter Loaf", "Honey & Walnut Loaf", "Honey & Oat Loaf"]
     },
     "ROLL": {
