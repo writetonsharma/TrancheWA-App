@@ -176,7 +176,8 @@
         {
           "match": "*",
           "nextState": "ORDER_SELECT_ITEM",
-          "saveContext": "categoryId"
+          "saveContext": "categoryId",
+          "action": "SELECT_CATEGORY"
         }
       ]
     },
@@ -191,7 +192,8 @@
         {
           "match": "*",
           "nextState": "ORDER_SELECT_QUANTITY",
-          "saveContext": "itemId"
+          "saveContext": "itemId",
+          "action": "SELECT_ITEM"
         }
       ]
     },
