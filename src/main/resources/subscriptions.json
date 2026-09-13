@@ -5,7 +5,7 @@
       "PREMIUM": ["Olive Loaf", "Caramelized Onion Loaf", "Milk & Butter Loaf", "Honey & Walnut Loaf", "Honey & Oat Loaf"]
     },
     "ROLL": {
-      "NORMAL": ["Whole Wheat Rolls", "Multi-Seed Rolls", "Sesame Burger Buns", "Potato Buns"],
+      "NORMAL": ["100% Whole Wheat Rolls", "Multi-Seed Rolls", "Sesame Burger Buns", "Potato Buns"],
       "PREMIUM": ["Bavarian Pretzel Buns", "Kaiser Rolls", "Milk Buns"]
     },
     "SWEET": {

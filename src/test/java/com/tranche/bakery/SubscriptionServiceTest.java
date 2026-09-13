@@ -35,7 +35,7 @@ class SubscriptionServiceTest extends FlowScenarioBase {
 
     private List<ChosenItem> halfLoafPlusRolls() {
         return List.of(new ChosenItem("Classic Table White", 1, "HALF"),
-                new ChosenItem("Whole Wheat Rolls", 4, "FULL"));
+                new ChosenItem("100% Whole Wheat Rolls", 4, "FULL"));
     }
 
     @Test
@@ -55,7 +55,7 @@ class SubscriptionServiceTest extends FlowScenarioBase {
     void regularValueAndSavings_valueBundleByListPrice() {
         Subscription sub = subscriptionService.createPending(customer, "FF_NORMAL",
                 List.of(new ChosenItem("Classic Table White", 1, "HALF"),
-                        new ChosenItem("Whole Wheat Rolls", 4, "FULL")), DayOfWeek.MONDAY);
+                        new ChosenItem("100% Whole Wheat Rolls", 4, "FULL")), DayOfWeek.MONDAY);
 
         // ½ × ₹260 loaf + 4/6 × ₹260 rolls = 130 + 173.33
         assertThat(sub.getRegularValue()).isEqualByComparingTo("303.33");
@@ -132,7 +132,7 @@ class SubscriptionServiceTest extends FlowScenarioBase {
 
         Subscription sub = subscriptionService.createPending(customer, "FF_NORMAL",
                 List.of(new ChosenItem("Classic Table White", 1, "HALF"),
-                        new ChosenItem("Whole Wheat Rolls", 4, "FULL")), soonDeliveryDay());
+                        new ChosenItem("100% Whole Wheat Rolls", 4, "FULL")), soonDeliveryDay());
         subscriptionService.activate(sub.getId());
 
         Order last = orders.findTopByCustomerIdAndSubscriptionIdIsNullAndStatusInOrderByCreatedAtDesc(

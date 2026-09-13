@@ -138,7 +138,7 @@ class ReceiptPdfServiceTest {
         loaf.setPortion("HALF");
         sub.addItem(loaf);
         SubscriptionItem rolls = new SubscriptionItem();
-        rolls.setItemName("Whole Wheat Rolls");
+        rolls.setItemName("100% Whole Wheat Rolls");
         rolls.setQuantity(4);
         rolls.setPortion("FULL");
         sub.addItem(rolls);
