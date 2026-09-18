@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.tranche.bakery.customer.Customer;
+import com.tranche.bakery.customer.CustomerRepository;
 import com.tranche.bakery.menu.MenuItem;
 import com.tranche.bakery.menu.MenuItemRepository;
 import com.tranche.bakery.order.Order;
@@ -47,6 +48,7 @@ public class SubscriptionService {
     private final OrderNumberGenerator orderNumberGenerator;
     private final CustomerNotifier customerNotifier;
     private final WhatsAppClient whatsAppClient;
+    private final CustomerRepository customerRepository;
 
     /** One chosen bundle line, resolved from the plan option + the customer's pick. */
     public record ChosenItem(String itemName, int quantity, String portion) {}
@@ -68,7 +70,14 @@ public class SubscriptionService {
         sub.setCommitmentWeeks(plan.getCommitmentWeeks());
         sub.setBonusWeeks(plan.getBonusWeeks());
         sub.setDeliveryDay(deliveryDay);
-        sub.setUpfrontAmount(catalog.totalUpfront(plan));
+        // Account credit reduces the prepaid upfront (snapshot); balance is consumed on activation.
+        BigDecimal upfront = catalog.totalUpfront(plan);
+        BigDecimal credit = BigDecimal.ZERO;
+        if (customer.getCreditBalance() != null && customer.getCreditBalance().signum() > 0 && upfront.signum() > 0) {
+            credit = customer.getCreditBalance().min(upfront);
+        }
+        sub.setCreditApplied(credit);
+        sub.setUpfrontAmount(upfront.subtract(credit));
         sub.setRegularValue(regularWeeklyValue(chosenItems));
         sub.setStatus(SubscriptionStatus.PENDING_PAYMENT);
         for (ChosenItem ci : chosenItems) {
@@ -97,10 +106,25 @@ public class SubscriptionService {
         if (flipped == 0) return;
 
         Subscription active = subscriptionRepository.findById(subscriptionId).orElseThrow();
+        consumeCredit(active);
         customerNotifier.subscriptionConfirmed(active, firstDelivery);
         generateForSubscription(active);
         log.info("Subscription {} activated for customer {} — {} deliveries from {}, delivery on {}",
                 active.getId(), active.getCustomer().getId(), totalWeeks(active), firstDelivery, active.getDeliveryDay());
+    }
+
+    // Deduct the credit this subscription used from the customer's running balance (once, on activation).
+    private void consumeCredit(Subscription sub) {
+        BigDecimal applied = sub.getCreditApplied();
+        if (applied == null || applied.signum() <= 0) return;
+        Customer c = sub.getCustomer();
+        if (c == null) return;
+        BigDecimal bal = c.getCreditBalance() == null ? BigDecimal.ZERO : c.getCreditBalance();
+        BigDecimal newBal = bal.subtract(applied).max(BigDecimal.ZERO);
+        c.setCreditBalance(newBal);
+        customerRepository.save(c);
+        log.info("Consumed ₹{} credit from customer {} for subscription {} (balance now ₹{})",
+                applied, c.getId(), sub.getId(), newBal);
     }
 
     /** Scheduled: create the ₹0 order for any subscription week whose delivery is near. */

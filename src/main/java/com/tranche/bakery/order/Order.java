@@ -70,6 +70,10 @@ public class Order {
     @Column(name = "batch_discount_label", length = 200)
     private String batchDiscountLabel;
 
+    // Account credit applied to this order (snapshot); deducted from the customer's balance on approval.
+    @Column(name = "credit_applied", precision = 10, scale = 2, nullable = false)
+    private BigDecimal creditApplied = BigDecimal.ZERO;
+
     @Column(nullable = false)
     private boolean cutoffWarned = false;
 

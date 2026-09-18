@@ -51,6 +51,10 @@ public class SubShowSummaryAction implements FlowAction {
         BigDecimal delivery = catalog.effectiveDeliveryCharge(plan);
         boolean freeDelivery = delivery.signum() == 0;
         BigDecimal upfront = catalog.totalUpfront(plan);
+        BigDecimal creditBal = ctx.getCustomer().getCreditBalance();
+        BigDecimal creditApplied = (creditBal != null && creditBal.signum() > 0)
+                ? creditBal.min(upfront) : BigDecimal.ZERO;
+        BigDecimal payable = upfront.subtract(creditApplied);
 
         StringBuilder sb = new StringBuilder("*Confirm your subscription* 🥖\n\n");
         sb.append("*").append(plan.getName()).append("* — ₹")
@@ -91,7 +95,11 @@ public class SubShowSummaryAction implements FlowAction {
                     .append("* vs buying these weekly at regular prices.\n\n");
         }
 
-        sb.append("*Pay now: ₹").append(upfront.stripTrailingZeros().toPlainString()).append("*")
+        if (creditApplied.signum() > 0) {
+            sb.append("🎁 *Credit applied: −₹").append(creditApplied.stripTrailingZeros().toPlainString()).append("*\n\n");
+        }
+
+        sb.append("*Pay now: ₹").append(payable.stripTrailingZeros().toPlainString()).append("*")
                 .append(" — ").append(paidWeeks).append(" weeks of bakes + ").append(total).append(" deliveries, prepaid.");
 
         whatsAppClient.sendButtons(phone, sb.toString(), List.of(

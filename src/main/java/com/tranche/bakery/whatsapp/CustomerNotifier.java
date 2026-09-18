@@ -35,6 +35,7 @@ public class CustomerNotifier {
     static final String T_OUT_FOR_DELIVERY = "order_out_for_delivery";
     static final String T_DELIVERED = "order_delivered";
     static final String T_CANCELLED = "order_cancelled";
+    static final String T_DATE_CHANGED = "order_date_changed";
     static final String T_UPDATE = "order_update";
     static final String T_PAYMENT_REMINDER = "payment_reminder";
     static final String T_SUB_CONFIRMED = "subscription_confirmed";
@@ -147,6 +148,21 @@ public class CustomerNotifier {
         } else {
             whatsAppClient.sendText(phone, message);
             log.warn("Manual message to {} may not deliver: outside 24h window and no recent order to reference for a template.", phone);
+        }
+    }
+
+    /** Delivery date moved by the admin. Free-form in-window, else the order_date_changed template. */
+    public void orderDeliveryDateChanged(Order order) {
+        String phone = phone(order);
+        if (phone == null) return;
+        String ref = ref(order);
+        String date = deliveryDate(order);
+        if (withinWindow(order)) {
+            whatsAppClient.sendText(phone, "📅 *Delivery date updated*\n\n" +
+                    "Your order *" + ref + "* will now be delivered on *" + date + "* in the morning.\n\n" +
+                    "If this doesn't work for you, just message us. 🥖");
+        } else {
+            whatsAppClient.sendTemplate(phone, T_DATE_CHANGED, List.of(firstName(order), ref, date));
         }
     }
 

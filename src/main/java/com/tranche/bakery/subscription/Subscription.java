@@ -67,6 +67,10 @@ public class Subscription {
     @Column(name = "regular_value", precision = 10, scale = 2)
     private BigDecimal regularValue;
 
+    // Account credit applied to the upfront (snapshot); deducted from the customer's balance on activation.
+    @Column(name = "credit_applied", nullable = false, precision = 10, scale = 2)
+    private BigDecimal creditApplied = BigDecimal.ZERO;
+
     // WhatsApp media id of the payment screenshot the customer shared, pending admin verification.
     @Column(name = "payment_screenshot_media_id", length = 255)
     private String paymentScreenshotMediaId;

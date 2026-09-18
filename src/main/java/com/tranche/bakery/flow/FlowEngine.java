@@ -338,7 +338,14 @@ public class FlowEngine {
         } else {
             greeting = "Welcome to Tranch\u00e9 Bakery. \uD83E\uDD56\n\n";
         }
-        return body.replace("{greeting}", greeting);
+        // Nudge: surface any account credit so the customer knows it'll come off their next order.
+        String creditNote = "";
+        if (customer != null && customer.getCreditBalance() != null
+                && customer.getCreditBalance().signum() > 0) {
+            creditNote = "\uD83D\uDCB3 You have \u20B9" + customer.getCreditBalance().stripTrailingZeros().toPlainString()
+                    + " in credit — it'll come off your next order.\n\n";
+        }
+        return body.replace("{greeting}", greeting + creditNote);
     }
 
     private String firstName(Customer customer) {

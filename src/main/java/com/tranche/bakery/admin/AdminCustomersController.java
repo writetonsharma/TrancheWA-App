@@ -76,6 +76,34 @@ public class AdminCustomersController {
         return "redirect:/admin/customers/" + id;
     }
 
+    // Adjust account credit: positive amount adds (e.g. an overpayment), negative removes (e.g. a
+    // refund handled outside the app). Never goes below zero.
+    @PostMapping("/{id}/credit")
+    public String adjustCredit(@PathVariable Long id,
+                               @RequestParam String amount,
+                               RedirectAttributes redirectAttributes) {
+        Customer customer = customerRepository.findById(id).orElse(null);
+        if (customer == null) {
+            redirectAttributes.addFlashAttribute("error", "Customer not found.");
+            return "redirect:/admin/customers";
+        }
+        java.math.BigDecimal delta;
+        try {
+            delta = new java.math.BigDecimal(amount.trim());
+        } catch (RuntimeException e) {
+            redirectAttributes.addFlashAttribute("error", "Enter a valid amount (e.g. 65 to add, -65 to remove).");
+            return "redirect:/admin/customers/" + id;
+        }
+        java.math.BigDecimal bal = customer.getCreditBalance() == null
+                ? java.math.BigDecimal.ZERO : customer.getCreditBalance();
+        java.math.BigDecimal newBal = bal.add(delta);
+        if (newBal.signum() < 0) newBal = java.math.BigDecimal.ZERO;
+        customer.setCreditBalance(newBal);
+        customerRepository.save(customer);
+        redirectAttributes.addFlashAttribute("flash", "Credit updated. New balance: ₹" + newBal + ".");
+        return "redirect:/admin/customers/" + id;
+    }
+
     private String blankToNull(String value) {
         return (value == null || value.isBlank()) ? null : value.trim();
     }

@@ -52,6 +52,22 @@ class SubscriptionServiceTest extends FlowScenarioBase {
     }
 
     @Test
+    void credit_reducesUpfrontAndIsConsumedOnActivation() {
+        customer.setCreditBalance(new java.math.BigDecimal("100"));
+        customer = customerRepository.save(customer);
+
+        Subscription sub = subscriptionService.createPending(
+                customer, "FF_NORMAL", halfLoafPlusRolls(), soonDeliveryDay());
+        assertThat(sub.getCreditApplied()).isEqualByComparingTo("100");
+        assertThat(sub.getUpfrontAmount()).as("1050 − 100 credit").isEqualByComparingTo("950");
+
+        subscriptionService.activate(sub.getId());
+
+        assertThat(customerRepository.findById(customer.getId()).orElseThrow().getCreditBalance())
+                .as("credit consumed on activation").isEqualByComparingTo("0");
+    }
+
+    @Test
     void regularValueAndSavings_valueBundleByListPrice() {
         Subscription sub = subscriptionService.createPending(customer, "FF_NORMAL",
                 List.of(new ChosenItem("Classic Table White", 1, "HALF"),

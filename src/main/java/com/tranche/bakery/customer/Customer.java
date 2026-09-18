@@ -53,6 +53,10 @@ public class Customer {
     @Column(nullable = false)
     private boolean freeDelivery = false;
 
+    // Account credit (overpayment / goodwill). Auto-applied to the next bill; never goes negative.
+    @Column(name = "credit_balance", nullable = false, precision = 10, scale = 2)
+    private BigDecimal creditBalance = BigDecimal.ZERO;
+
     // True once the admin adds this customer to the F&F list with subscription access — the gate
     // that reveals the self-serve Subscribe flow. Independent of whether they hold flat pricing.
     @Column(nullable = false)

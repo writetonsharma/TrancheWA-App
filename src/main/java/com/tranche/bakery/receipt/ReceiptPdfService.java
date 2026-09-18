@@ -257,6 +257,9 @@ public class ReceiptPdfService {
         if (notBlank(order.getGiftLabel())) {
             totalRow(tot, order.getGiftLabel(), "Free gift", false);
         }
+        if (positive(order.getCreditApplied())) {
+            totalRow(tot, "Credit applied", "- " + money(order.getCreditApplied()), false);
+        }
         totalRow(tot, "Total Paid", money(order.getTotalAmount()), true);
         doc.add(tot);
 
@@ -350,6 +353,8 @@ public class ReceiptPdfService {
             totalRow(tot, "Delivery", "Free", false);
         if (bonusWeeks > 0)
             totalRow(tot, "Bonus " + (bonusWeeks == 1 ? "week" : bonusWeeks + " weeks") + " bread", "Free", false);
+        if (positive(sub.getCreditApplied()))
+            totalRow(tot, "Credit applied", "- " + money(sub.getCreditApplied()), false);
         totalRow(tot, "Total Paid", money(sub.getUpfrontAmount()), true);
         doc.add(tot);
 

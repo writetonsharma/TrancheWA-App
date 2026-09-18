@@ -102,7 +102,14 @@
               <td th:text="${v.order.loafPreference == 'SLICED' ? 'Sliced' : (v.order.loafPreference == 'WHOLE' ? 'Whole' : '—')}"></td>
               <td th:text="${v.order.totalAmount != null ? '₹' + v.order.totalAmount : '—'}"></td>
               <td><span class="badge bg-secondary" th:text="${v.order.status.name()}"></span></td>
-              <td th:text="${v.order.deliveryDate != null ? #temporals.format(v.order.deliveryDate, 'EEE, d MMM') : '—'}"></td>
+              <td class="text-nowrap">
+                <form th:action="@{/admin/orders/{id}/set-delivery-date(id=${v.order.id})}" method="post" class="d-flex gap-1 align-items-center">
+                  <input type="hidden" name="returnTo" th:value="@{/admin/orders(from=${fFrom},to=${fTo},status=${fStatus},customer=${fCustomer},page=${orderPage.page})}">
+                  <input type="date" name="deliveryDate" class="form-control form-control-sm" style="width:8.5rem"
+                         th:value="${v.order.deliveryDate != null ? #temporals.format(v.order.deliveryDate, 'yyyy-MM-dd') : ''}">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary" title="Move delivery date (customer is notified)">Save</button>
+                </form>
+              </td>
               <td th:text="${#temporals.format(v.order.createdAt, 'dd MMM HH:mm')}"></td>
               <td>
                 <a th:if="${v.mapsUrl != null}" th:href="${v.mapsUrl}" target="_blank" class="btn btn-sm btn-outline-primary">Maps</a>

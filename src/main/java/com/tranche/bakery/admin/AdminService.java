@@ -126,15 +126,34 @@ public class AdminService {
     @Transactional
     public void approvePayment(Long orderId) {
         orderRepository.findById(orderId).ifPresent(order -> {
+            boolean firstConfirm = order.getStatus() != OrderStatus.CONFIRMED;
             order.setStatus(OrderStatus.CONFIRMED);
             orderRepository.save(order);
             paymentRepository.findByOrder(order).ifPresent(payment -> {
                 payment.setStatus(com.tranche.bakery.payment.PaymentStatus.SCREENSHOT_VERIFIED);
                 paymentRepository.save(payment);
             });
-            customerNotifier.orderConfirmed(order);
+            if (firstConfirm) {
+                consumeCredit(order);
+                customerNotifier.orderConfirmed(order);
+            }
             log.info("Admin approved payment for order {}", orderId);
         });
+    }
+
+    // Deduct the credit this order used from the customer's running balance (once, on first confirm).
+    private void consumeCredit(Order order) {
+        java.math.BigDecimal applied = order.getCreditApplied();
+        if (applied == null || applied.signum() <= 0) return;
+        Customer c = order.getCustomer();
+        if (c == null) return;
+        java.math.BigDecimal bal = c.getCreditBalance() == null ? java.math.BigDecimal.ZERO : c.getCreditBalance();
+        java.math.BigDecimal newBal = bal.subtract(applied);
+        if (newBal.signum() < 0) newBal = java.math.BigDecimal.ZERO;
+        c.setCreditBalance(newBal);
+        customerRepository.save(c);
+        log.info("Consumed ₹{} credit from customer {} for order {} (balance now ₹{})",
+                applied, c.getId(), order.getId(), newBal);
     }
 
     @Transactional
@@ -184,9 +203,14 @@ public class AdminService {
     @Transactional
     public void updateOrderDeliveryDate(Long orderId, LocalDate deliveryDate) {
         orderRepository.findById(orderId).ifPresent(order -> {
+            LocalDate previous = order.getDeliveryDate();
             order.setDeliveryDate(deliveryDate);
             orderRepository.save(order);
             log.info("Admin set delivery date {} on order {}", deliveryDate, orderId);
+            // Price is intentionally left unchanged. Notify the customer only on a real change.
+            if (!deliveryDate.equals(previous)) {
+                customerNotifier.orderDeliveryDateChanged(order);
+            }
         });
     }
 

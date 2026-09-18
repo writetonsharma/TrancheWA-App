@@ -234,6 +234,10 @@ public class OrderService {
             sb.append(String.format("• %s — _Free_ ✨\n", order.getGiftLabel()));
         }
 
+        if (order.getCreditApplied() != null && order.getCreditApplied().compareTo(BigDecimal.ZERO) > 0) {
+            sb.append(String.format("• Credit applied — −₹%.0f\n", order.getCreditApplied()));
+        }
+
         sb.append(String.format("\n*Total: ₹%.0f*", order.getTotalAmount()));
 
         BigDecimal savings = savingsFor(order);
@@ -392,7 +396,16 @@ public class OrderService {
         order.setBatchDiscountAmount(batchDiscount);
         order.setBatchDiscountLabel(batchLabel);
 
-        order.setTotalAmount(itemsTotal.add(fee));
+        // Account credit is applied last, on the final payable (after F&F/offers/delivery), clamped so
+        // it never drives the total below zero. The balance itself is only decremented on approval.
+        BigDecimal gross = itemsTotal.add(fee);
+        BigDecimal credit = BigDecimal.ZERO;
+        if (customer != null && customer.getCreditBalance() != null
+                && customer.getCreditBalance().signum() > 0 && gross.signum() > 0) {
+            credit = customer.getCreditBalance().min(gross);
+        }
+        order.setCreditApplied(credit);
+        order.setTotalAmount(gross.subtract(credit));
         orderRepository.save(order);
     }
 }

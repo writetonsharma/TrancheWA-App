@@ -59,6 +59,20 @@ public class SendPaymentQrAction implements FlowAction {
         }
 
         BigDecimal amount = paymentTestMode.amountFor(ctx.getCustomer().getPhone(), order.getTotalAmount());
+        if (amount.signum() <= 0) {
+            // Account credit fully covers this order — there's nothing to charge. Route it to admin
+            // review so the existing Approve action confirms it and consumes the credit.
+            order.setStatus(com.tranche.bakery.order.OrderStatus.PAYMENT_REVIEW_REQUIRED);
+            orderRepository.save(order);
+            String ref0 = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
+            whatsAppClient.sendText(ctx.getCustomer().getPhone(),
+                    "✅ *Order " + ref0 + " — fully covered by your account credit!*\n\n" +
+                    "No payment needed. We'll confirm your order shortly. 🥖");
+            alertService.raise("CREDIT_COVERED",
+                    "Order " + order.getId() + " is fully covered by customer credit — approve to confirm.",
+                    order.getId(), ctx.getCustomer().getPhone());
+            return;
+        }
         String orderRef = order.getOrderNumber() != null ? order.getOrderNumber() : String.valueOf(order.getId());
         // UPI/WhatsApp note accepts letters, numbers and spaces only — turn any other char into a space.
         String note = ("Tranche Bakery Order " + orderRef).replaceAll("[^A-Za-z0-9 ]", " ").replaceAll(" +", " ").trim();
