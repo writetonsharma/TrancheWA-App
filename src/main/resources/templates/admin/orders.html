@@ -31,6 +31,16 @@
 
 <div class="container-fluid px-4">
 
+  <!-- Flash / error messages (shown after actions taken from this page) -->
+  <div th:if="${flash}" class="alert alert-success alert-dismissible fade show" role="alert">
+    <span th:text="${flash}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <span th:text="${error}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
   <div class="mb-3 d-flex flex-wrap gap-2">
     <a class="btn btn-sm btn-outline-dark" th:href="@{/admin/orders(from=${today},to=${today})}">Today</a>
     <a class="btn btn-sm btn-outline-dark" th:href="@{/admin/orders(from=${tomorrow},to=${tomorrow})}">Tomorrow</a>

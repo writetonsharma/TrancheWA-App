@@ -35,7 +35,7 @@ public class CustomerNotifier {
     static final String T_OUT_FOR_DELIVERY = "order_out_for_delivery";
     static final String T_DELIVERED = "order_delivered";
     static final String T_CANCELLED = "order_cancelled";
-    static final String T_DATE_CHANGED = "order_date_changed";
+    static final String T_DATE_CHANGED = "order_date_change";
     static final String T_UPDATE = "order_update";
     static final String T_PAYMENT_REMINDER = "payment_reminder";
     static final String T_SUB_CONFIRMED = "subscription_confirmed";
