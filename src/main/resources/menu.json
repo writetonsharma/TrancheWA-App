@@ -153,6 +153,26 @@
           "price": 440.0,
           "displayOrder": 3,
           "description": "Set of 4 buns · Fri-Sun only"
+        },
+        {
+          "name": "Lemon Tea Cake",
+          "price": 400.0,
+          "displayOrder": 4,
+          "description": "Whole cake, sliced · eggless, clean label"
+        },
+        {
+          "name": "Coffee & Walnut Tea Cake",
+          "price": 490.0,
+          "displayOrder": 5,
+          "description": "Whole cake, sliced · eggless, clean label",
+          "listTitle": "Coffee & Walnut Cake"
+        },
+        {
+          "name": "Dark Chocolate Marble Tea Cake",
+          "price": 450.0,
+          "displayOrder": 6,
+          "description": "Whole cake, sliced · eggless, clean label",
+          "listTitle": "Choc Marble Tea Cake"
         }
       ]
     }
