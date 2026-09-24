@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Commercial Orders — Tranché Bakery Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f8f5f0; }
+    .navbar-brand { font-weight: 700; letter-spacing: 1px; }
+    .section-card { background: white; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 1.5rem; }
+    .section-card .card-header { border-radius: 8px 8px 0 0; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark mb-4">
+  <div class="container-fluid">
+    <span class="navbar-brand">🥖 Tranché Bakery — Commercial Orders</span>
+    <a href="/admin" class="btn btn-sm btn-outline-light">← Dashboard</a>
+  </div>
+</nav>
+
+<div class="container-fluid px-4">
+
+  <div th:if="${flash}" class="alert alert-success alert-dismissible fade show" role="alert">
+    <span th:text="${flash}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <span th:text="${error}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Bulk &amp; commercial orders</h5>
+    <a href="/admin/commercial/new" class="btn btn-success">+ New commercial order</a>
+  </div>
+
+  <div class="section-card">
+    <div class="card-body p-0">
+      <div th:if="${orders.isEmpty()}" class="p-3 text-muted">No commercial orders yet.</div>
+      <div th:unless="${orders.isEmpty()}" class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Invoice</th><th>Buyer</th><th>Items</th><th>Delivery</th>
+              <th>Total</th><th>Status</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr th:each="o : ${orders}">
+              <td><code th:text="${o.invoiceNumber}"></code></td>
+              <td>
+                <span th:if="${o.businessName}" class="fw-semibold d-block" th:text="${o.businessName}"></span>
+                <span th:text="${o.customerName ?: '—'}"></span><br>
+                <small class="text-muted" th:text="${o.customerPhone}"></small>
+                <span class="badge rounded-pill bg-light text-dark border"
+                      th:text="${o.sellerProfile.name() == 'INDIVIDUAL'} ? 'Naveen Sharma' : 'Tranché'"></span>
+              </td>
+              <td th:text="${o.itemCount} + ' line(s)'"></td>
+              <td>
+                <span th:if="${o.deliveryDate}" th:text="${#temporals.format(o.deliveryDate, 'd MMM yyyy')}"></span>
+                <span th:unless="${o.deliveryDate}" class="text-muted">—</span>
+              </td>
+              <td th:text="'₹' + ${o.totalAmount}"></td>
+              <td>
+                <span class="badge"
+                      th:classappend="${o.status.name() == 'INVOICED'} ? 'bg-warning text-dark'
+                        : (${o.status.name() == 'CANCELLED'} ? 'bg-secondary' : 'bg-success')"
+                      th:text="${o.status}"></span>
+              </td>
+              <td class="text-nowrap">
+                <a th:href="@{/admin/commercial/{id}/invoice(id=${o.id})}" class="btn btn-sm btn-outline-primary" target="_blank">Invoice PDF</a>
+                <form th:if="${o.status.name() == 'INVOICED'}" th:action="@{/admin/commercial/{id}/mark-paid(id=${o.id})}" method="post" class="d-inline">
+                  <button type="submit" class="btn btn-sm btn-success"
+                          onclick="return confirm('Confirm payment received and move this order to the bake list?')">Mark paid</button>
+                </form>
+                <a th:if="${o.status.name() != 'INVOICED' and o.status.name() != 'CANCELLED'}"
+                   th:href="@{/admin/commercial/{id}/receipt(id=${o.id})}" class="btn btn-sm btn-outline-success" target="_blank">Receipt PDF</a>
+                <form th:if="${o.status.name() != 'CANCELLED'}" th:action="@{/admin/commercial/{id}/cancel(id=${o.id})}" method="post" class="d-inline">
+                  <button type="submit" class="btn btn-sm btn-outline-danger"
+                          onclick="return confirm('Cancel this commercial order?')">Cancel</button>
+                </form>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

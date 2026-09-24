@@ -56,16 +56,39 @@ public class ReceiptPdfService {
             DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.ENGLISH);
 
     public byte[] build(Order order) {
+        return build(order, null);
+    }
+
+    /** Receipt with an optional "Seller / Billed by" line (used when a commercial order is billed by the individual identity). */
+    public byte[] build(Order order, String sellerLine) {
         Document doc = new Document(PageSize.A4, 48, 48, 46, 46);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         PdfWriter.getInstance(doc, out);
         doc.open();
 
         header(doc);
-        titleRow(doc, order);
+        titleRow(doc, order, sellerLine);
         parties(doc, order);
-        itemsTable(doc, order);
+        itemsTable(doc, order, "Total Paid");
         footer(doc);
+
+        doc.close();
+        return out.toByteArray();
+    }
+
+    /** Bill/invoice for a manually-created commercial order, with a scannable UPI QR for the exact amount. */
+    public byte[] buildInvoice(Order order, String invoiceNo, byte[] qrPng, String sellerLine) {
+        Document doc = new Document(PageSize.A4, 48, 48, 46, 46);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PdfWriter.getInstance(doc, out);
+        doc.open();
+
+        header(doc);
+        invoiceTitleRow(doc, order, invoiceNo, sellerLine);
+        parties(doc, order);
+        itemsTable(doc, order, "Total Due");
+        paymentBlock(doc, order, qrPng);
+        invoiceFooter(doc);
 
         doc.close();
         return out.toByteArray();
@@ -151,7 +174,7 @@ public class ReceiptPdfService {
         }
     }
 
-    private void titleRow(Document doc, Order order) {
+    private void titleRow(Document doc, Order order, String sellerLine) {
         PdfPTable t = new PdfPTable(2);
         t.setWidthPercentage(100);
         t.setSpacingBefore(10f);
@@ -172,6 +195,7 @@ public class ReceiptPdfService {
         String receiptNo = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
         doc.add(new Paragraph("Receipt No: " + receiptNo, metaF));
         doc.add(new Paragraph("Issued: " + LocalDateTime.now().format(STAMP_FMT), metaF));
+        if (notBlank(sellerLine)) doc.add(new Paragraph(sellerLine, metaF));
     }
 
     private void parties(Document doc, Order order) {
@@ -185,6 +209,7 @@ public class ReceiptPdfService {
         t.setSpacingAfter(4f);
 
         StringBuilder bill = new StringBuilder();
+        if (notBlank(order.getBusinessName())) bill.append(order.getBusinessName()).append("\n");
         String cname = c != null && notBlank(c.getName()) ? c.getName() : "Customer";
         bill.append(cname);
         if (c != null && notBlank(c.getPhone())) bill.append("\n").append(c.getPhone());
@@ -207,7 +232,7 @@ public class ReceiptPdfService {
         doc.add(t);
     }
 
-    private void itemsTable(Document doc, Order order) {
+    private void itemsTable(Document doc, Order order, String totalLabel) {
         List<OrderItem> items = orderItemRepository.findAllByOrderId(order.getId());
         Customer c = order.getCustomer();
         boolean override = c != null && c.hasActiveOverride();
@@ -260,7 +285,7 @@ public class ReceiptPdfService {
         if (positive(order.getCreditApplied())) {
             totalRow(tot, "Credit applied", "- " + money(order.getCreditApplied()), false);
         }
-        totalRow(tot, "Total Paid", money(order.getTotalAmount()), true);
+        totalRow(tot, totalLabel, money(order.getTotalAmount()), true);
         doc.add(tot);
 
         BigDecimal savings = nz(order.getDiscountAmount()).add(nz(order.getBatchDiscountAmount()));
@@ -377,6 +402,76 @@ public class ReceiptPdfService {
         Paragraph note = new Paragraph(coverage, FontFactory.getFont(FontFactory.HELVETICA, 9f, MUTED));
         note.setSpacingBefore(8f);
         doc.add(note);
+    }
+
+    private void invoiceTitleRow(Document doc, Order order, String invoiceNo, String sellerLine) {
+        PdfPTable t = new PdfPTable(2);
+        t.setWidthPercentage(100);
+        t.setSpacingBefore(10f);
+        t.setSpacingAfter(6f);
+
+        Font titleF = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 13, INK);
+        PdfPCell left = borderless(new Phrase("INVOICE", titleF));
+
+        Font dueF = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 13, ACCENT);
+        PdfPCell right = borderless(new Phrase("AMOUNT DUE", dueF));
+        right.setHorizontalAlignment(Element.ALIGN_RIGHT);
+
+        t.addCell(left);
+        t.addCell(right);
+        doc.add(t);
+
+        Font metaF = FontFactory.getFont(FontFactory.HELVETICA, 9.5f, MUTED);
+        String no = notBlank(invoiceNo) ? invoiceNo
+                : (order.getInvoiceNumber() != null ? order.getInvoiceNumber() : "#" + order.getId());
+        doc.add(new Paragraph("Invoice No: " + no, metaF));
+        doc.add(new Paragraph("Issued: " + LocalDateTime.now().format(STAMP_FMT), metaF));
+        if (notBlank(sellerLine)) doc.add(new Paragraph(sellerLine, metaF));
+    }
+
+    private void paymentBlock(Document doc, Order order, byte[] qrPng) {
+        if (qrPng == null) return;
+        try {
+            com.lowagie.text.Image qr = com.lowagie.text.Image.getInstance(qrPng);
+            qr.scaleToFit(150, 150);
+            PdfPTable t = new PdfPTable(new float[]{ 3.2f, 6.8f });
+            t.setWidthPercentage(100);
+            t.setSpacingBefore(16f);
+
+            PdfPCell qrCell = new PdfPCell(qr, false);
+            qrCell.setBorder(Rectangle.NO_BORDER);
+            qrCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            t.addCell(qrCell);
+
+            PdfPCell text = new PdfPCell();
+            text.setBorder(Rectangle.NO_BORDER);
+            text.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            Paragraph h = new Paragraph("Scan to pay " + money(order.getTotalAmount()),
+                    FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, INK));
+            text.addElement(h);
+            Paragraph p = new Paragraph(
+                    "Scan the QR with any UPI app to pay the exact amount, or pay to the UPI ID / bank details shared with you.",
+                    FontFactory.getFont(FontFactory.HELVETICA, 9f, MUTED));
+            p.setSpacingBefore(3f);
+            text.addElement(p);
+            t.addCell(text);
+            doc.add(t);
+        } catch (Exception ignored) {
+            // best-effort; a missing/invalid QR must not block the invoice
+        }
+    }
+
+    private void invoiceFooter(Document doc) {
+        Paragraph note = new Paragraph(
+                "GST not applicable. This is a bill of supply. Amounts are inclusive of all charges shown.",
+                FontFactory.getFont(FontFactory.HELVETICA, 8.5f, MUTED));
+        note.setSpacingBefore(16f);
+        doc.add(note);
+
+        Paragraph thanks = new Paragraph("Thank you for your order — " + props.getBusinessName() + ".",
+                FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 10, ACCENT));
+        thanks.setSpacingBefore(6f);
+        doc.add(thanks);
     }
 
     private void footer(Document doc) {

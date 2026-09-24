@@ -49,6 +49,23 @@ public class Order {
     @Enumerated(EnumType.STRING)
     private FulfillmentType fulfillmentType = FulfillmentType.DELIVERY;
 
+    @Column(name = "source", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private OrderSource source = OrderSource.RETAIL;
+
+    // Seller identity for a commercial invoice/receipt (company proprietorship vs individual). RETAIL orders keep COMPANY.
+    @Column(name = "seller_profile", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private SellerProfileType sellerProfile = SellerProfileType.COMPANY;
+
+    // Bill/invoice number for manually-created commercial orders (TRB-INV-...); null for retail.
+    @Column(name = "invoice_number", unique = true, length = 30)
+    private String invoiceNumber;
+
+    // Optional buyer business name shown on a commercial invoice.
+    @Column(name = "business_name", length = 150)
+    private String businessName;
+
     @Column(precision = 10, scale = 2)
     private BigDecimal totalAmount;
 

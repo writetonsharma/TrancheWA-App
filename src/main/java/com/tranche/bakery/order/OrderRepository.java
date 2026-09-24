@@ -58,4 +58,6 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     long countByCustomerIdAndStatus(Long customerId, OrderStatus status);
 
     List<Order> findAllBySubscriptionIdAndStatusIn(Long subscriptionId, Collection<OrderStatus> statuses);
+
+    List<Order> findAllBySourceOrderByCreatedAtDesc(OrderSource source);
 }

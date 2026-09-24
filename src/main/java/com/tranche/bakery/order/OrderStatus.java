@@ -2,6 +2,7 @@ package com.tranche.bakery.order;
 
 public enum OrderStatus {
     DRAFT,
+    INVOICED,
     PENDING_CONFIRMATION,
     PENDING_PAYMENT_SCREENSHOT,
     PAYMENT_SCREENSHOT_RECEIVED,
