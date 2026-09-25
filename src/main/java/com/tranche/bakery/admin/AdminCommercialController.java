@@ -68,6 +68,7 @@ public class AdminCommercialController {
                          @RequestParam(required = false) List<Long> itemIds,
                          @RequestParam(required = false) List<String> unitPrices,
                          @RequestParam(required = false) List<String> quantities,
+                         @RequestParam(required = false) List<Long> complimentaryItemIds,
                          RedirectAttributes ra) {
         if (phone == null || phone.isBlank()) {
             ra.addFlashAttribute("error", "A phone number is required to create a commercial order.");
@@ -79,9 +80,11 @@ public class AdminCommercialController {
             for (int i = 0; i < itemIds.size(); i++) {
                 int qty = intAt(quantities, i);
                 if (qty <= 0) continue;
+                Long itemId = itemIds.get(i);
+                boolean comp = complimentaryItemIds != null && complimentaryItemIds.contains(itemId);
                 BigDecimal price = moneyAt(unitPrices, i);
-                if (price == null) continue;
-                lines.add(new CommercialOrderService.Line(itemIds.get(i), price, qty));
+                if (!comp && price == null) continue;
+                lines.add(new CommercialOrderService.Line(itemId, price, qty, comp));
             }
         }
         if (lines.isEmpty()) {

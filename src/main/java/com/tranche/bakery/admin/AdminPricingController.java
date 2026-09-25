@@ -173,6 +173,35 @@ public class AdminPricingController {
         return "redirect:/admin/pricing";
     }
 
+    /**
+     * Non-destructive back-fill: add any rate-card category/item prices that itemised F&F customers are
+     * missing (e.g. a newly-added product). Existing custom prices are never overwritten. Customers on a
+     * single all-items flat rate are skipped — their flat already covers new products.
+     */
+    @PostMapping("/sync-preset")
+    public String syncPreset(RedirectAttributes redirectAttributes) {
+        Map<String, BigDecimal> presetCats = friendsFamilyPricing.categoryPrices();
+        Map<String, BigDecimal> presetItems = friendsFamilyPricing.itemPrices();
+        int customersUpdated = 0;
+        int pricesAdded = 0;
+        for (Customer c : customerRepository.findAllWithPricingOverride()) {
+            if (c.getCategoryPrices().isEmpty() && c.getItemPrices().isEmpty()) continue;
+            int before = c.getCategoryPrices().size() + c.getItemPrices().size();
+            presetCats.forEach(c.getCategoryPrices()::putIfAbsent);
+            presetItems.forEach(c.getItemPrices()::putIfAbsent);
+            int added = c.getCategoryPrices().size() + c.getItemPrices().size() - before;
+            if (added > 0) {
+                customerRepository.save(c);
+                customersUpdated++;
+                pricesAdded += added;
+            }
+        }
+        redirectAttributes.addFlashAttribute("flash",
+                "Synced F&F rate card — added " + pricesAdded + " missing price(s) across "
+                + customersUpdated + " customer(s). Existing custom prices were kept.");
+        return "redirect:/admin/pricing";
+    }
+
     /** Normalizes an admin-entered phone to the WhatsApp "91XXXXXXXXXX" form the webhook stores. */
     private static String normalizePhone(String raw) {
         if (raw == null) return "";

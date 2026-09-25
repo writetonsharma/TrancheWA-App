@@ -59,8 +59,8 @@ public class CommercialOrderService {
     @Value("${bakery.seller.individual.upi-name:NAVEEN SHARMA}")
     private String individualUpiName;
 
-    /** One requested line: a menu item, the admin-entered unit price, and the number of units. */
-    public record Line(Long menuItemId, BigDecimal unitPrice, int quantity) {}
+    /** One requested line: a menu item, the admin-entered unit price, the number of units, and whether it's a free gift. */
+    public record Line(Long menuItemId, BigDecimal unitPrice, int quantity, boolean complimentary) {}
 
     /** Flat, session-free projection for the commercial orders list (built inside the transaction). */
     public record CommercialOrderView(Long id, String invoiceNumber, String businessName,
@@ -101,17 +101,20 @@ public class CommercialOrderService {
         BigDecimal itemsTotal = BigDecimal.ZERO;
         List<OrderItem> items = new ArrayList<>();
         for (Line ln : lines) {
-            if (ln == null || ln.menuItemId() == null || ln.unitPrice() == null || ln.quantity() <= 0) continue;
+            if (ln == null || ln.menuItemId() == null || ln.quantity() <= 0) continue;
             MenuItem mi = menuItemRepository.findById(ln.menuItemId()).orElse(null);
             if (mi == null) continue;
-            BigDecimal unit = ln.unitPrice().setScale(2, RoundingMode.HALF_UP);
+            boolean comp = ln.complimentary();
+            if (!comp && ln.unitPrice() == null) continue; // a paid line needs a price
+            BigDecimal unit = comp ? BigDecimal.ZERO.setScale(2) : ln.unitPrice().setScale(2, RoundingMode.HALF_UP);
             BigDecimal sub = unit.multiply(BigDecimal.valueOf(ln.quantity()));
             OrderItem item = new OrderItem();
             item.setOrder(order);
             item.setMenuItem(mi);
             item.setQuantity(ln.quantity());
             item.setUnitPrice(unit);
-            item.setListUnitPrice(mi.getPrice()); // snapshot list price so the bill can show the discount
+            item.setListUnitPrice(mi.getPrice()); // snapshot list price so the bill can show the discount / gift value
+            if (comp) item.setNote("Complimentary");
             item.setSubtotal(sub);
             items.add(item);
             itemsTotal = itemsTotal.add(sub);

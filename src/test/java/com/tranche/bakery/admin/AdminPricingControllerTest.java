@@ -10,6 +10,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
+import java.math.BigDecimal;
+
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.customer.CustomerRepository;
 
@@ -45,5 +47,38 @@ class AdminPricingControllerTest {
 
         assertThat(customerRepository.findByPhone("919811843399")).isEmpty();
         assertThat(ra.getFlashAttributes().get("error")).isNotNull();
+    }
+
+    @Test
+    void syncPreset_addsMissingRateCardPrices_keepsCustomPrices() {
+        // An existing itemised F&F customer with a custom Cinnamon price and no tea cakes yet.
+        Customer c = new Customer();
+        c.setPhone("919820000001");
+        c.setName("Old FnF");
+        c.getCategoryPrices().put("Loaves", new BigDecimal("190"));
+        c.getItemPrices().put("Cinnamon Rolls", new BigDecimal("250")); // custom (rate card says 280)
+        customerRepository.save(c);
+
+        controller.syncPreset(new RedirectAttributesModelMap());
+
+        Customer reloaded = customerRepository.findByPhone("919820000001").orElseThrow();
+        assertThat(reloaded.getItemPrices().get("Lemon Tea Cake")).isEqualByComparingTo("280");
+        assertThat(reloaded.getItemPrices().get("Coffee & Walnut Tea Cake")).isEqualByComparingTo("330");
+        assertThat(reloaded.getItemPrices().get("Dark Chocolate Marble Tea Cake")).isEqualByComparingTo("300");
+        assertThat(reloaded.getItemPrices().get("Cinnamon Rolls")).isEqualByComparingTo("250"); // custom kept
+    }
+
+    @Test
+    void syncPreset_skipsAllItemsFlatCustomers() {
+        Customer c = new Customer();
+        c.setPhone("919820000002");
+        c.setName("Flat FnF");
+        c.setPricingOverride(new BigDecimal("200")); // all-items flat rate, empty maps
+        customerRepository.save(c);
+
+        controller.syncPreset(new RedirectAttributesModelMap());
+
+        Customer reloaded = customerRepository.findByPhone("919820000002").orElseThrow();
+        assertThat(reloaded.getItemPrices()).isEmpty(); // their flat already covers new products
     }
 }

@@ -251,30 +251,36 @@ public class ReceiptPdfService {
         BigDecimal commercialSavings = BigDecimal.ZERO;
         for (OrderItem it : items) {
             String name = it.getMenuItem().getName();
-            BigDecimal lineAmt;
+            String amt;
             if (commercial) {
                 String wl = it.getMenuItem().getWeightLabel();
                 if (notBlank(wl)) name = name + " (" + wl + ")";
-                lineAmt = it.getSubtotal();
-                BigDecimal list = it.getListUnitPrice();
-                BigDecimal charged = it.getUnitPrice();
-                if (list != null && charged != null && list.compareTo(charged) > 0) {
-                    name = name + "  (was " + money(list) + " each)";
-                    commercialSavings = commercialSavings.add(
-                            list.subtract(charged).multiply(BigDecimal.valueOf(it.getQuantity())));
+                if ("Complimentary".equalsIgnoreCase(it.getNote())) {
+                    name = name + " \u2014 complimentary";
+                    amt = "Free";
+                } else {
+                    BigDecimal list = it.getListUnitPrice();
+                    BigDecimal charged = it.getUnitPrice();
+                    if (list != null && charged != null && list.compareTo(charged) > 0) {
+                        name = name + "  (was " + money(list) + " each)";
+                        commercialSavings = commercialSavings.add(
+                                list.subtract(charged).multiply(BigDecimal.valueOf(it.getQuantity())));
+                    }
+                    amt = money(it.getSubtotal());
                 }
             } else {
                 BigDecimal unit = override ? c.unitPriceFor(itemName(it), categoryName(it)) : null;
-                lineAmt = unit != null
+                BigDecimal lineAmt = unit != null
                         ? unit.multiply(BigDecimal.valueOf(it.getQuantity()))
                         : it.getSubtotal();
                 if (unit != null && lineAmt.compareTo(it.getSubtotal()) < 0) {
                     name = name + "  (was " + money(it.getSubtotal()) + ")";
                 }
+                amt = money(lineAmt);
             }
             t.addCell(bodyCell(name, Element.ALIGN_LEFT));
             t.addCell(bodyCell(String.valueOf(it.getQuantity()), Element.ALIGN_CENTER));
-            t.addCell(bodyCell(money(lineAmt), Element.ALIGN_RIGHT));
+            t.addCell(bodyCell(amt, Element.ALIGN_RIGHT));
         }
         doc.add(t);
 

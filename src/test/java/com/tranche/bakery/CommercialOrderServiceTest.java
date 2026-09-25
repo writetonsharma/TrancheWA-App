@@ -31,7 +31,7 @@ class CommercialOrderServiceTest extends FlowScenarioBase {
                 "Ravi", "9876543210", "Cafe Aroma", LocalDate.now().plusDays(2),
                 "12 MG Road", "morning drop",
                 new BigDecimal("50"), SellerProfileType.COMPANY,
-                List.of(new CommercialOrderService.Line(lemon.getId(), new BigDecimal("350"), 6)));
+                List.of(new CommercialOrderService.Line(lemon.getId(), new BigDecimal("350"), 6, false)));
 
         // 6 x 350 = 2100, + 50 delivery = 2150
         assertThat(order.getTotalAmount()).isEqualByComparingTo("2150");
@@ -57,8 +57,8 @@ class CommercialOrderServiceTest extends FlowScenarioBase {
         Order order = commercialOrderService.createInvoice(
                 "Bulk Buyer", "9811111111", null, LocalDate.now().plusDays(3), null, null,
                 BigDecimal.ZERO, SellerProfileType.COMPANY,
-                List.of(new CommercialOrderService.Line(lemon.getId(), new BigDecimal("400"), 3),
-                        new CommercialOrderService.Line(coffee.getId(), new BigDecimal("490"), 0)));
+                List.of(new CommercialOrderService.Line(lemon.getId(), new BigDecimal("400"), 3, false),
+                        new CommercialOrderService.Line(coffee.getId(), new BigDecimal("490"), 0, false)));
 
         assertThat(order.getTotalAmount()).isEqualByComparingTo("1200"); // only the 3 x 400 line
         assertThat(commercialOrderService.listCommercial()).hasSize(1);
@@ -71,7 +71,7 @@ class CommercialOrderServiceTest extends FlowScenarioBase {
         Order order = commercialOrderService.createInvoice(
                 "Partner Co", "9822222222", "Partner Co", LocalDate.now().plusDays(2), null, null,
                 BigDecimal.ZERO, SellerProfileType.INDIVIDUAL,
-                List.of(new CommercialOrderService.Line(lemon.getId(), new BigDecimal("380"), 4)));
+                List.of(new CommercialOrderService.Line(lemon.getId(), new BigDecimal("380"), 4, false)));
 
         assertThat(order.getSellerProfile()).isEqualTo(SellerProfileType.INDIVIDUAL);
         assertThat(order.getTotalAmount()).isEqualByComparingTo("1520");
@@ -88,13 +88,32 @@ class CommercialOrderServiceTest extends FlowScenarioBase {
         Order order = commercialOrderService.createInvoice(
                 "Disc Buyer", "9833333333", null, LocalDate.now().plusDays(2), null, null,
                 BigDecimal.ZERO, SellerProfileType.COMPANY,
-                List.of(new CommercialOrderService.Line(lemon.getId(), new BigDecimal("350"), 6)));
+                List.of(new CommercialOrderService.Line(lemon.getId(), new BigDecimal("350"), 6, false)));
 
         assertThat(order.getTotalAmount()).isEqualByComparingTo("2100"); // 6 x 350 charged
         var items = orderItemRepository.findAllByOrderId(order.getId());
         assertThat(items).hasSize(1);
         assertThat(items.get(0).getListUnitPrice()).isEqualByComparingTo(lemon.getPrice()); // 400 snapshot
         assertThat(items.get(0).getUnitPrice()).isEqualByComparingTo("350");
+        assertThat(commercialOrderService.invoicePdf(order.getId())).isNotEmpty();
+    }
+
+    @Test
+    void createInvoice_complimentaryLine_isFree_andExcludedFromTotal() {
+        MenuItem lemon = itemRepository.findFirstByNameAndActiveTrue("Lemon Tea Cake").orElseThrow();
+        MenuItem knots = itemRepository.findFirstByNameAndActiveTrue("Garlic & Herb Knots").orElseThrow();
+
+        Order order = commercialOrderService.createInvoice(
+                "Gift Buyer", "9844444444", null, LocalDate.now().plusDays(2), null, null,
+                BigDecimal.ZERO, SellerProfileType.COMPANY,
+                List.of(new CommercialOrderService.Line(lemon.getId(), new BigDecimal("400"), 2, false),
+                        new CommercialOrderService.Line(knots.getId(), null, 1, true)));
+
+        assertThat(order.getTotalAmount()).isEqualByComparingTo("800"); // 2 x 400; complimentary knots add 0
+        var comp = orderItemRepository.findAllByOrderId(order.getId()).stream()
+                .filter(i -> "Complimentary".equalsIgnoreCase(i.getNote())).findFirst().orElseThrow();
+        assertThat(comp.getUnitPrice()).isEqualByComparingTo("0");
+        assertThat(comp.getSubtotal()).isEqualByComparingTo("0");
         assertThat(commercialOrderService.invoicePdf(order.getId())).isNotEmpty();
     }
 }
