@@ -25,6 +25,10 @@ public class MenuItem {
     @Column(name = "list_title", length = 24)
     private String listTitle;
 
+    // Net-weight label shown on commercial bills, e.g. "350 g". Nullable; synced from menu.json.
+    @Column(name = "weight_label", length = 40)
+    private String weightLabel;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

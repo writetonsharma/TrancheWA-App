@@ -111,6 +111,7 @@ public class CommercialOrderService {
             item.setMenuItem(mi);
             item.setQuantity(ln.quantity());
             item.setUnitPrice(unit);
+            item.setListUnitPrice(mi.getPrice()); // snapshot list price so the bill can show the discount
             item.setSubtotal(sub);
             items.add(item);
             itemsTotal = itemsTotal.add(sub);

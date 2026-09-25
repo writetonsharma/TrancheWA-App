@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,8 +37,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class SubscriptionService {
 
-    // Generate a week's order this many days before its delivery date (so it lands on the bake list).
-    private static final int GENERATE_LEAD_DAYS = 2;
+    // Generate a week's order this many days before its delivery date (so it lands on the bake list AND the
+    // dashboard's upcoming-deliveries window, which spans ~6 days like one-time orders). Weeks are 7 days apart,
+    // so at most one week per subscription is ever materialised within this horizon.
+    @Value("${bakery.subscription.generate-lead-days:7}")
+    private int generateLeadDays;
 
     private final SubscriptionCatalog catalog;
     private final SubscriptionRepository subscriptionRepository;
@@ -204,7 +208,7 @@ public class SubscriptionService {
     private void generateForSubscription(Subscription sub) {
         if (sub.getStartDate() == null) return;
         int total = totalWeeks(sub);
-        LocalDate horizon = LocalDate.now().plusDays(GENERATE_LEAD_DAYS);
+        LocalDate horizon = LocalDate.now().plusDays(generateLeadDays);
         for (int week = 1; week <= total; week++) {
             LocalDate deliveryDate = sub.getStartDate().plusWeeks(week - 1L);
             if (deliveryDate.isAfter(horizon)) continue;                 // too far out yet

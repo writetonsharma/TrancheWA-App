@@ -27,6 +27,10 @@ public class OrderItem {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal unitPrice;
 
+    // List price snapshot at invoice time (commercial orders) so the bill can show the per-item discount.
+    @Column(name = "list_unit_price", precision = 10, scale = 2)
+    private BigDecimal listUnitPrice;
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal subtotal;
 

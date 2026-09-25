@@ -3,6 +3,7 @@ package com.tranche.bakery;
 import com.tranche.bakery.menu.MenuItem;
 import com.tranche.bakery.order.CommercialOrderService;
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderItemRepository;
 import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.order.SellerProfileType;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,9 @@ class CommercialOrderServiceTest extends FlowScenarioBase {
 
     @Autowired
     CommercialOrderService commercialOrderService;
+
+    @Autowired
+    OrderItemRepository orderItemRepository;
 
     @Test
     void createInvoice_computesTotals_generatesInvoiceNumber_thenMarkPaidConfirms() {
@@ -74,5 +78,23 @@ class CommercialOrderServiceTest extends FlowScenarioBase {
         assertThat(commercialOrderService.invoicePdf(order.getId())).isNotEmpty();
         commercialOrderService.markPaid(order.getId());
         assertThat(commercialOrderService.receiptPdf(order.getId())).isNotEmpty();
+    }
+
+    @Test
+    void createInvoice_discountedLine_snapshotsListPrice_andInvoiceBuilds() {
+        MenuItem lemon = itemRepository.findFirstByNameAndActiveTrue("Lemon Tea Cake").orElseThrow();
+
+        // list price 400; charge 350 (₹50 off each) x 6 units
+        Order order = commercialOrderService.createInvoice(
+                "Disc Buyer", "9833333333", null, LocalDate.now().plusDays(2), null, null,
+                BigDecimal.ZERO, SellerProfileType.COMPANY,
+                List.of(new CommercialOrderService.Line(lemon.getId(), new BigDecimal("350"), 6)));
+
+        assertThat(order.getTotalAmount()).isEqualByComparingTo("2100"); // 6 x 350 charged
+        var items = orderItemRepository.findAllByOrderId(order.getId());
+        assertThat(items).hasSize(1);
+        assertThat(items.get(0).getListUnitPrice()).isEqualByComparingTo(lemon.getPrice()); // 400 snapshot
+        assertThat(items.get(0).getUnitPrice()).isEqualByComparingTo("350");
+        assertThat(commercialOrderService.invoicePdf(order.getId())).isNotEmpty();
     }
 }

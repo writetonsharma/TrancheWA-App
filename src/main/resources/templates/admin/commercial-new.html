@@ -87,24 +87,26 @@
 
     <div class="section-card">
       <div class="card-header bg-secondary text-white d-flex justify-content-between">
-        <span>Items — set the units and unit price for what they're ordering</span>
-        <small class="fw-normal">Leave units at 0 to skip a product.</small>
+        <span>Items — set the units and your price for what they're ordering</span>
+        <small class="fw-normal">Lower "Your price" below the list price to give a discount (shown on the bill). Units 0 = skip.</small>
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-sm mb-0 align-middle">
             <thead class="table-light">
-              <tr><th style="width:55%">Product</th><th>Units</th><th>Unit price (₹)</th></tr>
+              <tr><th style="width:50%">Product</th><th>Units</th><th>List price (₹)</th><th>Your price (₹)</th></tr>
             </thead>
             <tbody>
               <th:block th:each="entry : ${itemsByCategory}">
-                <tr class="cat-row"><td colspan="3" th:text="${entry.key.name}"></td></tr>
+                <tr class="cat-row"><td colspan="4" th:text="${entry.key.name}"></td></tr>
                 <tr th:each="item : ${entry.value}">
                   <td>
                     <input type="hidden" name="itemIds" th:value="${item.id}">
                     <span th:text="${item.name}"></span>
+                    <small class="text-muted" th:if="${item.weightLabel}" th:text="'(' + ${item.weightLabel} + ')'"></small>
                   </td>
                   <td><input type="number" name="quantities" class="form-control form-control-sm qty-input" min="0" value="0"></td>
+                  <td class="text-muted" th:text="'₹' + ${item.price}"></td>
                   <td><input type="number" name="unitPrices" class="form-control form-control-sm price-input" step="0.01" min="0" th:value="${item.price}"></td>
                 </tr>
               </th:block>

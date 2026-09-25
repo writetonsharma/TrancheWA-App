@@ -17,6 +17,7 @@ import com.tranche.bakery.order.FulfillmentType;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderItem;
 import com.tranche.bakery.order.OrderItemRepository;
+import com.tranche.bakery.order.OrderSource;
 import com.tranche.bakery.subscription.Subscription;
 import com.tranche.bakery.subscription.SubscriptionItem;
 import lombok.RequiredArgsConstructor;
@@ -235,7 +236,9 @@ public class ReceiptPdfService {
     private void itemsTable(Document doc, Order order, String totalLabel) {
         List<OrderItem> items = orderItemRepository.findAllByOrderId(order.getId());
         Customer c = order.getCustomer();
-        boolean override = c != null && c.hasActiveOverride();
+        boolean commercial = order.getSource() == OrderSource.COMMERCIAL;
+        // Commercial lines carry explicit per-line prices; don't apply a customer's F&F override on top.
+        boolean override = !commercial && c != null && c.hasActiveOverride();
 
         PdfPTable t = new PdfPTable(new float[]{ 6f, 1.4f, 2.4f });
         t.setWidthPercentage(100);
@@ -245,14 +248,29 @@ public class ReceiptPdfService {
         t.addCell(headCell("Qty", Element.ALIGN_CENTER));
         t.addCell(headCell("Amount", Element.ALIGN_RIGHT));
 
+        BigDecimal commercialSavings = BigDecimal.ZERO;
         for (OrderItem it : items) {
-            BigDecimal unit = override ? c.unitPriceFor(itemName(it), categoryName(it)) : null;
-            BigDecimal lineAmt = unit != null
-                    ? unit.multiply(BigDecimal.valueOf(it.getQuantity()))
-                    : it.getSubtotal();
             String name = it.getMenuItem().getName();
-            if (unit != null && lineAmt.compareTo(it.getSubtotal()) < 0) {
-                name = name + "  (was " + money(it.getSubtotal()) + ")";
+            BigDecimal lineAmt;
+            if (commercial) {
+                String wl = it.getMenuItem().getWeightLabel();
+                if (notBlank(wl)) name = name + " (" + wl + ")";
+                lineAmt = it.getSubtotal();
+                BigDecimal list = it.getListUnitPrice();
+                BigDecimal charged = it.getUnitPrice();
+                if (list != null && charged != null && list.compareTo(charged) > 0) {
+                    name = name + "  (was " + money(list) + " each)";
+                    commercialSavings = commercialSavings.add(
+                            list.subtract(charged).multiply(BigDecimal.valueOf(it.getQuantity())));
+                }
+            } else {
+                BigDecimal unit = override ? c.unitPriceFor(itemName(it), categoryName(it)) : null;
+                lineAmt = unit != null
+                        ? unit.multiply(BigDecimal.valueOf(it.getQuantity()))
+                        : it.getSubtotal();
+                if (unit != null && lineAmt.compareTo(it.getSubtotal()) < 0) {
+                    name = name + "  (was " + money(it.getSubtotal()) + ")";
+                }
             }
             t.addCell(bodyCell(name, Element.ALIGN_LEFT));
             t.addCell(bodyCell(String.valueOf(it.getQuantity()), Element.ALIGN_CENTER));
@@ -288,7 +306,9 @@ public class ReceiptPdfService {
         totalRow(tot, totalLabel, money(order.getTotalAmount()), true);
         doc.add(tot);
 
-        BigDecimal savings = nz(order.getDiscountAmount()).add(nz(order.getBatchDiscountAmount()));
+        BigDecimal savings = commercial
+                ? commercialSavings
+                : nz(order.getDiscountAmount()).add(nz(order.getBatchDiscountAmount()));
         if (savings.signum() > 0) {
             Paragraph saved = new Paragraph("You saved " + money(savings) + " on this order.",
                     FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10.5f, PAID));
