@@ -58,6 +58,10 @@ public class Order {
     @Enumerated(EnumType.STRING)
     private SellerProfileType sellerProfile = SellerProfileType.COMPANY;
 
+    // Whether order-status changes send WhatsApp updates to the customer. Retail = true; commercial is opt-in per order.
+    @Column(name = "notify_customer", nullable = false)
+    private boolean notifyCustomer = true;
+
     // Bill/invoice number for manually-created commercial orders (TRB-INV-...); null for retail.
     @Column(name = "invoice_number", unique = true, length = 30)
     private String invoiceNumber;

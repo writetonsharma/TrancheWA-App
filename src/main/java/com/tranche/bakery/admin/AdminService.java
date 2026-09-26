@@ -232,7 +232,7 @@ public class AdminService {
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.IN_BAKING);
             orderRepository.save(order);
-            customerNotifier.orderInBaking(order);
+            if (order.isNotifyCustomer()) customerNotifier.orderInBaking(order);
             log.info("Admin marked order {} as IN_BAKING", orderId);
         });
     }
@@ -242,7 +242,7 @@ public class AdminService {
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.OUT_FOR_DELIVERY);
             orderRepository.save(order);
-            customerNotifier.orderOutForDelivery(order);
+            if (order.isNotifyCustomer()) customerNotifier.orderOutForDelivery(order);
             log.info("Admin marked order {} as OUT_FOR_DELIVERY", orderId);
         });
     }
@@ -252,7 +252,7 @@ public class AdminService {
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.COMPLETED);
             orderRepository.save(order);
-            customerNotifier.orderDelivered(order);
+            if (order.isNotifyCustomer()) customerNotifier.orderDelivered(order);
             log.info("Admin marked order {} as COMPLETED", orderId);
         });
     }
@@ -262,9 +262,20 @@ public class AdminService {
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.CANCELLED);
             orderRepository.save(order);
-            customerNotifier.orderCancelled(order, null);
+            if (order.isNotifyCustomer()) customerNotifier.orderCancelled(order, null);
             log.info("Admin cancelled order {}", orderId);
         });
+    }
+
+    /** Flip whether status changes on this order send WhatsApp updates to the customer. Returns the new state. */
+    @Transactional
+    public boolean toggleNotify(Long orderId) {
+        Order order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) return false;
+        order.setNotifyCustomer(!order.isNotifyCustomer());
+        orderRepository.save(order);
+        log.info("Admin set notifyCustomer={} on order {}", order.isNotifyCustomer(), orderId);
+        return order.isNotifyCustomer();
     }
 
     public byte[] getQrImage(Long orderId) {

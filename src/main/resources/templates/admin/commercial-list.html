@@ -72,6 +72,13 @@
               </td>
               <td class="text-nowrap">
                 <a th:href="@{/admin/commercial/{id}/invoice(id=${o.id})}" class="btn btn-sm btn-outline-primary" target="_blank">Invoice PDF</a>
+                <form th:action="@{/admin/orders/{id}/toggle-notify(id=${o.id})}" method="post" class="d-inline">
+                  <input type="hidden" name="returnTo" value="/admin/commercial">
+                  <button type="submit" class="btn btn-sm"
+                          th:classappend="${o.notifyCustomer} ? 'btn-info' : 'btn-outline-secondary'"
+                          th:title="'Toggle WhatsApp status updates to the customer'"
+                          th:text="${o.notifyCustomer} ? '🔔 Updates ON' : '🔕 Updates OFF'"></button>
+                </form>
                 <form th:if="${o.status.name() == 'INVOICED'}" th:action="@{/admin/commercial/{id}/mark-paid(id=${o.id})}" method="post" class="d-inline">
                   <button type="submit" class="btn btn-sm btn-success"
                           onclick="return confirm('Confirm payment received and move this order to the bake list?')">Mark paid</button>

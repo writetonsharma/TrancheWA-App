@@ -65,6 +65,7 @@ public class AdminCommercialController {
                          @RequestParam(required = false) String notes,
                          @RequestParam(required = false) String deliveryCharge,
                          @RequestParam(required = false, defaultValue = "COMPANY") String sellerProfile,
+                         @RequestParam(required = false) boolean notifyCustomer,
                          @RequestParam(required = false) List<Long> itemIds,
                          @RequestParam(required = false) List<String> unitPrices,
                          @RequestParam(required = false) List<String> quantities,
@@ -94,7 +95,7 @@ public class AdminCommercialController {
 
         Order order = commercialOrderService.createInvoice(
                 name, phone, businessName, parseDate(deliveryDate), deliveryAddress, notes,
-                moneyOrZero(deliveryCharge), parseSeller(sellerProfile), lines);
+                moneyOrZero(deliveryCharge), parseSeller(sellerProfile), notifyCustomer, lines);
 
         ra.addFlashAttribute("flash",
                 "Invoice " + order.getInvoiceNumber() + " created — download it below and send to the buyer.");

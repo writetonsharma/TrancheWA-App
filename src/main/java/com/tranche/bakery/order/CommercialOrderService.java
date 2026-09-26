@@ -66,12 +66,13 @@ public class CommercialOrderService {
     public record CommercialOrderView(Long id, String invoiceNumber, String businessName,
                                       String customerName, String customerPhone, LocalDate deliveryDate,
                                       OrderStatus status, BigDecimal totalAmount, int itemCount,
-                                      SellerProfileType sellerProfile) {}
+                                      SellerProfileType sellerProfile, boolean notifyCustomer) {}
 
     @Transactional
     public Order createInvoice(String name, String phone, String businessName,
                                LocalDate deliveryDate, String deliveryAddress, String notes,
-                               BigDecimal deliveryCharge, SellerProfileType sellerProfile, List<Line> lines) {
+                               BigDecimal deliveryCharge, SellerProfileType sellerProfile,
+                               boolean notifyCustomer, List<Line> lines) {
         String normalizedPhone = normalizePhone(phone);
         Customer customer = customerRepository.findByPhone(normalizedPhone).orElse(null);
         if (customer == null) {
@@ -96,6 +97,7 @@ public class CommercialOrderService {
         order.setBusinessName(businessName != null && !businessName.isBlank() ? businessName.trim() : null);
         order.setDeliveryCharge(deliveryCharge != null ? deliveryCharge : BigDecimal.ZERO);
         order.setSellerProfile(sellerProfile != null ? sellerProfile : SellerProfileType.COMPANY);
+        order.setNotifyCustomer(notifyCustomer);
         order = orderRepository.save(order); // persist to obtain the id used for the invoice number
 
         BigDecimal itemsTotal = BigDecimal.ZERO;
@@ -193,7 +195,8 @@ public class CommercialOrderService {
             int count = orderItemRepository.findAllByOrderId(o.getId()).size();
             views.add(new CommercialOrderView(o.getId(), o.getInvoiceNumber(), o.getBusinessName(),
                     c != null ? c.getName() : null, c != null ? c.getPhone() : null,
-                    o.getDeliveryDate(), o.getStatus(), o.getTotalAmount(), count, o.getSellerProfile()));
+                    o.getDeliveryDate(), o.getStatus(), o.getTotalAmount(), count, o.getSellerProfile(),
+                    o.isNotifyCustomer()));
         }
         return views;
     }

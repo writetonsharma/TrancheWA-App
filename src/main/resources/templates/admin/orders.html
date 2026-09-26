@@ -152,6 +152,13 @@
                   <button type="submit" class="btn btn-sm btn-primary"
                           onclick="return confirm('Mark this order as completed?')">Complete</button>
                 </form>
+                <form th:action="@{/admin/orders/{id}/toggle-notify(id=${v.order.id})}" method="post" class="d-inline">
+                  <input type="hidden" name="returnTo" th:value="@{/admin/orders(from=${fFrom},to=${fTo},status=${fStatus},customer=${fCustomer},page=${orderPage.page})}">
+                  <button type="submit" class="btn btn-sm"
+                          th:classappend="${v.order.notifyCustomer} ? 'btn-outline-info' : 'btn-outline-secondary'"
+                          th:title="${v.order.notifyCustomer} ? 'Customer WhatsApp updates ON — click to silence' : 'Customer WhatsApp updates OFF — click to enable'"
+                          th:text="${v.order.notifyCustomer} ? '🔔' : '🔕'"></button>
+                </form>
                 <form th:if="${v.order.status.name() != 'CANCELLED' and v.order.status.name() != 'COMPLETED'}"
                       th:action="@{/admin/orders/{id}/cancel(id=${v.order.id})}" method="post" class="d-inline">
                   <input type="hidden" name="returnTo" th:value="@{/admin/orders(from=${fFrom},to=${fTo},status=${fStatus},customer=${fCustomer},page=${orderPage.page})}">

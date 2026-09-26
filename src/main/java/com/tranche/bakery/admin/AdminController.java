@@ -198,6 +198,16 @@ public class AdminController {
         return redirectTo(returnTo, "/admin");
     }
 
+    @PostMapping("/orders/{id}/toggle-notify")
+    public String toggleNotify(@PathVariable Long id,
+                               @RequestParam(required = false) String returnTo,
+                               RedirectAttributes redirectAttributes) {
+        boolean on = adminService.toggleNotify(id);
+        redirectAttributes.addFlashAttribute("flash",
+                "Order #" + id + " — customer WhatsApp updates " + (on ? "ON" : "OFF") + ".");
+        return redirectTo(returnTo, "/admin");
+    }
+
     @PostMapping("/alerts/resolve-all")
     public String resolveAllAlerts(RedirectAttributes redirectAttributes) {
         adminService.resolveAllAlerts();

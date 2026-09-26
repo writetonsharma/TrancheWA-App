@@ -258,6 +258,13 @@
                       th:action="@{/admin/orders/{id}/complete(id=${v.order.id})}" method="post" class="d-inline">
                   <button type="submit" class="btn btn-sm btn-success">✅ Delivered</button>
                 </form>
+                <form th:action="@{/admin/orders/{id}/toggle-notify(id=${v.order.id})}" method="post" class="d-inline">
+                  <input type="hidden" name="returnTo" value="/admin">
+                  <button type="submit" class="btn btn-sm"
+                          th:classappend="${v.order.notifyCustomer} ? 'btn-outline-info' : 'btn-outline-secondary'"
+                          th:title="${v.order.notifyCustomer} ? 'Customer WhatsApp updates ON — click to silence' : 'Customer WhatsApp updates OFF — click to enable'"
+                          th:text="${v.order.notifyCustomer} ? '🔔' : '🔕'"></button>
+                </form>
               </td>
             </tr>
           </tbody>
