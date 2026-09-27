@@ -15,6 +15,7 @@ import com.tranche.bakery.payment.Payment;
 import com.tranche.bakery.payment.PaymentRepository;
 import com.tranche.bakery.payment.PaymentTestMode;
 import com.tranche.bakery.payment.QrCodeService;
+import com.tranche.bakery.payment.RazorpayService;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import com.tranche.bakery.whatsapp.WhatsAppMessage;
 
@@ -32,12 +33,16 @@ public class SendPaymentQrAction implements FlowAction {
     private final WhatsAppClient whatsAppClient;
     private final AlertService alertService;
     private final PaymentTestMode paymentTestMode;
+    private final RazorpayService razorpayService;
 
     @Value("${bakery.payment.upi-id}")
     private String upiId;
 
     @Value("${bakery.payment.upi-name}")
     private String upiName;
+
+    @Value("${bakery.payment.provider:UPI_QR}")
+    private String paymentProvider;
 
     @Override
     public String getName() { return "SEND_PAYMENT_QR"; }
@@ -76,6 +81,31 @@ public class SendPaymentQrAction implements FlowAction {
         String orderRef = order.getOrderNumber() != null ? order.getOrderNumber() : String.valueOf(order.getId());
         // UPI/WhatsApp note accepts letters, numbers and spaces only — turn any other char into a space.
         String note = ("Tranche Bakery Order " + orderRef).replaceAll("[^A-Za-z0-9 ]", " ").replaceAll(" +", " ").trim();
+
+        // Razorpay path: send a hosted payment link; the webhook auto-confirms the order (no screenshot).
+        if ("RAZORPAY".equalsIgnoreCase(paymentProvider) && razorpayService.isConfigured()) {
+            try {
+                RazorpayService.PaymentLink link = razorpayService.createPaymentLink(
+                        amount, note, orderRef,
+                        ctx.getCustomer().getName(), ctx.getCustomer().getPhone(),
+                        java.util.Map.of("kind", "ORDER", "orderId", String.valueOf(order.getId())));
+                String msg = String.format(
+                        "*Order %s \u2014 \u20b9%.2f*%s%n%n\uD83D\uDC49 Tap to pay securely (UPI, card or netbanking):%n%s%n%nYour order confirms automatically the moment payment is received. \uD83E\uDD56",
+                        orderRef, amount, savingsLine(order), link.shortUrl());
+                whatsAppClient.sendText(ctx.getCustomer().getPhone(), msg);
+                try {
+                    whatsAppClient.sendButtons(ctx.getCustomer().getPhone(),
+                            "Need to cancel this order? You can do so below.",
+                            List.of(new WhatsAppMessage.Button("cancel_" + order.getId(), "Cancel Order")));
+                } catch (Exception ignore) { /* best effort */ }
+                log.info("Sent Razorpay payment link {} for order {}", link.id(), order.getId());
+                return;
+            } catch (Exception e) {
+                log.error("Razorpay link failed for order {} \u2014 falling back to UPI QR: {}", order.getId(), e.getMessage());
+                // fall through to the UPI QR flow below
+            }
+        }
+
         log.info("Sending payment QR for order {} amount {}", order.getId(), amount);
 
         try {

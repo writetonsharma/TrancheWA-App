@@ -10,6 +10,7 @@ import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.payment.PaymentTestMode;
 import com.tranche.bakery.payment.QrCodeService;
+import com.tranche.bakery.payment.RazorpayService;
 import com.tranche.bakery.subscription.Subscription;
 import com.tranche.bakery.subscription.SubscriptionRepository;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
@@ -31,12 +32,16 @@ public class SubSendQrAction implements FlowAction {
     private final WhatsAppClient whatsAppClient;
     private final AlertService alertService;
     private final PaymentTestMode paymentTestMode;
+    private final RazorpayService razorpayService;
 
     @Value("${bakery.payment.upi-id}")
     private String upiId;
 
     @Value("${bakery.payment.upi-name}")
     private String upiName;
+
+    @Value("${bakery.payment.provider:UPI_QR}")
+    private String paymentProvider;
 
     @Override
     public String getName() { return "SUB_SEND_QR"; }
@@ -54,6 +59,27 @@ public class SubSendQrAction implements FlowAction {
         BigDecimal amount = paymentTestMode.amountFor(phone, sub.getUpfrontAmount());
         String note = ("Tranche Bakery Subscription " + sub.getId())
                 .replaceAll("[^A-Za-z0-9 ]", " ").replaceAll(" +", " ").trim();
+
+        // Razorpay path: send a hosted payment link; the webhook activates the subscription (no screenshot).
+        if ("RAZORPAY".equalsIgnoreCase(paymentProvider) && razorpayService.isConfigured()) {
+            try {
+                RazorpayService.PaymentLink link = razorpayService.createPaymentLink(
+                        amount, note, "SUB-" + sub.getId(),
+                        ctx.getCustomer().getName(), phone,
+                        java.util.Map.of("kind", "SUBSCRIPTION", "subscriptionId", String.valueOf(sub.getId())));
+                whatsAppClient.sendText(phone, String.format(
+                        "*%s subscription \u2014 \u20b9%s*%n%n\uD83D\uDC49 Tap to pay securely (UPI, card or netbanking):%n%s%n%nYour subscription activates automatically once payment is received. \uD83E\uDD56",
+                        sub.getPlanName(), amount.stripTrailingZeros().toPlainString(), link.shortUrl()));
+                whatsAppClient.sendButtons(phone,
+                        "Changed your mind? You can cancel below.",
+                        List.of(new WhatsAppMessage.Button("sub_cancel", "Cancel")));
+                log.info("Sent Razorpay payment link {} for subscription {}", link.id(), sub.getId());
+                return;
+            } catch (Exception e) {
+                log.error("Razorpay link failed for subscription {} \u2014 falling back to UPI QR: {}", sub.getId(), e.getMessage());
+                // fall through to the UPI QR flow below
+            }
+        }
 
         try {
             byte[] qrPng = qrCodeService.generateUpiQrPng(upiId, upiName, amount, note);
