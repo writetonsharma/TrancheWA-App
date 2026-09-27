@@ -125,15 +125,13 @@ public class AdminService {
 
     @Transactional
     public void approvePayment(Long orderId) {
+        int flipped = orderRepository.confirmIfNotConfirmed(orderId, OrderStatus.CONFIRMED);
         orderRepository.findById(orderId).ifPresent(order -> {
-            boolean firstConfirm = order.getStatus() != OrderStatus.CONFIRMED;
-            order.setStatus(OrderStatus.CONFIRMED);
-            orderRepository.save(order);
             paymentRepository.findByOrder(order).ifPresent(payment -> {
                 payment.setStatus(com.tranche.bakery.payment.PaymentStatus.SCREENSHOT_VERIFIED);
                 paymentRepository.save(payment);
             });
-            if (firstConfirm) {
+            if (flipped == 1) {
                 consumeCredit(order);
                 customerNotifier.orderConfirmed(order);
             }

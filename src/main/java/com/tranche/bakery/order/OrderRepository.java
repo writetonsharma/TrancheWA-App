@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,6 +16,12 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     Optional<Order> findTopByCustomerIdAndStatusOrderByCreatedAtDesc(Long customerId, OrderStatus status);
 
     Optional<Order> findTopByCustomerIdAndStatusInOrderByCreatedAtDesc(Long customerId, Collection<OrderStatus> statuses);
+
+    // Atomic, race-safe confirm: flips to CONFIRMED only if not already, so a duplicate/retried payment
+    // webhook (or two events for one payment) confirms and notifies the customer exactly once. Returns rows updated.
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Order o SET o.status = :confirmed WHERE o.id = :id AND o.status <> :confirmed")
+    int confirmIfNotConfirmed(@Param("id") Long id, @Param("confirmed") OrderStatus confirmed);
 
     // "Last order" / reorder must ignore ₹0 subscription weekly orders (subscriptionId IS NULL) so it repeats a real order.
     Optional<Order> findTopByCustomerIdAndSubscriptionIdIsNullAndStatusInOrderByCreatedAtDesc(

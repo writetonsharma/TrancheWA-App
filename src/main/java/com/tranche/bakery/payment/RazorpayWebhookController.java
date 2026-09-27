@@ -42,13 +42,13 @@ public class RazorpayWebhookController {
         try {
             JsonNode root = mapper.readTree(rawBody);
             String event = root.path("event").asText("");
-            JsonNode notes = switch (event) {
-                case "payment_link.paid" -> root.path("payload").path("payment_link").path("entity").path("notes");
-                case "payment.captured" -> root.path("payload").path("payment").path("entity").path("notes");
-                default -> null;
-            };
-            if (notes != null && !notes.isMissingNode()) {
-                route(event, notes);
+            // A paid payment link emits BOTH payment_link.paid and payment.captured; act on the link
+            // event only so the order/subscription is confirmed once (payment.captured is ignored here).
+            if ("payment_link.paid".equals(event)) {
+                JsonNode notes = root.path("payload").path("payment_link").path("entity").path("notes");
+                if (!notes.isMissingNode()) {
+                    route(event, notes);
+                }
             }
             return ResponseEntity.ok("ok");
         } catch (Exception e) {
