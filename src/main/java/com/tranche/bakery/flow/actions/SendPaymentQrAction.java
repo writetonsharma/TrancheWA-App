@@ -11,6 +11,7 @@ import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderRepository;
+import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.payment.Payment;
 import com.tranche.bakery.payment.PaymentRepository;
 import com.tranche.bakery.payment.PaymentTestMode;
@@ -60,6 +61,17 @@ public class SendPaymentQrAction implements FlowAction {
         if (order == null) {
             whatsAppClient.sendText(ctx.getCustomer().getPhone(),
                     "We couldn't find your order. Send *hi* to return to the main menu.");
+            return;
+        }
+
+        // Only send a payment prompt while the order is still awaiting payment. Guards against a stale
+        // button (e.g. the review-message "Cancel") re-entering PAYMENT_PENDING after the Razorpay webhook
+        // already confirmed the order — without this it would re-issue a payment link/QR for a paid order.
+        if (order.getStatus() != OrderStatus.PENDING_CONFIRMATION) {
+            String ref = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
+            whatsAppClient.sendText(ctx.getCustomer().getPhone(), order.getStatus() == OrderStatus.CANCELLED
+                    ? "Order " + ref + " was cancelled. Send *hi* to place a new order. \uD83E\uDD56"
+                    : "\u2705 Order " + ref + " is already confirmed \u2014 no further payment is needed. Send *hi* anytime. \uD83E\uDD56");
             return;
         }
 

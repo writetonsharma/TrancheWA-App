@@ -855,4 +855,31 @@ class OrderFlowTest extends FlowScenarioBase {
                 .as("delivery preference should be skipped when already set")
                 .isNotEqualTo("DELIVERY_PREFERENCE");
     }
+
+    // -- Regression: a stale review-message button after payment must NOT re-charge --
+    // The payment webhook confirms the order in the DB but leaves the WhatsApp conversation
+    // in PAYMENT_PENDING. Tapping an old "Cancel" button there matches no transition, so the
+    // engine re-runs SEND_PAYMENT_QR — which must not issue a fresh payment prompt for an
+    // already-confirmed order.
+    @Test
+    void paymentPending_staleButtonAfterConfirm_doesNotResendPayment() {
+        Long orderId = driveToPaymentQr();
+
+        Order order = orderRepository.findById(orderId).orElseThrow();
+        order.setStatus(OrderStatus.CONFIRMED);
+        orderRepository.save(order);
+
+        sentTexts.clear();
+        sentButtonTitles.clear();
+
+        send("cancel");   // old review-message button; unmatched in PAYMENT_PENDING
+
+        assertThat(sentTexts)
+                .as("already-confirmed order tells the customer no payment is needed")
+                .anyMatch(t -> t.contains("already confirmed"));
+        assertThat(sentButtonTitles)
+                .as("no fresh payment prompt for a paid order")
+                .doesNotContain("Cancel Order");
+        assertOrderStatus(orderId, OrderStatus.CONFIRMED);
+    }
 }
