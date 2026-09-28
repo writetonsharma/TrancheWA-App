@@ -15,6 +15,7 @@ import com.tranche.bakery.conversation.WhatsappConversation;
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderService;
+import com.tranche.bakery.payment.RazorpayService;
 import com.tranche.bakery.subscription.Subscription;
 import com.tranche.bakery.subscription.SubscriptionRepository;
 import com.tranche.bakery.subscription.SubscriptionService;
@@ -62,6 +63,7 @@ public class FlowEngine {
     private final OrderService orderService;
     private final SubscriptionService subscriptionService;
     private final SubscriptionRepository subscriptionRepository;
+    private final RazorpayService razorpayService;
     private final List<FlowAction> actions;
 
     @Transactional
@@ -177,6 +179,22 @@ public class FlowEngine {
                         "This subscription can no longer be paid. Send *hi* to return to the main menu.");
             }
             return;
+        }
+
+        // In gateway mode the webhook confirms payment, so a screenshot proves nothing and must not
+        // open a review item. Re-surface the live link instead — it is the only way to pay.
+        if ("image".equals(messageType) && razorpayService.isGatewayMode()) {
+            Order awaiting = orderService.findAwaitingPayment(customer.getId()).orElse(null);
+            if (awaiting != null) {
+                whatsAppClient.sendText(phone,
+                        "Thanks! No screenshot needed \u2014 your order confirms by itself the moment payment goes "
+                                + "through. If you haven't paid yet, use the link below. \uD83E\uDD56");
+                Map<String, Object> payCtx = new HashMap<>();
+                payCtx.put("orderId", awaiting.getId().toString());
+                conversation.setContext(payCtx);
+                enterState(customer, conversation, "PAYMENT_PENDING", input, messageType, rawMessage);
+                return;
+            }
         }
 
         // Global late-payment recovery: an image arrives but there is no active order awaiting

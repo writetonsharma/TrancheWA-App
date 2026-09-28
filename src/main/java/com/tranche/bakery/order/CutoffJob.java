@@ -8,7 +8,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tranche.bakery.admin.AdminService;
+import com.tranche.bakery.alert.AlertService;
 import com.tranche.bakery.conversation.ConversationRepository;
+import com.tranche.bakery.payment.Payment;
 import com.tranche.bakery.payment.PaymentRepository;
 import com.tranche.bakery.payment.RazorpayService;
 import com.tranche.bakery.whatsapp.CustomerNotifier;
@@ -26,6 +29,8 @@ public class CutoffJob {
     private final ConversationRepository conversationRepository;
     private final PaymentRepository paymentRepository;
     private final RazorpayService razorpayService;
+    private final AdminService adminService;
+    private final AlertService alertService;
     private final WhatsAppClient whatsAppClient;
     private final CustomerNotifier customerNotifier;
 
@@ -42,10 +47,17 @@ public class CutoffJob {
         List<Order> drafts = orderRepository.findAllByStatusIn(List.of(OrderStatus.DRAFT));
 
         // Confirmed but unpaid — only cancel if delivery date is tomorrow or earlier (cutoff passed)
-        List<Order> pendingPayment = orderRepository.findAllByStatusIn(
+        List<Order> dueForCancel = orderRepository.findAllByStatusIn(
                 List.of(OrderStatus.PENDING_CONFIRMATION)).stream()
                 .filter(o -> o.getDeliveryDate() == null || !o.getDeliveryDate().isAfter(tomorrow))
                 .toList();
+
+        // Settle before destroying: an order whose payment webhook never arrived looks unpaid here, and
+        // cancelling it would leave us holding the customer's money with no order. Drops out of the list.
+        List<Order> pendingPayment = new ArrayList<>();
+        for (Order order : dueForCancel) {
+            if (!settledAtGateway(order)) pendingPayment.add(order);
+        }
 
         List<Order> expiredOrders = new ArrayList<>();
         expiredOrders.addAll(drafts);
@@ -89,6 +101,44 @@ public class CutoffJob {
         for (Order order : pendingPayment) {
             customerNotifier.orderCancelled(order, "Payment was not received before the daily cut-off.");
         }
+    }
+
+    /**
+     * Asks Razorpay what really happened to this order's link before we cancel it. Returns true when the
+     * money is already at the gateway, in which case the order must not be cancelled.
+     */
+    private boolean settledAtGateway(Order order) {
+        if (!razorpayService.isConfigured()) return false;
+        String linkId = paymentRepository.findByOrder(order).map(Payment::getGatewayLinkId).orElse(null);
+        if (linkId == null) return false;
+
+        RazorpayService.LinkState state;
+        try {
+            state = razorpayService.fetchPaymentLink(linkId);
+        } catch (Exception e) {
+            // Unreachable gateway must not confirm anything. Cancelling is the safe default: the status
+            // guard in confirmGatewayPayment then holds any late payment for review instead of dropping it.
+            log.warn("Cutoff job: could not check payment link {} for order {} — {}",
+                    linkId, order.getId(), e.getMessage());
+            return false;
+        }
+
+        if ("paid".equals(state.status())) {
+            log.warn("Cutoff job: link {} for order {} is paid but no webhook arrived — confirming now",
+                    linkId, order.getId());
+            adminService.confirmGatewayPayment(order.getId(), state.paymentId(), linkId, state.amountPaid());
+            return true;
+        }
+        if ("partially_paid".equals(state.status())) {
+            order.setStatus(OrderStatus.PAYMENT_REVIEW_REQUIRED);
+            orderRepository.save(order);
+            alertService.raise("PAYMENT_PARTIAL",
+                    "Link " + linkId + " for order " + order.getId() + " took a partial payment of "
+                            + state.amountPaid() + " and reached the cutoff. Held for review, not cancelled.",
+                    order.getId(), order.getCustomer().getPhone());
+            return true;
+        }
+        return false;
     }
 
     /**

@@ -40,8 +40,21 @@ public class SubSendQrAction implements FlowAction {
     @Value("${bakery.payment.upi-name}")
     private String upiName;
 
-    @Value("${bakery.payment.provider:UPI_QR}")
-    private String paymentProvider;
+    @Value("${bakery.support.whatsapp}")
+    private String supportPhone;
+
+    private String supportLine() {
+        return "Trouble paying? Message or call us on " + supportPhone + ".";
+    }
+
+    /** An unpaid link for the same amount is still good — re-send it rather than mint a second one. */
+    private String reusableLinkUrl(Subscription sub, BigDecimal amount) {
+        return sub.getGatewayLinkUrl() != null
+                && sub.getGatewayChargedAmount() != null
+                && sub.getGatewayChargedAmount().compareTo(amount) == 0
+                        ? sub.getGatewayLinkUrl()
+                        : null;
+    }
 
     @Override
     public String getName() { return "SUB_SEND_QR"; }
@@ -60,33 +73,59 @@ public class SubSendQrAction implements FlowAction {
         String note = ("Tranche Bakery Subscription " + sub.getId())
                 .replaceAll("[^A-Za-z0-9 ]", " ").replaceAll(" +", " ").trim();
 
-        // Razorpay path: send a hosted payment link; the webhook activates the subscription (no screenshot).
-        if ("RAZORPAY".equalsIgnoreCase(paymentProvider) && razorpayService.isConfigured()) {
-            try {
-                RazorpayService.PaymentLink link = razorpayService.createPaymentLink(
-                        amount, note, "SUB-" + sub.getId(),
-                        ctx.getCustomer().getName(), phone,
-                        java.util.Map.of("kind", "SUBSCRIPTION", "subscriptionId", String.valueOf(sub.getId())),
-                        null);
+        // Gateway path: a hosted payment link, activated by the webhook. No fall back to the QR flow —
+        // two live payment routes for one subscription invites a double payment.
+        if (razorpayService.isGatewayMode()) {
+            String linkUrl = reusableLinkUrl(sub, amount);
+            if (linkUrl == null) {
+                // Only reached when the amount changed, so the old link would collect the wrong sum.
+                if (sub.getGatewayLinkId() != null) {
+                    try {
+                        razorpayService.cancelPaymentLink(sub.getGatewayLinkId());
+                    } catch (Exception e) {
+                        log.warn("Could not cancel superseded link {} for subscription {} \u2014 {}",
+                                sub.getGatewayLinkId(), sub.getId(), e.getMessage());
+                    }
+                }
+                // reference_id must be unique per link, so a re-issue cannot reuse the plain sub ref.
+                String referenceId = sub.getGatewayLinkId() == null
+                        ? "SUB-" + sub.getId()
+                        : "SUB-" + sub.getId() + "-" + java.time.Instant.now().getEpochSecond();
+                try {
+                    RazorpayService.PaymentLink link = razorpayService.createPaymentLink(
+                            amount, note, referenceId,
+                            ctx.getCustomer().getName(), phone,
+                            java.util.Map.of("kind", "SUBSCRIPTION", "subscriptionId", String.valueOf(sub.getId())),
+                            null);
 
-                // Record the link and the amount charged before the customer can pay, so the webhook
-                // can reconcile and amount-verify before activating.
-                sub.setGatewayLinkId(link.id());
-                sub.setGatewayChargedAmount(amount);
-                subscriptionRepository.save(sub);
-
-                whatsAppClient.sendText(phone, String.format(
-                        "*%s subscription \u2014 \u20b9%s*%n%n\uD83D\uDC49 Tap to pay securely (UPI, card or netbanking):%n%s%n%nYour subscription activates automatically once payment is received. \uD83E\uDD56",
-                        sub.getPlanName(), amount.stripTrailingZeros().toPlainString(), link.shortUrl()));
-                whatsAppClient.sendButtons(phone,
-                        "Changed your mind? You can cancel below.",
-                        List.of(new WhatsAppMessage.Button("sub_cancel", "Cancel")));
-                log.info("Sent Razorpay payment link {} for subscription {}", link.id(), sub.getId());
-                return;
-            } catch (Exception e) {
-                log.error("Razorpay link failed for subscription {} \u2014 falling back to UPI QR: {}", sub.getId(), e.getMessage());
-                // fall through to the UPI QR flow below
+                    // Recorded before the customer can pay, so the webhook can reconcile and
+                    // amount-verify before activating.
+                    sub.setGatewayLinkId(link.id());
+                    sub.setGatewayLinkUrl(link.shortUrl());
+                    sub.setGatewayChargedAmount(amount);
+                    subscriptionRepository.save(sub);
+                    linkUrl = link.shortUrl();
+                    log.info("Created Razorpay payment link {} for subscription {}", link.id(), sub.getId());
+                } catch (Exception e) {
+                    log.error("Razorpay link failed for subscription {}: {}", sub.getId(), e.getMessage());
+                    alertService.raise("PAYMENT_LINK_FAILED",
+                            "Could not create a Razorpay link for subscription " + sub.getId() + ": " + e.getMessage(),
+                            null, phone);
+                    whatsAppClient.sendText(phone, String.format(
+                            "We couldn't generate the payment link for your %s subscription just now.%n%n%s",
+                            sub.getPlanName(), supportLine()));
+                    return;
+                }
             }
+
+            whatsAppClient.sendText(phone, String.format(
+                    "*%s subscription \u2014 \u20b9%s*%n%n\uD83D\uDC49 Tap to pay securely (UPI, card or netbanking):%n%s%n%n"
+                            + "Your subscription activates automatically once payment is received. \uD83E\uDD56%n%n%s",
+                    sub.getPlanName(), amount.stripTrailingZeros().toPlainString(), linkUrl, supportLine()));
+            whatsAppClient.sendButtons(phone,
+                    "Changed your mind? You can cancel below.",
+                    List.of(new WhatsAppMessage.Button("sub_cancel", "Cancel")));
+            return;
         }
 
         try {

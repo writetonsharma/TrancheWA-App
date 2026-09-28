@@ -181,10 +181,16 @@ public class AdminService {
 
         if (order.getStatus() == OrderStatus.CONFIRMED) {
             paymentRepository.save(payment);
-            if (gatewayPaymentId != null && priorPaymentId != null && !priorPaymentId.equals(gatewayPaymentId)) {
+            // Only a repeat of the same payment id is a harmless webhook retry. Money arriving against an
+            // order settled any other way — including by approved screenshot, which leaves no payment id —
+            // means the customer was charged twice.
+            boolean sameChargeRetried = gatewayPaymentId != null && gatewayPaymentId.equals(priorPaymentId);
+            if (gatewayPaymentId != null && !sameChargeRetried) {
                 alertService.raise("PAYMENT_DUPLICATE_CHARGE",
-                        "Order " + orderId + " was already paid by " + priorPaymentId + ", but gateway payment "
-                                + gatewayPaymentId + " of " + paidAmount + " also arrived. Refund required.",
+                        "Order " + orderId + " was already settled"
+                                + (priorPaymentId != null ? " by " + priorPaymentId : " without a gateway payment")
+                                + ", but gateway payment " + gatewayPaymentId + " of " + paidAmount
+                                + " also arrived. Refund required.",
                         orderId, customerPhone);
             } else {
                 log.info("Gateway payment {} for already-confirmed order {} — no action", gatewayPaymentId, orderId);

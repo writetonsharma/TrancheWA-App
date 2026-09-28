@@ -272,6 +272,12 @@ public class OrderService {
         return !orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PENDING_CONFIRMATION).isEmpty();
     }
 
+    /** The order the customer is currently being asked to pay for, if any. */
+    public Optional<Order> findAwaitingPayment(Long customerId) {
+        return orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PENDING_CONFIRMATION)
+                .stream().findFirst();
+    }
+
     /** An order the customer may still pay for: theirs, and awaiting payment. */
     public Optional<Order> findPayableForCustomer(Long orderId, Long customerId) {
         return orderRepository.findById(orderId)

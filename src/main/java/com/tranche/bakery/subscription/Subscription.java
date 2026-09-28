@@ -78,6 +78,10 @@ public class Subscription {
     @Column(name = "gateway_link_id", length = 100)
     private String gatewayLinkId;
 
+    // Kept so a repeat payment prompt re-sends this link rather than creating a second one.
+    @Column(name = "gateway_link_url", length = 255)
+    private String gatewayLinkUrl;
+
     @Column(name = "gateway_payment_id", length = 100)
     private String gatewayPaymentId;
 

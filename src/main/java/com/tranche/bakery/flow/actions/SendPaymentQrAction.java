@@ -46,13 +46,28 @@ public class SendPaymentQrAction implements FlowAction {
     @Value("${bakery.payment.upi-name}")
     private String upiName;
 
-    @Value("${bakery.payment.provider:UPI_QR}")
-    private String paymentProvider;
+    @Value("${bakery.support.whatsapp}")
+    private String supportPhone;
 
     @Value("${bakery.order.cutoff-hour}")
     private int cutoffHour;
 
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
+
+    private String supportLine() {
+        return "Trouble paying? Message or call us on " + supportPhone + ".";
+    }
+
+    /** An unpaid link for the same amount is still good — re-send it rather than mint a second one. */
+    private String reusableLinkUrl(Payment payment, BigDecimal amount) {
+        return payment.getStatus() == PaymentStatus.PENDING
+                && "RAZORPAY".equals(payment.getProvider())
+                && payment.getGatewayLinkUrl() != null
+                && payment.getAmount() != null
+                && payment.getAmount().compareTo(amount) == 0
+                        ? payment.getGatewayLinkUrl()
+                        : null;
+    }
 
     /** CutoffJob cancels the order at the cutoff the evening before its bake day, so the link dies then too. */
     private Instant cutoffInstantFor(Order order) {
@@ -110,43 +125,68 @@ public class SendPaymentQrAction implements FlowAction {
         // UPI/WhatsApp note accepts letters, numbers and spaces only — turn any other char into a space.
         String note = ("Tranche Bakery Order " + orderRef).replaceAll("[^A-Za-z0-9 ]", " ").replaceAll(" +", " ").trim();
 
-        // Razorpay path: send a hosted payment link; the webhook auto-confirms the order (no screenshot).
-        if ("RAZORPAY".equalsIgnoreCase(paymentProvider) && razorpayService.isConfigured()) {
-            try {
-                RazorpayService.PaymentLink link = razorpayService.createPaymentLink(
-                        amount, note, orderRef,
-                        ctx.getCustomer().getName(), ctx.getCustomer().getPhone(),
-                        java.util.Map.of("kind", "ORDER", "orderId", String.valueOf(order.getId())),
-                        cutoffInstantFor(order));
+        // Gateway path: a hosted payment link, auto-confirmed by the webhook. There is deliberately no
+        // fall back to the QR flow — two live payment routes for one order invites a double payment.
+        if (razorpayService.isGatewayMode()) {
+            Payment gatewayPayment = paymentRepository.findByOrder(order).orElseGet(() -> {
+                Payment p = new Payment();
+                p.setOrder(order);
+                return p;
+            });
 
-                // Record the link and the amount we asked for before the customer can pay, so the webhook
-                // has a local record to reconcile against and a figure to amount-verify the payment against.
-                Payment gatewayPayment = paymentRepository.findByOrder(order).orElseGet(() -> {
-                    Payment p = new Payment();
-                    p.setOrder(order);
-                    return p;
-                });
-                gatewayPayment.setProvider("RAZORPAY");
-                gatewayPayment.setGatewayLinkId(link.id());
-                gatewayPayment.setAmount(amount);
-                gatewayPayment.setStatus(PaymentStatus.PENDING);
-                paymentRepository.save(gatewayPayment);
-
-                String msg = String.format(
-                        "*Order %s \u2014 \u20b9%.2f*%s%n%n\uD83D\uDC49 Tap to pay securely (UPI, card or netbanking):%n%s%n%nYour order confirms automatically the moment payment is received. \uD83E\uDD56",
-                        orderRef, amount, savingsLine(order), link.shortUrl());
-                whatsAppClient.sendText(ctx.getCustomer().getPhone(), msg);
+            String linkUrl = reusableLinkUrl(gatewayPayment, amount);
+            if (linkUrl == null) {
+                // Only reached when the amount changed, so the old link would collect the wrong sum.
+                if (gatewayPayment.getGatewayLinkId() != null) {
+                    try {
+                        razorpayService.cancelPaymentLink(gatewayPayment.getGatewayLinkId());
+                    } catch (Exception e) {
+                        log.warn("Could not cancel superseded link {} for order {} \u2014 {}",
+                                gatewayPayment.getGatewayLinkId(), order.getId(), e.getMessage());
+                    }
+                }
+                // reference_id must be unique per link, so a re-issue cannot reuse the plain order ref.
+                String referenceId = gatewayPayment.getGatewayLinkId() == null
+                        ? orderRef : orderRef + "-" + Instant.now().getEpochSecond();
                 try {
-                    whatsAppClient.sendButtons(ctx.getCustomer().getPhone(),
-                            "Need to cancel this order? You can do so below.",
-                            List.of(new WhatsAppMessage.Button("cancel_" + order.getId(), "Cancel Order")));
-                } catch (Exception ignore) { /* best effort */ }
-                log.info("Sent Razorpay payment link {} for order {}", link.id(), order.getId());
-                return;
-            } catch (Exception e) {
-                log.error("Razorpay link failed for order {} \u2014 falling back to UPI QR: {}", order.getId(), e.getMessage());
-                // fall through to the UPI QR flow below
+                    RazorpayService.PaymentLink link = razorpayService.createPaymentLink(
+                            amount, note, referenceId,
+                            ctx.getCustomer().getName(), ctx.getCustomer().getPhone(),
+                            java.util.Map.of("kind", "ORDER", "orderId", String.valueOf(order.getId())),
+                            cutoffInstantFor(order));
+
+                    // Recorded before the customer can pay, so the webhook has a local row to reconcile
+                    // against and a figure to amount-verify the payment against.
+                    gatewayPayment.setProvider("RAZORPAY");
+                    gatewayPayment.setGatewayLinkId(link.id());
+                    gatewayPayment.setGatewayLinkUrl(link.shortUrl());
+                    gatewayPayment.setAmount(amount);
+                    gatewayPayment.setStatus(PaymentStatus.PENDING);
+                    paymentRepository.save(gatewayPayment);
+                    linkUrl = link.shortUrl();
+                    log.info("Created Razorpay payment link {} for order {}", link.id(), order.getId());
+                } catch (Exception e) {
+                    log.error("Razorpay link failed for order {}: {}", order.getId(), e.getMessage());
+                    alertService.raise("PAYMENT_LINK_FAILED",
+                            "Could not create a Razorpay link for order " + order.getId() + ": " + e.getMessage(),
+                            order.getId(), ctx.getCustomer().getPhone());
+                    whatsAppClient.sendText(ctx.getCustomer().getPhone(), String.format(
+                            "We couldn't generate the payment link for order %s just now.%n%n%s",
+                            orderRef, supportLine()));
+                    return;
+                }
             }
+
+            whatsAppClient.sendText(ctx.getCustomer().getPhone(), String.format(
+                    "*Order %s \u2014 \u20b9%.2f*%s%n%n\uD83D\uDC49 Tap to pay securely (UPI, card or netbanking):%n%s%n%n"
+                            + "Your order confirms automatically the moment payment is received. \uD83E\uDD56%n%n%s",
+                    orderRef, amount, savingsLine(order), linkUrl, supportLine()));
+            try {
+                whatsAppClient.sendButtons(ctx.getCustomer().getPhone(),
+                        "Need to cancel this order? You can do so below.",
+                        List.of(new WhatsAppMessage.Button("cancel_" + order.getId(), "Cancel Order")));
+            } catch (Exception ignore) { /* best effort */ }
+            return;
         }
 
         log.info("Sending payment QR for order {} amount {}", order.getId(), amount);

@@ -50,11 +50,25 @@ public class RazorpayService {
     @Value("${bakery.payment.razorpay.webhook-secret:}")
     private String webhookSecret;
 
+    @Value("${bakery.payment.provider:UPI_QR}")
+    private String paymentProvider;
+
     public boolean isConfigured() {
         return notBlank(keyId) && notBlank(keySecret);
     }
 
+    /**
+     * True when payment links are the only channel: the screenshot/QR flow is then disabled everywhere.
+     * Selecting RAZORPAY without credentials deliberately keeps the QR flow rather than failing closed.
+     */
+    public boolean isGatewayMode() {
+        return "RAZORPAY".equalsIgnoreCase(paymentProvider) && isConfigured();
+    }
+
     public record PaymentLink(String id, String shortUrl) {}
+
+    /** Live view of a link: status is one of created, partially_paid, paid, expired, cancelled. */
+    public record LinkState(String status, BigDecimal amountPaid, String paymentId) {}
 
     /**
      * Creates a Razorpay Payment Link. notes are echoed back on the webhook so we can route it to the
@@ -88,8 +102,7 @@ public class RazorpayService {
         ObjectNode notesNode = body.putObject("notes");
         if (notes != null) notes.forEach(notesNode::put);
 
-        String auth = Base64.getEncoder()
-                .encodeToString((keyId + ":" + keySecret).getBytes(StandardCharsets.UTF_8));
+        String auth = basicAuth();
         HttpRequest req = HttpRequest.newBuilder(URI.create(API_BASE + "/payment_links"))
                 .header("Authorization", "Basic " + auth)
                 .header("Content-Type", "application/json")
@@ -110,8 +123,7 @@ public class RazorpayService {
      * which is a no-op for us, so callers treat any failure as non-fatal.
      */
     public void cancelPaymentLink(String linkId) throws Exception {
-        String auth = Base64.getEncoder()
-                .encodeToString((keyId + ":" + keySecret).getBytes(StandardCharsets.UTF_8));
+        String auth = basicAuth();
         HttpRequest req = HttpRequest.newBuilder(URI.create(API_BASE + "/payment_links/" + linkId + "/cancel"))
                 .header("Authorization", "Basic " + auth)
                 .header("Content-Type", "application/json")
@@ -123,6 +135,33 @@ public class RazorpayService {
         if (resp.statusCode() / 100 != 2) {
             throw new IllegalStateException("Razorpay cancel link failed: " + resp.statusCode() + " " + resp.body());
         }
+    }
+
+    /** Asks Razorpay what actually happened to a link, for payments whose webhook never arrived. */
+    public LinkState fetchPaymentLink(String linkId) throws Exception {
+        HttpRequest req = HttpRequest.newBuilder(URI.create(API_BASE + "/payment_links/" + linkId))
+                .header("Authorization", "Basic " + basicAuth())
+                .timeout(Duration.ofSeconds(15))
+                .GET()
+                .build();
+
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() / 100 != 2) {
+            throw new IllegalStateException("Razorpay fetch link failed: " + resp.statusCode() + " " + resp.body());
+        }
+        JsonNode json = mapper.readTree(resp.body());
+        JsonNode amountPaid = json.path("amount_paid");
+        JsonNode payments = json.path("payments");
+        String paymentId = payments.isArray() && !payments.isEmpty()
+                ? payments.get(0).path("payment_id").asText(null)
+                : null;
+        return new LinkState(json.path("status").asText(""),
+                amountPaid.isNumber() ? BigDecimal.valueOf(amountPaid.asLong()).movePointLeft(2) : null,
+                paymentId);
+    }
+
+    private String basicAuth() {
+        return Base64.getEncoder().encodeToString((keyId + ":" + keySecret).getBytes(StandardCharsets.UTF_8));
     }
 
     /** Constant-time HMAC-SHA256 verification of a Razorpay webhook body against the X-Razorpay-Signature header. */
