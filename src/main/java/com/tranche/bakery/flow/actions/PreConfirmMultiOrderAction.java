@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 
 /**
  * Pre-confirm gate for date-first ordering. Runs after items are chosen (the
@@ -62,8 +61,6 @@ public class PreConfirmMultiOrderAction implements FlowAction {
             return;
         }
 
-        Long customerId = ctx.getCustomer().getId();
-
         // Capacity may have changed (or the cart grew) since the date was picked.
         DeliveryRules.CartFlags flags = deliveryRules.flagsForOrder(draft.getId(), ctx.getCustomer().isFriendsAndFamily());
         if (!deliveryRules.isValidDeliveryDate(date, flags)) {
@@ -75,42 +72,30 @@ public class PreConfirmMultiOrderAction implements FlowAction {
             return;
         }
 
-        // Case 1: same-date unpaid order exists -> merge into it.
-        Order existing = orderRepository
-                .findTopByCustomerIdAndStatusAndDeliveryDate(customerId, OrderStatus.PENDING_CONFIRMATION, date)
-                .orElse(null);
-        if (existing != null) {
-            // Merging must not push the day's order past the per-order item cap.
-            int mergedTotal = orderService.committedItemCountForDate(customerId, draft.getId(), date);
-            if (mergedTotal > perOrderItemLimit) {
+        OrderService.CartDecision decision = orderService.resolveCart(ctx.getCustomer(), draft, date);
+        Order target = decision.order();
+        switch (decision.resolution()) {
+            case CAP_EXCEEDED -> {
                 whatsAppClient.sendText(ctx.getCustomer().getPhone(),
                         "Adding these to your cart for *" + date.format(DATE_FMT)
                         + "* would take it past its " + perOrderItemLimit
                         + "-item capacity. Please choose a different delivery day below.");
                 ctx.setRedirectState("ORDER_SELECT_DATE");
                 log.info("Blocked merge of draft {} into {} - would exceed item cap {} (customer {})",
-                        draft.getId(), existing.getId(), perOrderItemLimit, ctx.getCustomer().getPhone());
-                return;
+                        draft.getId(), target.getId(), perOrderItemLimit, ctx.getCustomer().getPhone());
             }
-            orderService.mergeItems(draft, existing);
-            orderService.cancel(draft);
-            ctx.getConversation().getContext().put("orderId", existing.getId().toString());
-            ctx.setRedirectState("ORDER_CONFIRM");
-            log.info("Merged draft {} into existing order {} for {} (customer {})",
-                    draft.getId(), existing.getId(), date, ctx.getCustomer().getPhone());
-            return;
+            case MERGED -> {
+                ctx.getConversation().getContext().put("orderId", target.getId().toString());
+                ctx.setRedirectState("ORDER_CONFIRM");
+                log.info("Merged draft {} into existing order {} for {} (customer {})",
+                        draft.getId(), target.getId(), date, ctx.getCustomer().getPhone());
+            }
+            case SEPARATE_ORDER -> {
+                ctx.setRedirectState("ORDER_CONFIRM_SEPARATE");
+                log.info("Draft {} for {} - showing separate-order warning (customer {})",
+                        draft.getId(), date, ctx.getCustomer().getPhone());
+            }
+            case NEW_ORDER -> ctx.setRedirectState("ADDRESS_GATE");
         }
-
-        // Case 2: other unpaid orders on other dates -> separate-order warning.
-        List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PENDING_CONFIRMATION);
-        if (!pending.isEmpty()) {
-            ctx.setRedirectState("ORDER_CONFIRM_SEPARATE");
-            log.info("Draft {} for {} - showing separate-order warning (customer {})",
-                    draft.getId(), date, ctx.getCustomer().getPhone());
-            return;
-        }
-
-        // Case 3: normal single order.
-        ctx.setRedirectState("ADDRESS_GATE");
     }
 }

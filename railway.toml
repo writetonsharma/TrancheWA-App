@@ -1,4 +1,5 @@
 [deploy]
 numReplicas = 1
-sleepApplication = true
+# Must stay false: the @Scheduled jobs (cutoff, payment reminders, subscriptions) only run while the JVM is awake.
+sleepApplication = false
 restartPolicyType = "ON_FAILURE"

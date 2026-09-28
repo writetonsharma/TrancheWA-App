@@ -41,6 +41,13 @@ public class Order {
     @JoinColumn(name = "conversation_id")
     private WhatsappConversation conversation;
 
+    // Origin only. Carts key on customer + delivery date, so orders merge across channels.
+    @Column(name = "channel", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private OrderChannel channel = OrderChannel.WHATSAPP;
+
+    // NOTE: orders.version exists in the DB but is deliberately NOT mapped as @Version yet. See V44.
+
     @Column(nullable = false, length = 50)
     @Enumerated(EnumType.STRING)
     private OrderStatus status = OrderStatus.DRAFT;

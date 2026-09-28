@@ -3,6 +3,7 @@ package com.tranche.bakery.admin;
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.customer.CustomerRepository;
 import com.tranche.bakery.customer.FriendsFamilyPricing;
+import com.tranche.bakery.customer.PhoneNumbers;
 import com.tranche.bakery.menu.MenuCategory;
 import com.tranche.bakery.menu.MenuCategoryRepository;
 import com.tranche.bakery.menu.MenuItem;
@@ -57,7 +58,7 @@ public class AdminPricingController {
                               @RequestParam(required = false) List<String> itemNames,
                               @RequestParam(required = false) List<String> itemPrices,
                               RedirectAttributes redirectAttributes) {
-        String normalizedPhone = normalizePhone(phone);
+        String normalizedPhone = PhoneNumbers.normalize(phone);
         Customer customer = customerRepository.findByPhone(normalizedPhone).orElse(null);
         if (customer == null) {
             if (name == null || name.isBlank()) {
@@ -133,7 +134,7 @@ public class AdminPricingController {
                               @RequestParam(required = false) Integer expiryDays,
                               @RequestParam(required = false) String note,
                               RedirectAttributes redirectAttributes) {
-        String normalizedPhone = normalizePhone(phone);
+        String normalizedPhone = PhoneNumbers.normalize(phone);
         Customer customer = customerRepository.findByPhone(normalizedPhone).orElse(null);
         boolean created = false;
         if (customer == null) {
@@ -200,13 +201,6 @@ public class AdminPricingController {
                 "Synced F&F rate card — added " + pricesAdded + " missing price(s) across "
                 + customersUpdated + " customer(s). Existing custom prices were kept.");
         return "redirect:/admin/pricing";
-    }
-
-    /** Normalizes an admin-entered phone to the WhatsApp "91XXXXXXXXXX" form the webhook stores. */
-    private static String normalizePhone(String raw) {
-        if (raw == null) return "";
-        String digits = raw.replaceAll("\\D", "");
-        return digits.length() == 10 ? "91" + digits : digits;
     }
 
     private String describe(Customer customer) {

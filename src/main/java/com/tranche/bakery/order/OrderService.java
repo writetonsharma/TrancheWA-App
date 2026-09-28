@@ -18,11 +18,17 @@ import com.tranche.bakery.offer.BatchDiscountService;
 import com.tranche.bakery.offer.PromoContext;
 import com.tranche.bakery.offer.PromoResult;
 import com.tranche.bakery.offer.PromotionEngine;
+import com.tranche.bakery.payment.Payment;
+import com.tranche.bakery.payment.PaymentRepository;
+import com.tranche.bakery.payment.PaymentStatus;
+import com.tranche.bakery.payment.RazorpayService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderService {
 
     private final OrderRepository orderRepository;
@@ -30,12 +36,18 @@ public class OrderService {
     private final MenuItemRepository menuItemRepository;
     private final PromotionEngine promotionEngine;
     private final BatchDiscountService batchDiscountService;
+    private final PaymentRepository paymentRepository;
+    private final RazorpayService razorpayService;
+    private final OrderNumberGenerator orderNumberGenerator;
 
     @Value("${bakery.order.delivery-charge:65}")
     private BigDecimal deliveryCharge;
 
     @Value("${bakery.order.cutoff-hour}")
     private int cutoffHour;
+
+    @Value("${bakery.order.per-order-item-limit:3}")
+    private int perOrderItemLimit;
 
     @Transactional
     public void cancelDraftIfExists(Customer customer) {
@@ -126,6 +138,9 @@ public class OrderService {
             }
         }
         recalculateTotal(target);
+        // The target's total just changed, so a link issued for the old amount has to die now — not at
+        // the next payment prompt, which the customer may never reach.
+        revokePaymentLink(target);
     }
 
     @Transactional
@@ -169,6 +184,9 @@ public class OrderService {
 
     @Transactional
     public void confirm(Order order) {
+        if (order.getOrderNumber() == null) {
+            order.setOrderNumber(orderNumberGenerator.generate(order.getId(), order.getCreatedAt()));
+        }
         order.setStatus(OrderStatus.PENDING_CONFIRMATION);
         orderRepository.save(order);
     }
@@ -177,6 +195,7 @@ public class OrderService {
     public void cancel(Order order) {
         order.setStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
+        revokePaymentLink(order);
     }
 
     @Transactional
@@ -187,7 +206,65 @@ public class OrderService {
         if (order.getStatus() != OrderStatus.DRAFT && order.getStatus() != OrderStatus.PENDING_CONFIRMATION) return false;
         order.setStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
+        revokePaymentLink(order);
         return true;
+    }
+
+    /**
+     * Kills the live gateway link for an order. Must run whenever the order is cancelled or its total
+     * changes: a link that outlives what it was issued for can still be paid, and that money arrives
+     * against an order it no longer matches.
+     */
+    @Transactional
+    public void revokePaymentLink(Order order) {
+        if (!razorpayService.isConfigured()) return;
+        Payment payment = paymentRepository.findByOrder(order).orElse(null);
+        if (payment == null || payment.getGatewayLinkId() == null
+                || payment.getStatus() != PaymentStatus.PENDING) return;
+
+        String linkId = payment.getGatewayLinkId();
+        try {
+            razorpayService.cancelPaymentLink(linkId);
+            // Cleared only on success, so a failed revoke is retried at the next payment prompt.
+            payment.setGatewayLinkId(null);
+            payment.setGatewayLinkUrl(null);
+            paymentRepository.save(payment);
+            log.info("Revoked payment link {} for order {}", linkId, order.getId());
+        } catch (Exception e) {
+            log.warn("Could not revoke payment link {} for order {} — {}", linkId, order.getId(), e.getMessage());
+        }
+    }
+
+    /** What should happen to a finished draft once its delivery date is known. */
+    public enum CartResolution { MERGED, CAP_EXCEEDED, SEPARATE_ORDER, NEW_ORDER }
+
+    /** Where a draft's items belong, and the order that now owns them. */
+    public record CartDecision(CartResolution resolution, Order order) {}
+
+    /**
+     * Resolves a completed draft against the customer's existing unpaid orders. A same-date unpaid
+     * order absorbs the draft, so a customer only ever has one order per delivery day no matter which
+     * channel they built it on. Other dates stay separate — they are different bakes.
+     */
+    @Transactional
+    public CartDecision resolveCart(Customer customer, Order draft, LocalDate date) {
+        Order sameDay = orderRepository
+                .findTopByCustomerIdAndStatusAndDeliveryDate(customer.getId(), OrderStatus.PENDING_CONFIRMATION, date)
+                .orElse(null);
+
+        if (sameDay != null) {
+            if (committedItemCountForDate(customer.getId(), draft.getId(), date) > perOrderItemLimit) {
+                return new CartDecision(CartResolution.CAP_EXCEEDED, sameDay);
+            }
+            mergeItems(draft, sameDay);
+            cancel(draft);
+            return new CartDecision(CartResolution.MERGED, sameDay);
+        }
+
+        boolean unpaidElsewhere = !orderRepository
+                .findAllByCustomerIdAndStatus(customer.getId(), OrderStatus.PENDING_CONFIRMATION).isEmpty();
+        return new CartDecision(
+                unpaidElsewhere ? CartResolution.SEPARATE_ORDER : CartResolution.NEW_ORDER, draft);
     }
 
     public String formatSummary(Order order) {

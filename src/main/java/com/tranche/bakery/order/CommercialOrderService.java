@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.customer.CustomerRepository;
+import com.tranche.bakery.customer.PhoneNumbers;
 import com.tranche.bakery.menu.MenuItem;
 import com.tranche.bakery.menu.MenuItemRepository;
 import com.tranche.bakery.payment.QrCodeService;
@@ -73,7 +74,7 @@ public class CommercialOrderService {
                                LocalDate deliveryDate, String deliveryAddress, String notes,
                                BigDecimal deliveryCharge, SellerProfileType sellerProfile,
                                boolean notifyCustomer, List<Line> lines) {
-        String normalizedPhone = normalizePhone(phone);
+        String normalizedPhone = PhoneNumbers.normalize(phone);
         Customer customer = customerRepository.findByPhone(normalizedPhone).orElse(null);
         if (customer == null) {
             customer = new Customer();
@@ -204,11 +205,5 @@ public class CommercialOrderService {
     @Transactional(readOnly = true)
     public Order find(Long orderId) {
         return orderRepository.findById(orderId).orElse(null);
-    }
-
-    private static String normalizePhone(String raw) {
-        if (raw == null) return "";
-        String digits = raw.replaceAll("\\D", "");
-        return digits.length() == 10 ? "91" + digits : digits;
     }
 }

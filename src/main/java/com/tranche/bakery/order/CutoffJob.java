@@ -29,6 +29,7 @@ public class CutoffJob {
     private final ConversationRepository conversationRepository;
     private final PaymentRepository paymentRepository;
     private final RazorpayService razorpayService;
+    private final OrderService orderService;
     private final AdminService adminService;
     private final AlertService alertService;
     private final WhatsAppClient whatsAppClient;
@@ -76,7 +77,7 @@ public class CutoffJob {
         for (Order order : expiredOrders) {
             order.setStatus(OrderStatus.CANCELLED);
             orderRepository.save(order);
-            revokePaymentLink(order);
+            orderService.revokePaymentLink(order);
 
             conversationRepository
                     .findTopByCustomerOrderByStartedAtDesc(order.getCustomer())
@@ -139,26 +140,5 @@ public class CutoffJob {
             return true;
         }
         return false;
-    }
-
-    /**
-     * Razorpay's expire_by must be at least 15 minutes out, so a link issued just before the cutoff is
-     * still payable now. Cancelling it here closes that window exactly.
-     */
-    private void revokePaymentLink(Order order) {
-        if (!razorpayService.isConfigured()) return;
-        paymentRepository.findByOrder(order)
-                .map(p -> p.getGatewayLinkId())
-                .ifPresent(linkId -> {
-                    try {
-                        razorpayService.cancelPaymentLink(linkId);
-                        log.info("Cutoff job: cancelled payment link {} for order {}", linkId, order.getId());
-                    } catch (Exception e) {
-                        // Already paid, already expired, or Razorpay is down — the status guard in
-                        // confirmGatewayPayment still refuses to confirm a cancelled order.
-                        log.warn("Cutoff job: could not cancel payment link {} for order {} — {}",
-                                linkId, order.getId(), e.getMessage());
-                    }
-                });
     }
 }
