@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +31,9 @@ import com.tranche.bakery.order.OrderItem;
 import com.tranche.bakery.order.OrderItemRepository;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
+import com.tranche.bakery.payment.Payment;
 import com.tranche.bakery.payment.PaymentRepository;
+import com.tranche.bakery.payment.PaymentStatus;
 import com.tranche.bakery.whatsapp.CustomerNotifier;
 
 import jakarta.persistence.criteria.Predicate;
@@ -137,6 +140,95 @@ public class AdminService {
             }
             log.info("Admin approved payment for order {}", orderId);
         });
+    }
+
+    // States where money is still outstanding, so a gateway payment may confirm the order. Anything
+    // else (notably CANCELLED by the 5 PM cutoff) must never be resurrected by a late payment.
+    private static final Set<OrderStatus> AWAITING_PAYMENT = EnumSet.of(
+            OrderStatus.PENDING_CONFIRMATION,
+            OrderStatus.PENDING_PAYMENT_SCREENSHOT,
+            OrderStatus.PAYMENT_SCREENSHOT_RECEIVED,
+            OrderStatus.PAYMENT_REVIEW_REQUIRED);
+
+    /**
+     * Confirms an order from an already signature-verified gateway webhook. A payment whose amount
+     * doesn't match what we charged is held for review rather than auto-confirmed.
+     */
+    @Transactional
+    public void confirmGatewayPayment(Long orderId, String gatewayPaymentId, String gatewayLinkId,
+                                      BigDecimal paidAmount) {
+        Order order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) {
+            alertService.raise("PAYMENT_UNKNOWN_ORDER",
+                    "Gateway payment " + gatewayPaymentId + " referenced unknown order " + orderId, orderId, null);
+            return;
+        }
+        String customerPhone = order.getCustomer() != null ? order.getCustomer().getPhone() : null;
+
+        Payment payment = paymentRepository.findByOrder(order).orElseGet(() -> {
+            Payment p = new Payment();
+            p.setOrder(order);
+            return p;
+        });
+        // What we asked for, not the live order total: under payment test mode they differ.
+        BigDecimal expected = payment.getAmount() != null ? payment.getAmount() : order.getTotalAmount();
+        String priorPaymentId = payment.getGatewayPaymentId();
+
+        payment.setProvider("RAZORPAY");
+        // Keep whichever payment actually settled the order; a second id means a duplicate charge.
+        if (gatewayPaymentId != null && priorPaymentId == null) payment.setGatewayPaymentId(gatewayPaymentId);
+        if (gatewayLinkId != null) payment.setGatewayLinkId(gatewayLinkId);
+
+        if (order.getStatus() == OrderStatus.CONFIRMED) {
+            paymentRepository.save(payment);
+            if (gatewayPaymentId != null && priorPaymentId != null && !priorPaymentId.equals(gatewayPaymentId)) {
+                alertService.raise("PAYMENT_DUPLICATE_CHARGE",
+                        "Order " + orderId + " was already paid by " + priorPaymentId + ", but gateway payment "
+                                + gatewayPaymentId + " of " + paidAmount + " also arrived. Refund required.",
+                        orderId, customerPhone);
+            } else {
+                log.info("Gateway payment {} for already-confirmed order {} — no action", gatewayPaymentId, orderId);
+            }
+            return;
+        }
+        if (!AWAITING_PAYMENT.contains(order.getStatus())) {
+            // Money for an order that is no longer live (usually cutoff-cancelled while the link stayed
+            // payable). Never auto-confirm it — a human must refund or revive it onto a valid bake day.
+            payment.setStatus(PaymentStatus.REVIEW_REQUIRED);
+            paymentRepository.save(payment);
+            alertService.raise("PAYMENT_FOR_INACTIVE_ORDER",
+                    "Order " + orderId + " is " + order.getStatus() + " but gateway payment " + gatewayPaymentId
+                            + " of " + paidAmount + " arrived. Refund or revive manually.",
+                    orderId, customerPhone);
+            return;
+        }
+
+        // Fail closed: an amount we cannot verify is held for review, never auto-confirmed.
+        if (expected == null || paidAmount == null || paidAmount.compareTo(expected) != 0) {
+            payment.setStatus(PaymentStatus.REVIEW_REQUIRED);
+            paymentRepository.save(payment);
+            order.setStatus(OrderStatus.PAYMENT_REVIEW_REQUIRED);
+            orderRepository.save(order);
+            alertService.raise("PAYMENT_AMOUNT_MISMATCH",
+                    "Order " + orderId + ": paid " + paidAmount + " but expected " + expected
+                            + " (gateway payment " + gatewayPaymentId + "). Held for review.",
+                    orderId, customerPhone);
+            return;
+        }
+
+        payment.setStatus(PaymentStatus.GATEWAY_CAPTURED);
+        if (payment.getAmount() == null) payment.setAmount(paidAmount);
+        // Flush before confirmIfNotConfirmed, which clears the persistence context.
+        paymentRepository.saveAndFlush(payment);
+
+        int flipped = orderRepository.confirmIfNotConfirmed(orderId, OrderStatus.CONFIRMED);
+        if (flipped == 1) {
+            orderRepository.findById(orderId).ifPresent(confirmed -> {
+                consumeCredit(confirmed);
+                customerNotifier.orderConfirmed(confirmed);
+            });
+        }
+        log.info("Gateway payment {} confirmed order {}", gatewayPaymentId, orderId);
     }
 
     // Deduct the credit this order used from the customer's running balance (once, on first confirm).

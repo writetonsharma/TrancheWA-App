@@ -66,7 +66,15 @@ public class SubSendQrAction implements FlowAction {
                 RazorpayService.PaymentLink link = razorpayService.createPaymentLink(
                         amount, note, "SUB-" + sub.getId(),
                         ctx.getCustomer().getName(), phone,
-                        java.util.Map.of("kind", "SUBSCRIPTION", "subscriptionId", String.valueOf(sub.getId())));
+                        java.util.Map.of("kind", "SUBSCRIPTION", "subscriptionId", String.valueOf(sub.getId())),
+                        null);
+
+                // Record the link and the amount charged before the customer can pay, so the webhook
+                // can reconcile and amount-verify before activating.
+                sub.setGatewayLinkId(link.id());
+                sub.setGatewayChargedAmount(amount);
+                subscriptionRepository.save(sub);
+
                 whatsAppClient.sendText(phone, String.format(
                         "*%s subscription \u2014 \u20b9%s*%n%n\uD83D\uDC49 Tap to pay securely (UPI, card or netbanking):%n%s%n%nYour subscription activates automatically once payment is received. \uD83E\uDD56",
                         sub.getPlanName(), amount.stripTrailingZeros().toPlainString(), link.shortUrl()));

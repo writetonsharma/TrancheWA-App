@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tranche.bakery.alert.AlertService;
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.customer.CustomerRepository;
 import com.tranche.bakery.menu.MenuItem;
@@ -53,6 +54,7 @@ public class SubscriptionService {
     private final CustomerNotifier customerNotifier;
     private final WhatsAppClient whatsAppClient;
     private final CustomerRepository customerRepository;
+    private final AlertService alertService;
 
     /** One chosen bundle line, resolved from the plan option + the customer's pick. */
     public record ChosenItem(String itemName, int quantity, String portion) {}
@@ -92,6 +94,45 @@ public class SubscriptionService {
             sub.addItem(item);
         }
         return subscriptionRepository.save(sub);
+    }
+
+    /**
+     * Activates from an already signature-verified gateway webhook. A payment whose amount doesn't
+     * match what we charged is left pending and alerted rather than auto-activated.
+     */
+    @Transactional
+    public void activateFromGateway(Long subscriptionId, String gatewayPaymentId, String gatewayLinkId,
+                                    BigDecimal paidAmount) {
+        Subscription sub = subscriptionRepository.findById(subscriptionId).orElse(null);
+        if (sub == null) {
+            alertService.raise("PAYMENT_UNKNOWN_SUBSCRIPTION",
+                    "Gateway payment " + gatewayPaymentId + " referenced unknown subscription " + subscriptionId,
+                    null, null);
+            return;
+        }
+        if (sub.getStatus() != SubscriptionStatus.PENDING_PAYMENT) {
+            alertService.raise("PAYMENT_FOR_INACTIVE_SUBSCRIPTION",
+                    "Subscription " + subscriptionId + " is " + sub.getStatus() + " but gateway payment "
+                            + gatewayPaymentId + " of " + paidAmount + " arrived. Refund or handle manually.",
+                    null, sub.getCustomer() != null ? sub.getCustomer().getPhone() : null);
+            return;
+        }
+        // What the link charged, not upfrontAmount: under payment test mode they differ.
+        BigDecimal expected = sub.getGatewayChargedAmount() != null
+                ? sub.getGatewayChargedAmount() : sub.getUpfrontAmount();
+        // Fail closed: an amount we cannot verify is alerted, never auto-activated.
+        if (expected == null || paidAmount == null || paidAmount.compareTo(expected) != 0) {
+            alertService.raise("PAYMENT_AMOUNT_MISMATCH",
+                    "Subscription " + subscriptionId + ": paid " + paidAmount + " but expected " + expected
+                            + " (gateway payment " + gatewayPaymentId + "). Left pending for review.",
+                    null, sub.getCustomer() != null ? sub.getCustomer().getPhone() : null);
+            return;
+        }
+        if (gatewayPaymentId != null) sub.setGatewayPaymentId(gatewayPaymentId);
+        if (gatewayLinkId != null) sub.setGatewayLinkId(gatewayLinkId);
+        // Flush before activate(), whose activateIfPending clears the persistence context.
+        subscriptionRepository.saveAndFlush(sub);
+        activate(subscriptionId);
     }
 
     /** Payment verified: activate, set the 4-week window, generate any due orders, and notify. */

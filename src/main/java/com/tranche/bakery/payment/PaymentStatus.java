@@ -6,5 +6,7 @@ public enum PaymentStatus {
     SCREENSHOT_VERIFIED,
     REVIEW_REQUIRED,
     CONFIRMED,
-    FAILED
+    FAILED,
+    /** Payment captured by the gateway (Razorpay) — no screenshot involved. */
+    GATEWAY_CAPTURED
 }

@@ -22,8 +22,19 @@ public class Payment {
     @Column(length = 100)
     private String upiId;
 
+    // The amount we actually asked for. May be a token amount under payment test mode, so the
+    // gateway webhook must verify against this rather than the order total.
     @Column(precision = 10, scale = 2)
     private BigDecimal amount;
+
+    @Column(length = 20)
+    private String provider;
+
+    @Column(name = "gateway_link_id", length = 100)
+    private String gatewayLinkId;
+
+    @Column(name = "gateway_payment_id", length = 100)
+    private String gatewayPaymentId;
 
     @Column(nullable = false, length = 50)
     @Enumerated(EnumType.STRING)

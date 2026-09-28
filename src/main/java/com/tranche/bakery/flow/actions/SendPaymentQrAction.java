@@ -1,6 +1,9 @@
 package com.tranche.bakery.flow.actions;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +17,7 @@ import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.payment.Payment;
 import com.tranche.bakery.payment.PaymentRepository;
+import com.tranche.bakery.payment.PaymentStatus;
 import com.tranche.bakery.payment.PaymentTestMode;
 import com.tranche.bakery.payment.QrCodeService;
 import com.tranche.bakery.payment.RazorpayService;
@@ -44,6 +48,18 @@ public class SendPaymentQrAction implements FlowAction {
 
     @Value("${bakery.payment.provider:UPI_QR}")
     private String paymentProvider;
+
+    @Value("${bakery.order.cutoff-hour}")
+    private int cutoffHour;
+
+    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
+
+    /** CutoffJob cancels the order at the cutoff the evening before its bake day, so the link dies then too. */
+    private Instant cutoffInstantFor(Order order) {
+        LocalDate deliveryDate = order.getDeliveryDate();
+        return deliveryDate == null ? null
+                : deliveryDate.minusDays(1).atTime(cutoffHour, 0).atZone(IST).toInstant();
+    }
 
     @Override
     public String getName() { return "SEND_PAYMENT_QR"; }
@@ -100,7 +116,22 @@ public class SendPaymentQrAction implements FlowAction {
                 RazorpayService.PaymentLink link = razorpayService.createPaymentLink(
                         amount, note, orderRef,
                         ctx.getCustomer().getName(), ctx.getCustomer().getPhone(),
-                        java.util.Map.of("kind", "ORDER", "orderId", String.valueOf(order.getId())));
+                        java.util.Map.of("kind", "ORDER", "orderId", String.valueOf(order.getId())),
+                        cutoffInstantFor(order));
+
+                // Record the link and the amount we asked for before the customer can pay, so the webhook
+                // has a local record to reconcile against and a figure to amount-verify the payment against.
+                Payment gatewayPayment = paymentRepository.findByOrder(order).orElseGet(() -> {
+                    Payment p = new Payment();
+                    p.setOrder(order);
+                    return p;
+                });
+                gatewayPayment.setProvider("RAZORPAY");
+                gatewayPayment.setGatewayLinkId(link.id());
+                gatewayPayment.setAmount(amount);
+                gatewayPayment.setStatus(PaymentStatus.PENDING);
+                paymentRepository.save(gatewayPayment);
+
                 String msg = String.format(
                         "*Order %s \u2014 \u20b9%.2f*%s%n%n\uD83D\uDC49 Tap to pay securely (UPI, card or netbanking):%n%s%n%nYour order confirms automatically the moment payment is received. \uD83E\uDD56",
                         orderRef, amount, savingsLine(order), link.shortUrl());

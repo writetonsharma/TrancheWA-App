@@ -75,6 +75,16 @@ public class Subscription {
     @Column(name = "payment_screenshot_media_id", length = 255)
     private String paymentScreenshotMediaId;
 
+    @Column(name = "gateway_link_id", length = 100)
+    private String gatewayLinkId;
+
+    @Column(name = "gateway_payment_id", length = 100)
+    private String gatewayPaymentId;
+
+    // What the gateway link actually charged — differs from upfrontAmount under payment test mode.
+    @Column(name = "gateway_charged_amount", precision = 10, scale = 2)
+    private BigDecimal gatewayChargedAmount;
+
     @Column(name = "commitment_weeks", nullable = false)
     private int commitmentWeeks;
 

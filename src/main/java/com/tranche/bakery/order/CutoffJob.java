@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.tranche.bakery.conversation.ConversationRepository;
+import com.tranche.bakery.payment.PaymentRepository;
+import com.tranche.bakery.payment.RazorpayService;
 import com.tranche.bakery.whatsapp.CustomerNotifier;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 
@@ -22,6 +24,8 @@ public class CutoffJob {
 
     private final OrderRepository orderRepository;
     private final ConversationRepository conversationRepository;
+    private final PaymentRepository paymentRepository;
+    private final RazorpayService razorpayService;
     private final WhatsAppClient whatsAppClient;
     private final CustomerNotifier customerNotifier;
 
@@ -60,6 +64,7 @@ public class CutoffJob {
         for (Order order : expiredOrders) {
             order.setStatus(OrderStatus.CANCELLED);
             orderRepository.save(order);
+            revokePaymentLink(order);
 
             conversationRepository
                     .findTopByCustomerOrderByStartedAtDesc(order.getCustomer())
@@ -84,5 +89,26 @@ public class CutoffJob {
         for (Order order : pendingPayment) {
             customerNotifier.orderCancelled(order, "Payment was not received before the daily cut-off.");
         }
+    }
+
+    /**
+     * Razorpay's expire_by must be at least 15 minutes out, so a link issued just before the cutoff is
+     * still payable now. Cancelling it here closes that window exactly.
+     */
+    private void revokePaymentLink(Order order) {
+        if (!razorpayService.isConfigured()) return;
+        paymentRepository.findByOrder(order)
+                .map(p -> p.getGatewayLinkId())
+                .ifPresent(linkId -> {
+                    try {
+                        razorpayService.cancelPaymentLink(linkId);
+                        log.info("Cutoff job: cancelled payment link {} for order {}", linkId, order.getId());
+                    } catch (Exception e) {
+                        // Already paid, already expired, or Razorpay is down — the status guard in
+                        // confirmGatewayPayment still refuses to confirm a cancelled order.
+                        log.warn("Cutoff job: could not cancel payment link {} for order {} — {}",
+                                linkId, order.getId(), e.getMessage());
+                    }
+                });
     }
 }

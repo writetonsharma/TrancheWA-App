@@ -8,6 +8,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Map;
@@ -34,6 +35,9 @@ public class RazorpayService {
 
     private static final String API_BASE = "https://api.razorpay.com/v1";
 
+    /** Razorpay's documented minimum for expire_by is 15 minutes out; a minute of slack avoids a 400. */
+    private static final Duration EXPIRY_FLOOR = Duration.ofMinutes(16);
+
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -52,10 +56,13 @@ public class RazorpayService {
 
     public record PaymentLink(String id, String shortUrl) {}
 
-    /** Creates a Razorpay Payment Link. notes are echoed back on the webhook so we can route it to the right entity. */
+    /**
+     * Creates a Razorpay Payment Link. notes are echoed back on the webhook so we can route it to the
+     * right entity. expireBy may be null for links with no deadline.
+     */
     public PaymentLink createPaymentLink(BigDecimal amount, String description, String referenceId,
                                          String customerName, String customerPhone,
-                                         Map<String, String> notes) throws Exception {
+                                         Map<String, String> notes, Instant expireBy) throws Exception {
         long paise = amount.movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact();
 
         ObjectNode body = mapper.createObjectNode();
@@ -65,6 +72,12 @@ public class RazorpayService {
         body.put("description", trunc(description, 255));
         if (notBlank(referenceId)) body.put("reference_id", referenceId);
         body.put("reminder_enable", false);
+        if (expireBy != null) {
+            // Razorpay rejects any expiry under 15 minutes out, so a link issued just before the cutoff
+            // outlives it by a few minutes. CutoffJob cancels those explicitly to close the gap.
+            long floor = Instant.now().plus(EXPIRY_FLOOR).getEpochSecond();
+            body.put("expire_by", Math.max(expireBy.getEpochSecond(), floor));
+        }
         ObjectNode customer = body.putObject("customer");
         if (notBlank(customerName)) customer.put("name", customerName);
         if (notBlank(customerPhone)) customer.put("contact", toE164(customerPhone));
@@ -90,6 +103,26 @@ public class RazorpayService {
         }
         JsonNode json = mapper.readTree(resp.body());
         return new PaymentLink(json.path("id").asText(), json.path("short_url").asText());
+    }
+
+    /**
+     * Stops a link being payable. Razorpay rejects cancellation of an already-paid or expired link,
+     * which is a no-op for us, so callers treat any failure as non-fatal.
+     */
+    public void cancelPaymentLink(String linkId) throws Exception {
+        String auth = Base64.getEncoder()
+                .encodeToString((keyId + ":" + keySecret).getBytes(StandardCharsets.UTF_8));
+        HttpRequest req = HttpRequest.newBuilder(URI.create(API_BASE + "/payment_links/" + linkId + "/cancel"))
+                .header("Authorization", "Basic " + auth)
+                .header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(15))
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() / 100 != 2) {
+            throw new IllegalStateException("Razorpay cancel link failed: " + resp.statusCode() + " " + resp.body());
+        }
     }
 
     /** Constant-time HMAC-SHA256 verification of a Razorpay webhook body against the X-Razorpay-Signature header. */
