@@ -554,17 +554,17 @@ class OrderFlowTest extends FlowScenarioBase {
                 .noneMatch(b -> b.contains("How can we help you today"));
     }
 
-    // -- Per-date item cap block message includes the how-to-pay hint --
-    // When a same-date unpaid order is already at the item cap, picking that date again is
-    // blocked. The block message must tell the customer how to pay (hi -> Info -> My Order
-    // Status), matching the wording on the other "full" screens.
+    // -- A fully-booked day is refused with a usable alternative --
+    // Capacity is bakery-wide, so once a day's bake is taken, picking that date again is
+    // blocked. Paying an existing order does not free capacity, so the message must not
+    // send the customer off to pay -- it must name the earliest day we can actually bake.
     @Test
-    void perDateItemCap_blockMessageIncludesPayHint() {
+    void fullyBookedDate_blockMessageOffersEarliestAlternative() {
         String date   = nextDeliveryDate();
         String catId  = firstCategoryId();
         String itemId = firstItemId(catId);
 
-        // Order 1: fill the cart for date D to the 3-item cap, confirm to PENDING.
+        // Order 1: take the whole day's capacity (3 in the test profile), confirm to PENDING.
         send("hi");
         send("order");
         send(date);
@@ -576,9 +576,9 @@ class OrderFlowTest extends FlowScenarioBase {
 
         List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(
                 customer.getId(), OrderStatus.PENDING_CONFIRMATION);
-        assertThat(pending).as("one pending order at the item cap").hasSize(1);
+        assertThat(pending).as("one pending order holding the day's capacity").hasSize(1);
 
-        // New order, same date D -> the per-date cap block fires.
+        // New order, same date D -> the sold-out block fires.
         send("hi");
         send("order");
         sentTexts.clear();
@@ -586,11 +586,11 @@ class OrderFlowTest extends FlowScenarioBase {
 
         assertState("ORDER_SELECT_DATE");
         assertThat(sentTexts)
-                .as("cap block explains the cart is full")
-                .anyMatch(t -> t.contains("already full"));
+                .as("block explains the day's bake is spoken for")
+                .anyMatch(t -> t.contains("fully booked"));
         assertThat(sentTexts)
-                .as("cap block tells the customer how to pay")
-                .anyMatch(t -> t.contains("tap *Info*") && t.contains("My Order Status"));
+                .as("block names the earliest day we can still bake")
+                .anyMatch(t -> t.contains("earliest morning we can deliver"));
     }
 
     // â”€â”€ 6. Separate-order warning â†’ customer cancels the new draft â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

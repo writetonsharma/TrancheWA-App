@@ -2,12 +2,14 @@ package com.tranche.bakery.flow.actions;
 
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
+import com.tranche.bakery.order.DeliveryRules;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
+import java.time.LocalDate;
 
 @Component
 @RequiredArgsConstructor
@@ -15,9 +17,7 @@ import org.springframework.stereotype.Component;
 public class AddItemToOrderAction implements FlowAction {
 
     private final OrderService orderService;
-
-    @Value("${bakery.order.per-order-item-limit:3}")
-    private int perOrderItemLimit;
+    private final DeliveryRules deliveryRules;
 
     @Override
     public String getName() { return "ADD_ITEM_TO_ORDER"; }
@@ -44,15 +44,16 @@ public class AddItemToOrderAction implements FlowAction {
         // Save orderId to context so subsequent actions can reference it
         ctx.context().put("orderId", order.getId().toString());
 
-        // Cap the number of items for a delivery day. The count includes any same-date
-        // unpaid order that will merge into this cart, so the merged total can never
-        // exceed the limit. If this add would push it past the cap, do not add it and
-        // route the customer to the bulk-order handoff.
-        int currentQty = orderService.committedItemCountForDate(
-                ctx.getCustomer().getId(), order.getId(), order.getDeliveryDate());
-        if (currentQty + quantity > perOrderItemLimit) {
-            log.info("Add of {} x {} would exceed per-order limit {} (cart has {}) for customer {} -> bulk limit",
-                    itemIdStr, quantity, perOrderItemLimit, currentQty, ctx.getCustomer().getPhone());
+        // A cart may fill the whole day's bake but no more. Drafts don't reserve capacity, so the
+        // draft's own items are counted on top of what the rest of the day has already taken.
+        LocalDate date = order.getDeliveryDate();
+        long room = date == null
+                ? deliveryRules.getDailyCapacity()
+                : deliveryRules.remainingCapacity(date);
+        int draftQty = orderService.currentDraftItemCount(ctx.getCustomer());
+        if (draftQty + quantity > room) {
+            log.info("Add of {} x {} would exceed the day's remaining capacity {} (cart has {}) for customer {} -> bulk limit",
+                    itemIdStr, quantity, room, draftQty, ctx.getCustomer().getPhone());
             ctx.setRedirectState("ORDER_BULK_LIMIT");
             return;
         }

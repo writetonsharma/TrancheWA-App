@@ -46,9 +46,6 @@ public class OrderService {
     @Value("${bakery.order.cutoff-hour}")
     private int cutoffHour;
 
-    @Value("${bakery.order.per-order-item-limit:3}")
-    private int perOrderItemLimit;
-
     @Transactional
     public void cancelDraftIfExists(Customer customer) {
         orderRepository.findTopByCustomerIdAndStatusOrderByCreatedAtDesc(customer.getId(), OrderStatus.DRAFT)
@@ -74,44 +71,16 @@ public class OrderService {
     /**
      * Total item quantity in the customer's current DRAFT cart, or 0 if none exists.
      * Read-only: does not create a draft.
+     *
+     * This is the right number to pair with DeliveryRules.remainingCapacity(): that already
+     * counts PENDING_CONFIRMATION and beyond across all customers, and DRAFT is deliberately
+     * excluded from it, so draft quantity is exactly what capacity checks still have to add.
      */
     public int currentDraftItemCount(Customer customer) {
         return orderRepository
                 .findTopByCustomerIdAndStatusOrderByCreatedAtDesc(customer.getId(), OrderStatus.DRAFT)
                 .map(o -> orderItemRepository.sumQuantityByOrderId(o.getId()))
                 .orElse(0);
-    }
-
-    /**
-     * Item quantity the customer already has booked in an unpaid (PENDING_CONFIRMATION)
-     * order for a delivery date. These items merge into a same-date draft, so they count
-     * toward the per-order item cap. Returns 0 when the date is null or nothing is booked.
-     */
-    public int pendingItemCountForDate(Long customerId, LocalDate date) {
-        if (date == null) return 0;
-        return orderItemRepository.sumQuantityByCustomerStatusAndDate(
-                customerId, OrderStatus.PENDING_CONFIRMATION, date);
-    }
-
-    /**
-     * Effective item count toward the per-order cap for a draft's delivery date: the
-     * draft's own items PLUS any same-date unpaid order that will merge into it.
-     */
-    public int committedItemCountForDate(Long customerId, Long draftId, LocalDate date) {
-        int draftQty = draftId == null ? 0 : orderItemRepository.sumQuantityByOrderId(draftId);
-        return draftQty + pendingItemCountForDate(customerId, date);
-    }
-
-    /**
-     * Effective per-cap item count for the customer's current draft: the draft's own
-     * items plus any same-date unpaid order that will merge into it. Read-only.
-     */
-    public int committedItemCountForCurrentDraft(Customer customer) {
-        Order draft = orderRepository
-                .findTopByCustomerIdAndStatusOrderByCreatedAtDesc(customer.getId(), OrderStatus.DRAFT)
-                .orElse(null);
-        if (draft == null) return 0;
-        return committedItemCountForDate(customer.getId(), draft.getId(), draft.getDeliveryDate());
     }
 
     @Transactional
@@ -236,7 +205,7 @@ public class OrderService {
     }
 
     /** What should happen to a finished draft once its delivery date is known. */
-    public enum CartResolution { MERGED, CAP_EXCEEDED, SEPARATE_ORDER, NEW_ORDER }
+    public enum CartResolution { MERGED, SEPARATE_ORDER, NEW_ORDER }
 
     /** Where a draft's items belong, and the order that now owns them. */
     public record CartDecision(CartResolution resolution, Order order) {}
@@ -253,9 +222,6 @@ public class OrderService {
                 .orElse(null);
 
         if (sameDay != null) {
-            if (committedItemCountForDate(customer.getId(), draft.getId(), date) > perOrderItemLimit) {
-                return new CartDecision(CartResolution.CAP_EXCEEDED, sameDay);
-            }
             mergeItems(draft, sameDay);
             cancel(draft);
             return new CartDecision(CartResolution.MERGED, sameDay);

@@ -37,9 +37,6 @@ public class PreConfirmMultiOrderAction implements FlowAction {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("EEEE, d MMMM");
 
-    @Value("${bakery.order.per-order-item-limit:3}")
-    private int perOrderItemLimit;
-
     @Override
     public String getName() { return "PRE_CONFIRM_MULTIORDER"; }
 
@@ -75,15 +72,6 @@ public class PreConfirmMultiOrderAction implements FlowAction {
         OrderService.CartDecision decision = orderService.resolveCart(ctx.getCustomer(), draft, date);
         Order target = decision.order();
         switch (decision.resolution()) {
-            case CAP_EXCEEDED -> {
-                whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                        "Adding these to your cart for *" + date.format(DATE_FMT)
-                        + "* would take it past its " + perOrderItemLimit
-                        + "-item capacity. Please choose a different delivery day below.");
-                ctx.setRedirectState("ORDER_SELECT_DATE");
-                log.info("Blocked merge of draft {} into {} - would exceed item cap {} (customer {})",
-                        draft.getId(), target.getId(), perOrderItemLimit, ctx.getCustomer().getPhone());
-            }
             case MERGED -> {
                 ctx.getConversation().getContext().put("orderId", target.getId().toString());
                 ctx.setRedirectState("ORDER_CONFIRM");

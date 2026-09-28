@@ -10,9 +10,11 @@ import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 
 /**
- * Scenarios for the per-order item cap (3 items) that replaced the old 15+ dead-end.
- * A cart may never exceed 3 items; attempts to exceed route the customer to the
- * ORDER_BULK_LIMIT handoff instead of silently trapping them.
+ * Scenarios for the bakery's daily bake capacity, which is the only ceiling on a cart.
+ * The test profile sets bakery.order.daily-capacity=3, so a cart may fill the day but not
+ * exceed it; attempts to exceed route the customer to the ORDER_BULK_LIMIT handoff instead
+ * of silently trapping them. Capacity is shared across all customers, so another customer's
+ * confirmed order eats into what this one can still book for the same day.
  */
 class ItemCapFlowTest extends FlowScenarioBase {
 
@@ -44,8 +46,8 @@ class ItemCapFlowTest extends FlowScenarioBase {
         assertThat(cartQty()).isEqualTo(0);
     }
 
-    // Adding a quantity that would exceed 3 is refused; nothing is added, and the
-    // customer lands on the bulk-order handoff.
+    // Adding a quantity that would exceed the day's capacity is refused; nothing is added,
+    // and the customer lands on the bulk-order handoff.
     @Test
     void exceedingThree_routesToBulkLimit_withoutAdding() {
         String catId  = firstCategoryId();
@@ -70,7 +72,7 @@ class ItemCapFlowTest extends FlowScenarioBase {
         assertThat(cartQty()).as("blocked add must not change the cart").isEqualTo(2);
     }
 
-    // A cart already at the limit short-circuits the browse straight to the handoff.
+    // A cart that already fills the day short-circuits the browse straight to the handoff.
     @Test
     void fullCart_addAnother_guardsToBulkLimit() {
         String catId  = firstCategoryId();
@@ -131,9 +133,9 @@ class ItemCapFlowTest extends FlowScenarioBase {
         assertThat(cartQty()).isEqualTo(1);
     }
 
-    // Same-date cap: an existing pending order that is already full (3 items) blocks a
-    // new order for that same date right at the date step -- nothing can be added,
-    // because the two would merge past the per-order limit.
+    // Capacity is consumed by confirmed/unpaid orders, so an existing pending order that
+    // already fills the day blocks a new order for that same date right at the date step --
+    // the day is sold out, whoever booked it.
     @Test
     void sameDatePendingAtCap_blocksAtDateStep() {
         String date   = nextDeliveryDate();
@@ -153,12 +155,12 @@ class ItemCapFlowTest extends FlowScenarioBase {
         send(date);
 
         assertState("ORDER_SELECT_DATE");
-        assertThat(sentTexts).as("full same-date order blocks new items for that day")
-                .anyMatch(t -> t.contains("is already full"));
+        assertThat(sentTexts).as("a day whose bake is fully booked cannot take a new order")
+                .anyMatch(t -> t.contains("fully booked"));
     }
 
-    // Same-date cap: a partially-full pending order (1 item) still limits how much the
-    // new order can add so the merged total never exceeds the cap.
+    // A partially-booked day still limits how much more can be added, so the day's total
+    // bake never exceeds capacity.
     @Test
     void sameDatePendingPartial_capsMergedTotal() {
         String date   = nextDeliveryDate();

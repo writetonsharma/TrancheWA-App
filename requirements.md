@@ -178,3 +178,15 @@ Likely next phases:
 - Preorder calendar
 - Delivery slot management
 - Bake-list generation
+
+## Backlog
+
+### Capacity model needs revisiting
+
+`bakery.order.daily-capacity` counts *units*, not distinct items or bakes. It cannot
+distinguish "15 of one loaf" (one bake) from "15 different breads" (fifteen bakes), so
+fifteen customers ordering fifteen different items passes the check but is a production
+problem. The flat unit count is the only ceiling in the system today — the old per-order
+item cap was removed because it duplicated this number and expressed nothing extra.
+
+Likely direction: capacity per item or per bake (oven loads), not a single daily unit total.
