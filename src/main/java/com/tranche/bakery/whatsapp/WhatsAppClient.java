@@ -67,6 +67,12 @@ public class WhatsAppClient {
         return send(to, WhatsAppMessage.templateMessage(to, templateName, templateLanguage, bodyParams, mediaId, filename));
     }
 
+    /** Utility-template send with quick-reply buttons; each payload comes back in the webhook when tapped. */
+    public SendOutcome sendTemplateWithButtons(String to, String templateName,
+                                               List<String> bodyParams, List<String> buttonPayloads) {
+        return send(to, WhatsAppMessage.templateMessage(to, templateName, templateLanguage, bodyParams, buttonPayloads));
+    }
+
     public String uploadMedia(byte[] imageBytes, String filename) {
         return uploadMedia(imageBytes, filename, "image/png");
     }

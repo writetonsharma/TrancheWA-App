@@ -222,6 +222,24 @@ public class WhatsAppMessage {
         return new TemplateMessage(to, new Template(name, new Language(languageCode), components));
     }
 
+    /** Template send with quick-reply buttons — each payload is returned in the webhook when tapped. */
+    public static TemplateMessage templateMessage(String to, String name, String languageCode,
+                                                  List<String> bodyParams, List<String> buttonPayloads) {
+        List<Component> components = new ArrayList<>();
+        if (bodyParams != null && !bodyParams.isEmpty()) {
+            List<Parameter> params = new ArrayList<>();
+            for (String value : bodyParams) params.add(Parameter.text(value));
+            components.add(new Component("body", params));
+        }
+        if (buttonPayloads != null) {
+            for (int i = 0; i < buttonPayloads.size(); i++) {
+                components.add(new Component("button", "quick_reply", String.valueOf(i),
+                        List.of(Parameter.payload(buttonPayloads.get(i)))));
+            }
+        }
+        return new TemplateMessage(to, new Template(name, new Language(languageCode), components));
+    }
+
     @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class TemplateMessage {
@@ -249,11 +267,25 @@ public class WhatsAppMessage {
         private String code;
     }
 
-    @Data @AllArgsConstructor
+    @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Component {
         private String type;
+        private String sub_type;
+        private String index;
         private List<Parameter> parameters;
+
+        Component(String type, List<Parameter> parameters) {
+            this.type = type;
+            this.parameters = parameters;
+        }
+
+        Component(String type, String sub_type, String index, List<Parameter> parameters) {
+            this.type = type;
+            this.sub_type = sub_type;
+            this.index = index;
+            this.parameters = parameters;
+        }
     }
 
     @Data
@@ -261,12 +293,20 @@ public class WhatsAppMessage {
     public static class Parameter {
         private String type;
         private String text;
+        private String payload;
         private DocumentParam document;
 
         static Parameter text(String value) {
             Parameter p = new Parameter();
             p.type = "text";
             p.text = value;
+            return p;
+        }
+
+        static Parameter payload(String value) {
+            Parameter p = new Parameter();
+            p.type = "payload";
+            p.payload = value;
             return p;
         }
 

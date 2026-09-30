@@ -700,6 +700,30 @@
         "body": "For questions, feedback, or a quick call, chat with our team directly here:\n\nhttps://wa.me/918796770308\n\nTap the link to open a chat. 🍞\n\n_Send *hi* anytime to place an order._"
       },
       "autoTransition": "IDLE"
+    },
+    "FEEDBACK_REVIEW": {
+      "entryMessage": {
+        "type": "buttons",
+        "body": "So glad you enjoyed it! 💛 Would you like to leave us a quick review? It really helps a small bakery like ours.",
+        "buttons": [
+          { "id": "review_yes", "title": "Yes, sure" },
+          { "id": "review_no", "title": "Maybe later" }
+        ]
+      },
+      "transitions": [
+        { "match": "review_yes", "nextState": "IDLE", "action": "SEND_REVIEW_LINK" },
+        { "match": "review_no", "nextState": "IDLE", "action": "FEEDBACK_THANKS" },
+        { "match": "*", "nextState": "IDLE", "action": "FEEDBACK_THANKS" }
+      ]
+    },
+    "FEEDBACK_DETAIL": {
+      "entryMessage": {
+        "type": "text",
+        "body": "Thank you for being honest — what could we do better? Just reply here and it goes straight to Naveen. 🙏"
+      },
+      "transitions": [
+        { "match": "*", "nextState": "IDLE", "action": "SAVE_FEEDBACK_DETAIL" }
+      ]
     }
   }
 }

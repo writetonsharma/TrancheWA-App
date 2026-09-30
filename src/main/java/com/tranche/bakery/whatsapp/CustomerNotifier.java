@@ -113,11 +113,19 @@ public class CustomerNotifier {
         if (phone == null) return;
         String ref = ref(order);
         if (withinWindow(order)) {
-            whatsAppClient.sendText(phone, "✅ Your order *" + ref + "* has been delivered! " +
-                    "Thank you for choosing Tranché Bakery. We hope you enjoy it! 🥖\n\n" +
-                    "Send *hi* to place a new order anytime.");
+            // One message: delivered + the feedback question with two quick-reply buttons.
+            whatsAppClient.sendButtons(phone,
+                    "✅ Your order *" + ref + "* has been delivered! We hope you love it. 🥖\n\nHow was everything?",
+                    List.of(new WhatsAppMessage.Button("fbgood", "Loved it 😍"),
+                            new WhatsAppMessage.Button("fbbad", "Could be better 🙏")));
         } else {
-            whatsAppClient.sendTemplate(phone, T_DELIVERED, List.of(firstName(order), ref));
+            // order_delivered template must carry two quick-reply buttons (payloads fbgood / fbbad).
+            // If the template doesn't have them yet (rollout gap), still deliver the plain notification.
+            SendOutcome outcome = whatsAppClient.sendTemplateWithButtons(phone, T_DELIVERED,
+                    List.of(firstName(order), ref), List.of("fbgood", "fbbad"));
+            if (outcome != SendOutcome.SENT) {
+                whatsAppClient.sendTemplate(phone, T_DELIVERED, List.of(firstName(order), ref));
+            }
         }
     }
 

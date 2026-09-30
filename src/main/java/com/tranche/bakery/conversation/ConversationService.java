@@ -31,6 +31,8 @@ public class ConversationService {
     private String extractInput(String type, JsonNode message) {
         return switch (type) {
             case "text" -> message.path("text").path("body").asText("").trim();
+            // A tapped quick-reply button on a template arrives as type "button" with a payload.
+            case "button" -> message.path("button").path("payload").asText("").trim();
             case "interactive" -> {
                 JsonNode interactive = message.path("interactive");
                 yield switch (interactive.path("type").asText()) {

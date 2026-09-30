@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.tranche.bakery.conversation.ConversationRepository;
 import com.tranche.bakery.conversation.WhatsappConversation;
 import com.tranche.bakery.customer.Customer;
+import com.tranche.bakery.feedback.FeedbackService;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderService;
 import com.tranche.bakery.payment.RazorpayService;
@@ -31,7 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FlowEngine {
 
-    private static final Set<String> SUPPORTED_TYPES = Set.of("text", "interactive", "image", "location");
+    private static final Set<String> SUPPORTED_TYPES = Set.of("text", "interactive", "image", "location", "button");
 
     // Matches a message that starts with the word "hi" (case-insensitive), optionally
     // followed by more text — e.g. "hi", "Hi there", "Hi TRANCHÉ, I want to order the milk buns".
@@ -64,6 +65,7 @@ public class FlowEngine {
     private final SubscriptionService subscriptionService;
     private final SubscriptionRepository subscriptionRepository;
     private final RazorpayService razorpayService;
+    private final FeedbackService feedbackService;
     private final List<FlowAction> actions;
 
     @Transactional
@@ -178,6 +180,19 @@ public class FlowEngine {
                 whatsAppClient.sendText(phone,
                         "This subscription can no longer be paid. Send *hi* to return to the main menu.");
             }
+            return;
+        }
+
+        // Delivery feedback buttons (from the "delivered" message). These can arrive in any state —
+        // often as an out-of-window template reply while the customer is at IDLE — so handle globally.
+        if (input.trim().matches("fbgood(_\\d+)?")) {
+            feedbackService.save(customer, "Delivery feedback: 🙂 Loved it");
+            enterState(customer, conversation, "FEEDBACK_REVIEW", input, messageType, rawMessage);
+            return;
+        }
+        if (input.trim().matches("fbbad(_\\d+)?")) {
+            feedbackService.save(customer, "Delivery feedback: 🙁 Could be better");
+            enterState(customer, conversation, "FEEDBACK_DETAIL", input, messageType, rawMessage);
             return;
         }
 
