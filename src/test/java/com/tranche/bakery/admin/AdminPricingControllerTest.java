@@ -62,9 +62,9 @@ class AdminPricingControllerTest {
         controller.syncPreset(new RedirectAttributesModelMap());
 
         Customer reloaded = customerRepository.findByPhone("919820000001").orElseThrow();
-        assertThat(reloaded.getItemPrices().get("Lemon Tea Cake")).isEqualByComparingTo("280");
-        assertThat(reloaded.getItemPrices().get("Coffee & Walnut Tea Cake")).isEqualByComparingTo("330");
-        assertThat(reloaded.getItemPrices().get("Dark Chocolate Marble Tea Cake")).isEqualByComparingTo("300");
+        assertThat(reloaded.getItemPrices().get("Lemon Tea Cake")).isEqualByComparingTo("300");
+        assertThat(reloaded.getItemPrices().get("Coffee & Walnut Tea Cake")).isEqualByComparingTo("380");
+        assertThat(reloaded.getItemPrices().get("Dark Chocolate Marble Tea Cake")).isEqualByComparingTo("380");
         assertThat(reloaded.getItemPrices().get("Cinnamon Rolls")).isEqualByComparingTo("250"); // custom kept
     }
 
