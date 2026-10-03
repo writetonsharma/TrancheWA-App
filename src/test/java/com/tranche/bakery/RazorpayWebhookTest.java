@@ -28,6 +28,7 @@ class RazorpayWebhookTest extends FlowScenarioBase {
     @Autowired RazorpayService razorpayService;
     @Autowired OrderItemRepository orderItemRepository;
     @Autowired PaymentRepository paymentRepository;
+    @Autowired com.tranche.bakery.alert.AlertRepository alertRepository;
 
     private String sign(String body) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
@@ -87,6 +88,8 @@ class RazorpayWebhookTest extends FlowScenarioBase {
         assertThat(payment.getGatewayPaymentId()).isEqualTo("pay_ABC");
         assertThat(payment.getGatewayLinkId()).isEqualTo("plink_XYZ");
         assertThat(payment.getProvider()).isEqualTo("RAZORPAY");
+        // Admin is pinged that a paid order landed (gateway mode has no screenshot to prompt them).
+        assertThat(alertRepository.findAll()).extracting(a -> a.getType()).contains("ORDER_PAID");
     }
 
     @Test

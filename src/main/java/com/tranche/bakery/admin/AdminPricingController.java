@@ -180,27 +180,42 @@ public class AdminPricingController {
      * single all-items flat rate are skipped — their flat already covers new products.
      */
     @PostMapping("/sync-preset")
-    public String syncPreset(RedirectAttributes redirectAttributes) {
+    public String syncPreset(@RequestParam(defaultValue = "false") boolean overwrite,
+                             RedirectAttributes redirectAttributes) {
         Map<String, BigDecimal> presetCats = friendsFamilyPricing.categoryPrices();
         Map<String, BigDecimal> presetItems = friendsFamilyPricing.itemPrices();
         int customersUpdated = 0;
-        int pricesAdded = 0;
+        int pricesChanged = 0;
         for (Customer c : customerRepository.findAllWithPricingOverride()) {
             if (c.getCategoryPrices().isEmpty() && c.getItemPrices().isEmpty()) continue;
-            int before = c.getCategoryPrices().size() + c.getItemPrices().size();
-            presetCats.forEach(c.getCategoryPrices()::putIfAbsent);
-            presetItems.forEach(c.getItemPrices()::putIfAbsent);
-            int added = c.getCategoryPrices().size() + c.getItemPrices().size() - before;
-            if (added > 0) {
+            int changed = applyPreset(c.getCategoryPrices(), presetCats, overwrite)
+                    + applyPreset(c.getItemPrices(), presetItems, overwrite);
+            if (changed > 0) {
                 customerRepository.save(c);
                 customersUpdated++;
-                pricesAdded += added;
+                pricesChanged += changed;
             }
         }
-        redirectAttributes.addFlashAttribute("flash",
-                "Synced F&F rate card — added " + pricesAdded + " missing price(s) across "
-                + customersUpdated + " customer(s). Existing custom prices were kept.");
+        redirectAttributes.addFlashAttribute("flash", overwrite
+                ? "Reset F&F rate-card prices — updated " + pricesChanged + " price(s) across "
+                  + customersUpdated + " customer(s) to the current card. Off-card custom prices were kept."
+                : "Synced F&F rate card — added " + pricesChanged + " missing price(s) across "
+                  + customersUpdated + " customer(s). Existing custom prices were kept.");
         return "redirect:/admin/pricing";
+    }
+
+    // Fill missing keys always; when overwrite, also reset existing rate-card keys to the card value
+    // (so a card change propagates). Keys not in the card are left untouched. Returns entries changed.
+    private int applyPreset(Map<String, BigDecimal> target, Map<String, BigDecimal> preset, boolean overwrite) {
+        int changed = 0;
+        for (Map.Entry<String, BigDecimal> e : preset.entrySet()) {
+            BigDecimal current = target.get(e.getKey());
+            if (current == null || (overwrite && current.compareTo(e.getValue()) != 0)) {
+                target.put(e.getKey(), e.getValue());
+                changed++;
+            }
+        }
+        return changed;
     }
 
     private String describe(Customer customer) {

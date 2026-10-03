@@ -74,12 +74,17 @@
       <hr class="my-3">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
         <p class="text-muted small mb-0">
-          Added a new product? After setting its price in the rate card, sync it to everyone already on
-          F&amp;F — this only <strong>adds missing prices</strong> and never overwrites a custom price you&rsquo;ve set.
+          Added a new product or changed a rate? Sync it to everyone already on F&amp;F. By default this only
+          <strong>adds missing prices</strong>. Tick <strong>Overwrite</strong> to also reset rate-card items
+          to the current card (e.g. after a price change) — off-card custom prices are still kept.
         </p>
-        <form th:action="@{/admin/pricing/sync-preset}" method="post">
+        <form th:action="@{/admin/pricing/sync-preset}" method="post" class="text-end">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" name="overwrite" value="true" id="syncOverwrite">
+            <label class="form-check-label small" for="syncOverwrite">Overwrite existing prices with the rate card</label>
+          </div>
           <button type="submit" class="btn btn-outline-success"
-                  onclick="return confirm('Add any missing rate-card prices to all itemised F&amp;F customers? Existing custom prices are kept.')">
+                  onclick="return confirm('Sync rate-card prices to all itemised F&amp;F customers?\n\nUnchecked: only adds missing prices (keeps custom).\nChecked: resets rate-card items to the current card values.')">
             Sync rate card to existing F&amp;F customers
           </button>
         </form>

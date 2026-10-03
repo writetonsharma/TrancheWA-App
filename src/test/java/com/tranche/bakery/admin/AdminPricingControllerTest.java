@@ -59,13 +59,30 @@ class AdminPricingControllerTest {
         c.getItemPrices().put("Cinnamon Rolls", new BigDecimal("250")); // custom (rate card says 280)
         customerRepository.save(c);
 
-        controller.syncPreset(new RedirectAttributesModelMap());
+        controller.syncPreset(false, new RedirectAttributesModelMap());
 
         Customer reloaded = customerRepository.findByPhone("919820000001").orElseThrow();
         assertThat(reloaded.getItemPrices().get("Lemon Tea Cake")).isEqualByComparingTo("300");
         assertThat(reloaded.getItemPrices().get("Coffee & Walnut Tea Cake")).isEqualByComparingTo("380");
         assertThat(reloaded.getItemPrices().get("Dark Chocolate Marble Tea Cake")).isEqualByComparingTo("380");
         assertThat(reloaded.getItemPrices().get("Cinnamon Rolls")).isEqualByComparingTo("250"); // custom kept
+    }
+
+    @Test
+    void syncPreset_overwrite_resetsRateCardItemsToTheCard() {
+        // A customer whose Cinnamon price is below the current rate card (280).
+        Customer c = new Customer();
+        c.setPhone("919820000003");
+        c.setName("Raise FnF");
+        c.getItemPrices().put("Cinnamon Rolls", new BigDecimal("250"));
+        c.getItemPrices().put("Sourdough Special", new BigDecimal("999")); // off-card custom item
+        customerRepository.save(c);
+
+        controller.syncPreset(true, new RedirectAttributesModelMap());
+
+        Customer reloaded = customerRepository.findByPhone("919820000003").orElseThrow();
+        assertThat(reloaded.getItemPrices().get("Cinnamon Rolls")).isEqualByComparingTo("280"); // reset to card
+        assertThat(reloaded.getItemPrices().get("Sourdough Special")).isEqualByComparingTo("999"); // off-card kept
     }
 
     @Test
@@ -76,7 +93,7 @@ class AdminPricingControllerTest {
         c.setPricingOverride(new BigDecimal("200")); // all-items flat rate, empty maps
         customerRepository.save(c);
 
-        controller.syncPreset(new RedirectAttributesModelMap());
+        controller.syncPreset(false, new RedirectAttributesModelMap());
 
         Customer reloaded = customerRepository.findByPhone("919820000002").orElseThrow();
         assertThat(reloaded.getItemPrices()).isEmpty(); // their flat already covers new products

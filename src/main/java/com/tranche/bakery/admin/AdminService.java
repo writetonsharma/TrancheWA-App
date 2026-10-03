@@ -1,8 +1,10 @@
 package com.tranche.bakery.admin;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -54,6 +56,8 @@ public class AdminService {
     private final CustomerRepository customerRepository;
     private final AdminMessageRepository adminMessageRepository;
     private final CustomerNotifier customerNotifier;
+
+    private static final DateTimeFormatter ADMIN_DATE_FMT = DateTimeFormatter.ofPattern("EEE, d MMM");
 
     @Transactional(readOnly = true)
     public AdminDashboard buildDashboard() {
@@ -232,9 +236,26 @@ public class AdminService {
             orderRepository.findById(orderId).ifPresent(confirmed -> {
                 consumeCredit(confirmed);
                 customerNotifier.orderConfirmed(confirmed);
+                notifyAdminOrderPaid(confirmed);
             });
         }
         log.info("Gateway payment {} confirmed order {}", gatewayPaymentId, orderId);
+    }
+
+    // Gateway payments auto-confirm with no screenshot to review, so ping the admin that a paid order landed.
+    private void notifyAdminOrderPaid(Order order) {
+        String ref = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
+        Customer c = order.getCustomer();
+        String name = c != null && c.getName() != null ? c.getName() : (c != null ? c.getPhone() : "customer");
+        String phone = c != null ? c.getPhone() : null;
+        String amt = order.getTotalAmount() != null
+                ? " \u00b7 \u20b9" + order.getTotalAmount().setScale(0, RoundingMode.DOWN) : "";
+        String date = order.getDeliveryDate() != null ? order.getDeliveryDate().format(ADMIN_DATE_FMT) : "date TBD";
+        alertService.raise("ORDER_PAID",
+                "\u2705 New paid order \u2014 confirmed & ready to bake\n\n" +
+                "Order: *" + ref + "* \u00b7 " + date + amt + "\n" +
+                "Customer: " + name + (phone != null ? " (" + phone + ")" : ""),
+                order.getId(), phone);
     }
 
     // Deduct the credit this order used from the customer's running balance (once, on first confirm).
