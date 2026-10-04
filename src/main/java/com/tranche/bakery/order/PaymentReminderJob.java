@@ -95,17 +95,16 @@ public class PaymentReminderJob {
 
     private String earlyMessage(Order order, Payment payment) {
         return "🥖 Almost there! Your order *" + ref(order) + "* isn't confirmed yet.\n\n" +
-                "Please complete the UPI payment" + amountPart(payment) +
-                " and *share the payment screenshot here* — that's the final step to lock in your bake.";
+                "Just *tap your payment link above* to pay" + amountPart(payment) +
+                " — your order confirms automatically the moment payment is received.";
     }
 
     private String lastChanceMessage(Order order, Payment payment) {
         String deliveryPart = order.getDeliveryDate() != null
                 ? " (delivery " + order.getDeliveryDate().format(DATE_FMT) + ")" : "";
         return "⏰ Last reminder for order *" + ref(order) + "*" + deliveryPart + ".\n\n" +
-                "It's still awaiting payment. Please pay" + amountPart(payment) +
-                " and *share the screenshot here before " + cutoffLabel() + "* to confirm it — " +
-                "otherwise it'll be set aside for the day.";
+                "It's still awaiting payment. Please *tap your payment link* to pay" + amountPart(payment) +
+                " before " + cutoffLabel() + " to confirm it — otherwise it'll be set aside for the day.";
     }
 
     private String ref(Order order) {
