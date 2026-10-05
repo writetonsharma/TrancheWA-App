@@ -22,6 +22,6 @@ class FriendsFamilyPricingTest {
                 .containsEntry("Chocolate Babka Buns", new BigDecimal("350"))
                 .containsEntry("Olive, Tomato & Rosemary Focaccia", new BigDecimal("260"));
         assertThat(preset.subscriptionEligible()).isTrue();
-        assertThat(preset.size()).isGreaterThanOrEqualTo(20);
+        assertThat(preset.size()).isGreaterThanOrEqualTo(15);
     }
 }

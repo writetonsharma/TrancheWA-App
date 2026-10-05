@@ -25,24 +25,19 @@
           "displayOrder": 4
         },
         {
-          "name": "Honey & Walnut Loaf",
-          "price": 380.0,
-          "displayOrder": 5
-        },
-        {
           "name": "Olive Loaf",
           "price": 400.0,
-          "displayOrder": 6
+          "displayOrder": 5
         },
         {
           "name": "Caramelized Onion Loaf",
           "price": 300.0,
-          "displayOrder": 7
+          "displayOrder": 6
         },
         {
           "name": "Honey & Oat Loaf",
           "price": 360.0,
-          "displayOrder": 8
+          "displayOrder": 7
         }
       ]
     },
@@ -63,40 +58,16 @@
           "description": "Set of 6 rolls"
         },
         {
-          "name": "Milk Buns",
-          "price": 340.0,
-          "displayOrder": 3,
-          "description": "Set of 6 buns"
-        },
-        {
           "name": "Sesame Burger Buns",
           "price": 300.0,
-          "displayOrder": 4,
-          "description": "Set of 6 buns"
-        },
-        {
-          "name": "Potato Buns",
-          "price": 300.0,
-          "displayOrder": 5,
-          "description": "Set of 6 buns"
-        },
-        {
-          "name": "Eggless Brioche Buns",
-          "price": 320.0,
-          "displayOrder": 6,
+          "displayOrder": 3,
           "description": "Set of 6 buns"
         },
         {
           "name": "Bavarian Pretzel Buns",
           "price": 280.0,
-          "displayOrder": 7,
+          "displayOrder": 4,
           "description": "Set of 6 buns"
-        },
-        {
-          "name": "Kaiser Rolls",
-          "price": 290.0,
-          "displayOrder": 8,
-          "description": "Set of 6 rolls"
         }
       ]
     },
@@ -112,22 +83,16 @@
           "listTitle": "New York-Style Bagel"
         },
         {
-          "name": "Caramelized Onion Bagel",
-          "price": 420.0,
-          "displayOrder": 2,
-          "description": "Set of 6"
-        },
-        {
           "name": "Olive, Tomato & Rosemary Focaccia",
           "price": 420.0,
-          "displayOrder": 3,
+          "displayOrder": 2,
           "description": "8x8 inch tray; Fri-Sun only",
           "listTitle": "Tomato Focaccia"
         },
         {
           "name": "Garlic & Herb Knots",
           "price": 260.0,
-          "displayOrder": 5,
+          "displayOrder": 3,
           "description": "Set of 8 knots"
         }
       ]
@@ -149,37 +114,23 @@
           "description": "Set of 4 buns · Fri-Sun only"
         },
         {
-          "name": "Nordic Cardamom Buns",
-          "price": 440.0,
-          "displayOrder": 3,
-          "description": "Set of 4 buns · Fri-Sun only"
-        },
-        {
           "name": "Vanilla Tea Cake",
           "price": 450.0,
-          "displayOrder": 4,
+          "displayOrder": 3,
           "description": "Whole cake · eggless, clean label",
           "weightLabel": "375 g"
         },
         {
           "name": "Lemon Tea Cake",
           "price": 450.0,
-          "displayOrder": 5,
+          "displayOrder": 4,
           "description": "Whole cake · eggless, clean label",
-          "weightLabel": "375 g"
-        },
-        {
-          "name": "Coffee & Walnut Tea Cake",
-          "price": 550.0,
-          "displayOrder": 6,
-          "description": "Whole cake · eggless, clean label",
-          "listTitle": "Coffee & Walnut Cake",
           "weightLabel": "375 g"
         },
         {
           "name": "Dark Chocolate Marble Tea Cake",
           "price": 550.0,
-          "displayOrder": 7,
+          "displayOrder": 5,
           "description": "Whole cake · eggless, clean label",
           "listTitle": "Choc Marble Tea Cake",
           "weightLabel": "375 g"

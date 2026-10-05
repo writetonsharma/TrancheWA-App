@@ -2,14 +2,14 @@
   "itemTiers": {
     "LOAF": {
       "NORMAL": ["Classic Table White", "100% Whole Wheat Loaf", "Multi-Seed Loaf"],
-      "PREMIUM": ["Olive Loaf", "Caramelized Onion Loaf", "Milk & Butter Loaf", "Honey & Walnut Loaf", "Honey & Oat Loaf"]
+      "PREMIUM": ["Olive Loaf", "Caramelized Onion Loaf", "Milk & Butter Loaf", "Honey & Oat Loaf"]
     },
     "ROLL": {
-      "NORMAL": ["100% Whole Wheat Rolls", "Multi-Seed Rolls", "Sesame Burger Buns", "Potato Buns"],
-      "PREMIUM": ["Bavarian Pretzel Buns", "Kaiser Rolls", "Milk Buns"]
+      "NORMAL": ["100% Whole Wheat Rolls", "Multi-Seed Rolls", "Sesame Burger Buns"],
+      "PREMIUM": ["Bavarian Pretzel Buns"]
     },
     "SWEET": {
-      "NORMAL": ["Cinnamon Rolls", "Nordic Cardamom Buns"],
+      "NORMAL": ["Cinnamon Rolls"],
       "PREMIUM": ["Chocolate Babka Buns"]
     }
   },

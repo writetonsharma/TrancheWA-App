@@ -57,7 +57,7 @@ class CommercialOrderServiceTest extends FlowScenarioBase {
     @Test
     void createInvoice_skipsZeroQtyLines_andListsCommercialOrders() {
         MenuItem lemon = itemRepository.findFirstByNameAndActiveTrue("Lemon Tea Cake").orElseThrow();
-        MenuItem coffee = itemRepository.findFirstByNameAndActiveTrue("Coffee & Walnut Tea Cake").orElseThrow();
+        MenuItem coffee = itemRepository.findFirstByNameAndActiveTrue("Dark Chocolate Marble Tea Cake").orElseThrow();
 
         Order order = commercialOrderService.createInvoice(
                 "Bulk Buyer", "9811111111", null, LocalDate.now().plusDays(3), null, null,
