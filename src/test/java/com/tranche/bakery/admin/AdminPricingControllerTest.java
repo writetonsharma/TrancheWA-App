@@ -65,6 +65,7 @@ class AdminPricingControllerTest {
         assertThat(reloaded.getItemPrices().get("Lemon Tea Cake")).isEqualByComparingTo("300");
         assertThat(reloaded.getItemPrices().get("Vanilla Tea Cake")).isEqualByComparingTo("300");
         assertThat(reloaded.getItemPrices().get("Dark Chocolate Marble Tea Cake")).isEqualByComparingTo("380");
+        assertThat(reloaded.getItemPrices().get("Date & Walnut Tea Cake")).isEqualByComparingTo("380");
         assertThat(reloaded.getItemPrices().get("Cinnamon Rolls")).isEqualByComparingTo("250"); // custom kept
     }
 

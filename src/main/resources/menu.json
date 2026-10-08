@@ -134,6 +134,13 @@
           "description": "Whole cake · eggless, clean label",
           "listTitle": "Choc Marble Tea Cake",
           "weightLabel": "375 g"
+        },
+        {
+          "name": "Date & Walnut Tea Cake",
+          "price": 550.0,
+          "displayOrder": 6,
+          "description": "Whole cake · no added sugar",
+          "weightLabel": "375 g"
         }
       ]
     }
