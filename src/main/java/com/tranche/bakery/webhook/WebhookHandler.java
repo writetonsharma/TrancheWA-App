@@ -23,6 +23,10 @@ public class WebhookHandler {
     private final ConversationService conversationService;
     private final AlertService alertService;
 
+    // Marketing-template delivery throttles (131049 "healthy ecosystem engagement") fail per-recipient
+    // during a broadcast — expected and logged, but must NOT each raise an alert (would flood Telegram).
+    private static final Set<String> MARKETING_THROTTLE_CODES = Set.of("131049");
+
     // Deduplication: track last 500 processed message IDs in memory
     private final Set<String> processedMessageIds = Collections.newSetFromMap(
             Collections.synchronizedMap(new LinkedHashMap<>() {
@@ -56,11 +60,15 @@ public class WebhookHandler {
                         String code  = firstError.path("code").asText("");
                         String title = firstError.path("title").asText("");
                         log.error("Message {} to {} status={} errors={}", statusId, recipient, statusVal, errors);
-                        alertService.raise("DELIVERY_FAILURE",
-                                "WhatsApp message to " + recipient + " failed" +
-                                (code.isBlank() ? "" : " [" + code + "]") +
-                                (title.isBlank() ? "" : " " + title),
-                                null, recipient);
+                        if (MARKETING_THROTTLE_CODES.contains(code)) {
+                            log.warn("Suppressing DELIVERY_FAILURE alert — marketing throttle [{}] to {}", code, recipient);
+                        } else {
+                            alertService.raise("DELIVERY_FAILURE",
+                                    "WhatsApp message to " + recipient + " failed" +
+                                    (code.isBlank() ? "" : " [" + code + "]") +
+                                    (title.isBlank() ? "" : " " + title),
+                                    null, recipient);
+                        }
                     } else {
                         log.info("Message {} status={}", statusId, statusVal);
                     }

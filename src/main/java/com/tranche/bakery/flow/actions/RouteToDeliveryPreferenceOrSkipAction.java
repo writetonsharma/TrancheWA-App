@@ -29,10 +29,22 @@ public class RouteToDeliveryPreferenceOrSkipAction implements FlowAction {
 
         orderRepository.findById(Long.parseLong(orderIdStr)).ifPresent(order -> {
             if (order.getDeliveryPreference() != null) {
+                // Already set on this draft (e.g. added more items) — don't ask again.
                 log.debug("Order {} already has delivery preference {}, skipping",
                         order.getId(), order.getDeliveryPreference());
                 ctx.setRedirectState("LOAF_PREFERENCE_GATE");
+                return;
             }
+            // Returning customer: reuse the delivery preference from their last order and skip the question.
+            orderRepository
+                    .findTopByCustomerIdAndIdNotAndSubscriptionIdIsNullAndDeliveryPreferenceIsNotNullOrderByCreatedAtDesc(
+                            ctx.getCustomer().getId(), order.getId())
+                    .ifPresent(last -> {
+                        order.setDeliveryPreference(last.getDeliveryPreference());
+                        orderRepository.save(order);
+                        ctx.setRedirectState("LOAF_PREFERENCE_GATE");
+                    });
+            // First-time customer (no prior preference): no redirect — the DELIVERY_PREFERENCE question is shown.
         });
     }
 }

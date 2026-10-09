@@ -27,6 +27,14 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     Optional<Order> findTopByCustomerIdAndSubscriptionIdIsNullAndStatusInOrderByCreatedAtDesc(
             Long customerId, Collection<OrderStatus> statuses);
 
+    // Returning-customer fast path: the most recent REAL (non-subscription) order that had a delivery /
+    // loaf preference set, so a repeat order can reuse it instead of re-asking. Excludes the current order.
+    Optional<Order> findTopByCustomerIdAndIdNotAndSubscriptionIdIsNullAndDeliveryPreferenceIsNotNullOrderByCreatedAtDesc(
+            Long customerId, Long excludeId);
+
+    Optional<Order> findTopByCustomerIdAndIdNotAndSubscriptionIdIsNullAndLoafPreferenceIsNotNullOrderByCreatedAtDesc(
+            Long customerId, Long excludeId);
+
     List<Order> findAllByStatusOrderByCreatedAtDesc(OrderStatus status);
 
     List<Order> findAllByStatusIn(Collection<OrderStatus> statuses);
