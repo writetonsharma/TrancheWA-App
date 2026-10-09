@@ -73,6 +73,13 @@ public class WhatsAppClient {
         return send(to, WhatsAppMessage.templateMessage(to, templateName, templateLanguage, bodyParams, buttonPayloads));
     }
 
+    /** Marketing-template send: image header (public URL) + body params + quick-reply button payloads. */
+    public SendOutcome sendMarketingTemplate(String to, String templateName, String headerImageLink,
+                                             List<String> bodyParams, List<String> buttonPayloads) {
+        return send(to, WhatsAppMessage.templateMessage(to, templateName, templateLanguage,
+                headerImageLink, bodyParams, buttonPayloads));
+    }
+
     public String uploadMedia(byte[] imageBytes, String filename) {
         return uploadMedia(imageBytes, filename, "image/png");
     }

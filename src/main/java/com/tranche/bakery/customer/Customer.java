@@ -62,6 +62,10 @@ public class Customer {
     @Column(nullable = false)
     private boolean subscriptionEligible = false;
 
+    // Opted in to promotional broadcasts. Default true; a STOP reply or the admin toggle flips it off.
+    @Column(name = "marketing_opt_in", nullable = false)
+    private boolean marketingOptIn = true;
+
     private LocalDateTime overrideExpiresAt;
 
     @Column(columnDefinition = "TEXT")

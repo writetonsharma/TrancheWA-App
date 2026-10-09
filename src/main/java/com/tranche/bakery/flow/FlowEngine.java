@@ -14,6 +14,7 @@ import com.tranche.bakery.conversation.ConversationRepository;
 import com.tranche.bakery.conversation.WhatsappConversation;
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.feedback.FeedbackService;
+import com.tranche.bakery.marketing.MarketingService;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderService;
 import com.tranche.bakery.payment.RazorpayService;
@@ -66,6 +67,7 @@ public class FlowEngine {
     private final SubscriptionRepository subscriptionRepository;
     private final RazorpayService razorpayService;
     private final FeedbackService feedbackService;
+    private final MarketingService marketingService;
     private final List<FlowAction> actions;
 
     @Transactional
@@ -195,7 +197,23 @@ public class FlowEngine {
             enterState(customer, conversation, "FEEDBACK_DETAIL", input, messageType, rawMessage);
             return;
         }
+        // Marketing opt-out — the "Stop promotions" button (payload stop_promotions) or a typed STOP/UNSUBSCRIBE.
+        if (input.trim().matches("(?i)stop_promotions|stop|unsubscribe|stop promotions")) {
+            marketingService.optOut(customer);
+            whatsAppClient.sendText(phone,
+                    "Done — you won't get promotional messages from us anymore. You'll still get updates about your "
+                            + "orders. Send *hi* anytime to place an order. \uD83E\uDD56");
+            return;
+        }
 
+        // Marketing "Order now" button (payload order_now) — jump straight into placing an order.
+        if (input.trim().matches("order_now")) {
+            orderService.cancelDraftIfExists(customer);
+            conversation.setContext(new HashMap<>());
+            String next = (customer.getName() == null || customer.getName().isBlank()) ? "NAME_COLLECT" : "ORDER_SELECT_CATEGORY";
+            enterState(customer, conversation, next, input, messageType, rawMessage);
+            return;
+        }
         // In gateway mode the webhook confirms payment, so a screenshot proves nothing and must not
         // open a review item. Re-surface the live link instead — it is the only way to pay.
         if ("image".equals(messageType) && razorpayService.isGatewayMode()) {

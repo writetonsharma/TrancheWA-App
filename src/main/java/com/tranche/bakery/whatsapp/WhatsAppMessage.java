@@ -240,6 +240,28 @@ public class WhatsAppMessage {
         return new TemplateMessage(to, new Template(name, new Language(languageCode), components));
     }
 
+    /** Marketing-template send: image header (public URL) + body params + quick-reply button payloads. */
+    public static TemplateMessage templateMessage(String to, String name, String languageCode,
+                                                  String headerImageLink, List<String> bodyParams,
+                                                  List<String> buttonPayloads) {
+        List<Component> components = new ArrayList<>();
+        if (headerImageLink != null && !headerImageLink.isBlank()) {
+            components.add(new Component("header", List.of(Parameter.image(headerImageLink))));
+        }
+        if (bodyParams != null && !bodyParams.isEmpty()) {
+            List<Parameter> params = new ArrayList<>();
+            for (String value : bodyParams) params.add(Parameter.text(value));
+            components.add(new Component("body", params));
+        }
+        if (buttonPayloads != null) {
+            for (int i = 0; i < buttonPayloads.size(); i++) {
+                components.add(new Component("button", "quick_reply", String.valueOf(i),
+                        List.of(Parameter.payload(buttonPayloads.get(i)))));
+            }
+        }
+        return new TemplateMessage(to, new Template(name, new Language(languageCode), components));
+    }
+
     @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class TemplateMessage {
@@ -295,6 +317,7 @@ public class WhatsAppMessage {
         private String text;
         private String payload;
         private DocumentParam document;
+        private ImageParam image;
 
         static Parameter text(String value) {
             Parameter p = new Parameter();
@@ -316,6 +339,19 @@ public class WhatsAppMessage {
             p.document = new DocumentParam(id, filename);
             return p;
         }
+
+        static Parameter image(String link) {
+            Parameter p = new Parameter();
+            p.type = "image";
+            p.image = new ImageParam(link);
+            return p;
+        }
+    }
+
+    @Data @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ImageParam {
+        private String link;
     }
 
     @Data @AllArgsConstructor

@@ -15,29 +15,36 @@
           "displayOrder": 2
         },
         {
+          "name": "Millet & Whole Wheat Loaf (Ragi)",
+          "price": 320.0,
+          "displayOrder": 3,
+          "description": "Ragi + whole wheat · high in fibre, source of protein",
+          "listTitle": "Millet & Wheat (Ragi)"
+        },
+        {
           "name": "Multi-Seed Loaf",
           "price": 320.0,
-          "displayOrder": 3
+          "displayOrder": 4
         },
         {
           "name": "Milk & Butter Loaf",
           "price": 360.0,
-          "displayOrder": 4
+          "displayOrder": 5
         },
         {
           "name": "Olive Loaf",
           "price": 400.0,
-          "displayOrder": 5
+          "displayOrder": 6
         },
         {
           "name": "Caramelized Onion Loaf",
           "price": 300.0,
-          "displayOrder": 6
+          "displayOrder": 7
         },
         {
           "name": "Honey & Oat Loaf",
           "price": 360.0,
-          "displayOrder": 7
+          "displayOrder": 8
         }
       ]
     },

@@ -17,6 +17,15 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     @Query("SELECT c FROM Customer c WHERE c.pricingOverride IS NOT NULL OR SIZE(c.categoryPrices) > 0 OR SIZE(c.itemPrices) > 0 OR c.subscriptionEligible = true ORDER BY c.overrideExpiresAt ASC NULLS LAST")
     List<Customer> findAllWithPricingOverride();
 
+    // Everyone who has placed a real (non-draft) order — the marketing broadcast audience. Opt-in
+    // status is shown per row; the broadcast itself skips anyone who has opted out.
+    @Query("""
+            SELECT DISTINCT c FROM Customer c
+            WHERE EXISTS (SELECT o FROM Order o WHERE o.customer = c AND o.status <> com.tranche.bakery.order.OrderStatus.DRAFT)
+            ORDER BY c.createdAt DESC
+            """)
+    List<Customer> findMarketingAudience();
+
     // "Ghost" rows: a stray/spam number that messaged once and never progressed. Only rows with no
     // name, no pricing/F&F flag, no orders, subscriptions, admin messages or feedback, and dormant
     // since before the cutoff qualify — so a real (named) lead or an admin-added contact is never hit.
