@@ -192,4 +192,43 @@ class SubscriptionServiceTest extends FlowScenarioBase {
 
         assertThat(sentButtonBodies).anyMatch(b -> b.contains("awaiting payment"));
     }
+
+    @Test
+    void publicPlan_pricesAtTwoFortyPerWeek() {
+        Subscription sub = subscriptionService.createPending(customer, "PUB_NORMAL", halfLoafPlusRolls(), DayOfWeek.MONDAY);
+
+        assertThat(sub.getWeeklyPrice()).isEqualByComparingTo("240");
+        assertThat(sub.getUpfrontAmount()).isEqualByComparingTo("1210"); // (240 × 4 bakes) + (50 × 5 deliveries)
+        assertThat(sub.getBonusWeeks()).isEqualTo(1);
+    }
+
+    @Test
+    void renewFrom_clonesLastCompletedSubscription() {
+        DayOfWeek day = soonDeliveryDay();
+        Subscription first = subscriptionService.createPending(customer, "PUB_NORMAL", halfLoafPlusRolls(), day);
+        subscriptionService.activate(first.getId());
+        jdbcTemplate.update("UPDATE subscriptions SET status = 'COMPLETED' WHERE id = ?", first.getId());
+
+        var renewed = subscriptionService.renewFrom(customer);
+
+        assertThat(renewed).isPresent();
+        Subscription r = renewed.orElseThrow();
+        assertThat(r.getId()).isNotEqualTo(first.getId());
+        assertThat(r.getStatus()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
+        assertThat(r.getPlanCode()).isEqualTo("PUB_NORMAL");
+        assertThat(r.getDeliveryDay()).isEqualTo(day);
+        assertThat(r.getItems()).hasSize(2);
+    }
+
+    @Test
+    void renewFrom_blockedWhileSubscriptionInProgress() {
+        subscriptionService.createPending(customer, "PUB_NORMAL", halfLoafPlusRolls(), soonDeliveryDay());
+
+        assertThat(subscriptionService.renewFrom(customer)).isEmpty();   // a PENDING_PAYMENT one already exists
+    }
+
+    @Test
+    void renewFrom_emptyWhenNoPriorSubscription() {
+        assertThat(subscriptionService.renewFrom(customer)).isEmpty();
+    }
 }

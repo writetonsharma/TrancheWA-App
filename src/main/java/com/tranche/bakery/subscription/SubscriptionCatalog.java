@@ -2,6 +2,7 @@ package com.tranche.bakery.subscription;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -90,6 +91,19 @@ public class SubscriptionCatalog {
                 .filter(p -> p.active)
                 .filter(p -> audience != null && audience.equalsIgnoreCase(p.audience))
                 .collect(Collectors.toList());
+    }
+
+    /** F&F customers see the F&F (near-cost) plans; everyone else sees the public plans. */
+    public List<PlanConfig> activePlansFor(boolean friendsAndFamily) {
+        return activePlansForAudience(friendsAndFamily ? "FF" : "PUBLIC");
+    }
+
+    /** Effective per-week bread price with the free bonus weeks folded in (weekly × paid ÷ all weeks). */
+    public BigDecimal effectiveWeeklyPrice(PlanConfig plan) {
+        int total = totalWeeks(plan);
+        if (total <= 0) return plan.getWeeklyPrice();
+        return plan.getWeeklyPrice().multiply(BigDecimal.valueOf(plan.getCommitmentWeeks()))
+                .divide(BigDecimal.valueOf(total), 0, RoundingMode.HALF_UP);
     }
 
     public Optional<PlanConfig> plan(String code) {

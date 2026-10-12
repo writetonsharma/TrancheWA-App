@@ -49,7 +49,7 @@ class CreditFlowTest extends FlowScenarioBase {
         String catId = firstCategoryId();
         String itemId = firstItemId(catId);
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(nextDeliveryDate());
         send(catId);
         send(itemId);

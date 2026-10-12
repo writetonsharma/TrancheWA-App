@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
-/** The Order button offers the subscription choice only to eligible (F&F) customers. */
+/** The Order button offers the one-time vs subscription choice to every customer. */
 class OrderChoiceFlowTest extends FlowScenarioBase {
 
     @Test
@@ -19,11 +19,11 @@ class OrderChoiceFlowTest extends FlowScenarioBase {
     }
 
     @Test
-    void normalCustomer_goesStraightToOrdering() {
+    void publicCustomer_alsoSeesSubscriptionChoice() {
         send("hi");
         sentButtonTitles.clear();
         send("order");
 
-        assertThat(sentButtonTitles).doesNotContain("Weekly Subscription");
+        assertThat(sentButtonTitles).contains("One-time Order", "Weekly Subscription");
     }
 }

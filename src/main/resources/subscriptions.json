@@ -99,6 +99,88 @@
           ]
         }
       ]
+    },
+    {
+      "code": "PUB_NORMAL",
+      "name": "Weekly Bakes",
+      "tier": "NORMAL",
+      "audience": "PUBLIC",
+      "weeklyPrice": 240,
+      "commitmentWeeks": 4,
+      "bonusWeeks": 1,
+      "active": true,
+      "options": [
+        {
+          "label": "Half loaf + 4 rolls",
+          "components": [
+            { "type": "LOAF", "portion": "HALF", "qty": 1 },
+            { "type": "ROLL", "portion": "FULL", "qty": 4 }
+          ]
+        },
+        {
+          "label": "Half loaf + 1 sweet roll",
+          "components": [
+            { "type": "LOAF", "portion": "HALF", "qty": 1 },
+            { "type": "SWEET", "portion": "FULL", "qty": 1 }
+          ]
+        },
+        {
+          "label": "4 rolls + 1 sweet roll",
+          "components": [
+            { "type": "ROLL", "portion": "FULL", "qty": 4 },
+            { "type": "SWEET", "portion": "FULL", "qty": 1 }
+          ]
+        },
+        {
+          "label": "Two half loaves",
+          "description": "Mix & match any two loaves",
+          "components": [
+            { "type": "LOAF", "portion": "HALF", "qty": 1 },
+            { "type": "LOAF", "portion": "HALF", "qty": 1 }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PUB_PREMIUM",
+      "name": "Weekly Bakes — Premium",
+      "tier": "PREMIUM",
+      "audience": "PUBLIC",
+      "weeklyPrice": 320,
+      "commitmentWeeks": 4,
+      "bonusWeeks": 1,
+      "active": true,
+      "options": [
+        {
+          "label": "Half loaf + 4 rolls",
+          "components": [
+            { "type": "LOAF", "portion": "HALF", "qty": 1 },
+            { "type": "ROLL", "portion": "FULL", "qty": 4 }
+          ]
+        },
+        {
+          "label": "Half loaf + 1 sweet roll",
+          "components": [
+            { "type": "LOAF", "portion": "HALF", "qty": 1 },
+            { "type": "SWEET", "portion": "FULL", "qty": 1 }
+          ]
+        },
+        {
+          "label": "4 rolls + 1 sweet roll",
+          "components": [
+            { "type": "ROLL", "portion": "FULL", "qty": 4 },
+            { "type": "SWEET", "portion": "FULL", "qty": 1 }
+          ]
+        },
+        {
+          "label": "Two half loaves",
+          "description": "1 premium + 1 everyday loaf",
+          "components": [
+            { "type": "LOAF", "portion": "HALF", "qty": 1 },
+            { "type": "LOAF", "portion": "HALF", "qty": 1, "tier": "NORMAL" }
+          ]
+        }
+      ]
     }
   ]
 }

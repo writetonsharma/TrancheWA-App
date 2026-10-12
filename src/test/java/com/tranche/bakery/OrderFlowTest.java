@@ -49,7 +49,7 @@ class OrderFlowTest extends FlowScenarioBase {
         String itemId = firstItemId(bunsCategory.getId().toString());
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(nextDeliveryDate());
         send(bunsCategory.getId().toString());
         send(itemId);
@@ -70,7 +70,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         // A bagel-eligible date offers the bagel.
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(bagelEarliestDate());
         assertState("ORDER_SELECT_CATEGORY");
         send(catId);
@@ -84,7 +84,7 @@ class OrderFlowTest extends FlowScenarioBase {
         while (probe.getDayOfWeek() == DayOfWeek.WEDNESDAY) probe = probe.plusDays(1);
         if (probe.isBefore(bagelOk)) {
             send("hi");
-            send("order");
+            send("order"); send("one_time");
             send(probe.toString());
             assertState("ORDER_SELECT_CATEGORY");
             send(catId);
@@ -100,7 +100,7 @@ class OrderFlowTest extends FlowScenarioBase {
         String catId = categoryIdByName("Breakfast & Specialty");
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
 
         // A weekday date: focaccia is weekend-only, so it isn't offered.
         send(nextWeekday(DayOfWeek.THURSDAY).toString());
@@ -111,7 +111,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         // A weekend date offers focaccia.
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(nextWeekend(DayOfWeek.SATURDAY).toString());
         assertState("ORDER_SELECT_CATEGORY");
         send(catId);
@@ -128,7 +128,7 @@ class OrderFlowTest extends FlowScenarioBase {
         fillDateCapacity(full, 3);
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         assertState("ORDER_SELECT_DATE");
 
         // Entry note explains why the soonest day is missing
@@ -157,7 +157,7 @@ class OrderFlowTest extends FlowScenarioBase {
         fillDateCapacity(second, 3);
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         assertState("ORDER_SELECT_DATE");
 
         // The notification should mention both full days
@@ -187,7 +187,7 @@ class OrderFlowTest extends FlowScenarioBase {
         fillDateCapacity(later, 3);
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         assertState("ORDER_SELECT_DATE");
 
         java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM");
@@ -212,7 +212,7 @@ class OrderFlowTest extends FlowScenarioBase {
         fillDateCapacity(later, 3);
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         assertState("ORDER_SELECT_DATE");
 
         java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM");
@@ -304,7 +304,7 @@ class OrderFlowTest extends FlowScenarioBase {
         String itemId = firstItemId(catId);
         String date2  = secondDeliveryDate();    // D2 â‰  D1
 
-        send("order");
+        send("order"); send("one_time");
         send(date2);
         send(catId);
         send(itemId);
@@ -326,7 +326,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         // Order 1: 1 Ã— item, date D
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(date);
         send(catId); send(itemId); send("1"); send("view_order");
         send("use_address");
@@ -343,7 +343,7 @@ class OrderFlowTest extends FlowScenarioBase {
         send("hi");
 
         // Order 2: 2 Ã— same item, same date D â†’ SaveDeliveryDateAction Case 1: merge
-        send("order");
+        send("order"); send("one_time");
         send(date);
         send(catId); send(itemId); send("2"); send("view_order");     // merge triggers, draft cancelled, redirected to ORDER_CONFIRM
 
@@ -375,7 +375,7 @@ class OrderFlowTest extends FlowScenarioBase {
         String itemId = firstItemId(catId);
         String date2  = secondDeliveryDate();
 
-        send("order");
+        send("order"); send("one_time");
         send(date2);
         send(catId); send(itemId); send("1"); send("view_order");
         send("continue_order");     // ADDRESS_GATE â†’ ADDRESS_CONFIRM
@@ -417,7 +417,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         String catId  = firstCategoryId();
         String itemId = firstItemId(catId);
-        send("order");
+        send("order"); send("one_time");
         send(secondDeliveryDate());
         send(catId); send(itemId); send("1"); send("view_order");
         send("continue_order");
@@ -500,7 +500,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         String catId  = firstCategoryId();
         String itemId = firstItemId(catId);
-        send("order");
+        send("order"); send("one_time");
         send(secondDeliveryDate());
         send(catId); send(itemId); send("1"); send("view_order");
         send("continue_order");
@@ -566,7 +566,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         // Order 1: take the whole day's capacity (3 in the test profile), confirm to PENDING.
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(date);
         send(catId); send(itemId); send("3"); send("view_order");
         send("use_address");
@@ -580,7 +580,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         // New order, same date D -> the sold-out block fires.
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         sentTexts.clear();
         send(date);
 
@@ -602,7 +602,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         String catId  = firstCategoryId();
         String itemId = firstItemId(catId);
-        send("order");
+        send("order"); send("one_time");
         send(secondDeliveryDate());
         send(catId); send(itemId); send("1"); send("view_order");     // ORDER_CONFIRM_SEPARATE
 
@@ -639,7 +639,7 @@ class OrderFlowTest extends FlowScenarioBase {
         String itemId = firstItemId(catId);
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(nextDeliveryDate());
         send(catId); send(itemId); send("2");   // 2 Ã— item
         send("add_item");                        // add another
@@ -667,7 +667,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         String date2 = secondDeliveryDate();
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(date2);
         send(catId); send(itemId); send("1"); send("view_order");
         send("continue_order");
@@ -682,7 +682,7 @@ class OrderFlowTest extends FlowScenarioBase {
         String date3 = d3.toString();
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(date3);
         send(catId); send(itemId); send("1"); send("view_order");
         send("continue_order");
@@ -702,7 +702,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         sentTexts.clear();
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(date4);
 
         // Blocked at the date step (before browsing) -> IDLE with a blocking message
@@ -720,7 +720,7 @@ class OrderFlowTest extends FlowScenarioBase {
     @Test
     void dateStep_showsBagelFocacciaHeadsUpNote() {
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         assertState("ORDER_SELECT_DATE");
 
         assertThat(sentListBodies)
@@ -760,7 +760,7 @@ class OrderFlowTest extends FlowScenarioBase {
         reloadConversation();
 
         // Start a new order without greeting, so the "hi" reset does not fire.
-        send("order");
+        send("order"); send("one_time");
         assertState("ORDER_SUGGEST_REORDER");
         assertThat(conversation.getContext())
                 .as("stale deliveryDate cleared when a new order starts")
@@ -813,7 +813,7 @@ class OrderFlowTest extends FlowScenarioBase {
 
         // Start order, add first item
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(date);
         send(catId);
         send(itemId);

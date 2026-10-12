@@ -13,7 +13,7 @@ class OrderSelectionGuardTest extends FlowScenarioBase {
 
     private void reachItemStep() {
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(nextDeliveryDate());
         assertState("ORDER_SELECT_CATEGORY");
         send(firstCategoryId());
@@ -41,7 +41,7 @@ class OrderSelectionGuardTest extends FlowScenarioBase {
     void validItemAtItemStep_advancesToQuantity() {
         String catId = firstCategoryId();
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(nextDeliveryDate());
         send(catId);
         send(firstItemId(catId));
@@ -51,7 +51,7 @@ class OrderSelectionGuardTest extends FlowScenarioBase {
     @Test
     void invalidCategoryAtCategoryStep_reprompts() {
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(nextDeliveryDate());
         assertState("ORDER_SELECT_CATEGORY");
         send("999999"); // no such category

@@ -218,17 +218,25 @@ public class CustomerNotifier {
         }
     }
 
-    /** Subscription's final delivery is near — nudge to renew (usually out of window). */
+    /** Subscription has ended — offer a one-tap renewal (usually out of window). */
     public void subscriptionRenewal(Customer customer, java.time.LocalDate lastDelivery) {
         if (customer == null || customer.getPhone() == null) return;
         String phone = customer.getPhone();
-        String day = lastDelivery != null ? lastDelivery.format(DATE_FMT) : "soon";
+        String day = lastDelivery != null ? lastDelivery.format(DATE_FMT) : "recently";
         if (withinWindow(customer)) {
-            whatsAppClient.sendText(phone, "Your Tranché subscription's final delivery is on *" + day + "*. " +
-                    "Reply *renew* to continue for another few weeks of fresh bakes. 🥖");
+            whatsAppClient.sendButtons(phone,
+                    "Your Tranché subscription has ended — your last delivery was *" + day + "*. "
+                            + "Renew the same plan for more weeks of fresh bakes? 🥖",
+                    List.of(new WhatsAppMessage.Button("renew_yes", "Renew same"),
+                            new WhatsAppMessage.Button("renew_change", "Change plan")));
         } else {
-            whatsAppClient.sendTemplate(phone, T_SUB_RENEWAL,
-                    List.of(firstName(customer.getName()), day));
+            // subscription_renewal template should carry two quick-reply buttons (payloads renew_yes / renew_change).
+            // Fall back to the plain template (the customer can type "renew") if the buttons aren't on it yet.
+            SendOutcome outcome = whatsAppClient.sendTemplateWithButtons(phone, T_SUB_RENEWAL,
+                    List.of(firstName(customer.getName()), day), List.of("renew_yes", "renew_change"));
+            if (outcome != SendOutcome.SENT) {
+                whatsAppClient.sendTemplate(phone, T_SUB_RENEWAL, List.of(firstName(customer.getName()), day));
+            }
         }
     }
 

@@ -5,7 +5,9 @@ import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -97,9 +99,32 @@ public class SubscriptionService {
     }
 
     /**
-     * Activates from an already signature-verified gateway webhook. A payment whose amount doesn't
-     * match what we charged is left pending and alerted rather than auto-activated.
+     * Build a fresh PENDING_PAYMENT subscription from the customer's most recent subscription — same
+     * plan, bundle and delivery day, but priced from the CURRENT catalog. Returns empty when there is
+     * nothing to clone: an in-progress subscription already exists, there is no prior one, the plan was
+     * retired, or a chosen item is no longer sold (caller should fall back to a fresh pick).
      */
+    @Transactional
+    public Optional<Subscription> renewFrom(Customer customer) {
+        if (subscriptionRepository.existsByCustomerIdAndStatus(customer.getId(), SubscriptionStatus.ACTIVE)
+                || subscriptionRepository.existsByCustomerIdAndStatus(customer.getId(), SubscriptionStatus.PENDING_PAYMENT)) {
+            return Optional.empty();
+        }
+        Subscription last = subscriptionRepository.findAllByCustomerIdOrderByCreatedAtDesc(customer.getId())
+                .stream().findFirst().orElse(null);
+        if (last == null) return Optional.empty();
+        PlanConfig plan = catalog.plan(last.getPlanCode()).filter(PlanConfig::isActive).orElse(null);
+        if (plan == null) return Optional.empty();
+        List<ChosenItem> items = new ArrayList<>();
+        for (SubscriptionItem si : last.getItems()) {
+            if (menuItemRepository.findFirstByNameAndActiveTrue(si.getItemName()).isEmpty()) {
+                return Optional.empty();   // discontinued item — let them re-pick
+            }
+            items.add(new ChosenItem(si.getItemName(), si.getQuantity(), si.getPortion()));
+        }
+        if (items.isEmpty()) return Optional.empty();
+        return Optional.of(createPending(customer, plan.getCode(), items, last.getDeliveryDay()));
+    }
     @Transactional
     public void activateFromGateway(Long subscriptionId, String gatewayPaymentId, String gatewayLinkId,
                                     BigDecimal paidAmount) {
@@ -180,7 +205,7 @@ public class SubscriptionService {
         }
     }
 
-    /** Scheduled: close out subscriptions whose commitment window has fully elapsed. */
+    /** Scheduled: close out subscriptions whose commitment window has fully elapsed, and offer renewal. */
     @Transactional
     public void completeFinished() {
         LocalDate today = LocalDate.now();
@@ -188,6 +213,7 @@ public class SubscriptionService {
             if (sub.getEndDate() != null && sub.getEndDate().isBefore(today)) {
                 sub.setStatus(SubscriptionStatus.COMPLETED);
                 subscriptionRepository.save(sub);
+                customerNotifier.subscriptionRenewal(sub.getCustomer(), sub.getEndDate());
                 log.info("Subscription {} completed", sub.getId());
             }
         }
@@ -264,10 +290,6 @@ public class SubscriptionService {
             period.setDeliveryDate(deliveryDate);
             period.setOrderId(order.getId());
             periodRepository.save(period);
-
-            if (week == total) {
-                customerNotifier.subscriptionRenewal(sub.getCustomer(), deliveryDate);
-            }
         }
     }
 

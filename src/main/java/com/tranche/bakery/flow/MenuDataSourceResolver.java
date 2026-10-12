@@ -41,7 +41,7 @@ public class MenuDataSourceResolver implements DataSourceResolver {
             case "MENU_ITEMS"      -> resolveItems(context, customer);
             case "DELIVERY_AREAS"  -> resolveDeliveryAreas();
             case "DELIVERY_DATES"  -> resolveDeliveryDates(context, fnf);
-            case "SUBSCRIPTION_PLANS"   -> resolveSubscriptionPlans();
+            case "SUBSCRIPTION_PLANS"   -> resolveSubscriptionPlans(fnf);
             case "SUBSCRIPTION_OPTIONS" -> resolveSubscriptionOptions(context);
             case "SUBSCRIPTION_ITEMS"   -> resolveSubscriptionItems(context);
             case "SUBSCRIPTION_DAYS"    -> resolveSubscriptionDays();
@@ -115,11 +115,11 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         return List.of(new WhatsAppMessage.Section("Delivery Areas", rows));
     }
 
-    private List<WhatsAppMessage.Section> resolveSubscriptionPlans() {
-        List<WhatsAppMessage.Row> rows = subscriptionCatalog.activePlansForAudience("FF").stream()
+    private List<WhatsAppMessage.Section> resolveSubscriptionPlans(boolean fnf) {
+        List<WhatsAppMessage.Row> rows = subscriptionCatalog.activePlansFor(fnf).stream()
                 .map(p -> new WhatsAppMessage.Row(p.getCode(), p.getName(),
-                        String.format("₹%s/week · %d weeks",
-                                p.getWeeklyPrice().stripTrailingZeros().toPlainString(),
+                        String.format("from ₹%s/week · %d weeks + 1 free",
+                                subscriptionCatalog.effectiveWeeklyPrice(p).stripTrailingZeros().toPlainString(),
                                 p.getCommitmentWeeks())))
                 .toList();
         return List.of(new WhatsAppMessage.Section("Subscription Plans", rows));

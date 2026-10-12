@@ -172,7 +172,7 @@ public abstract class FlowScenarioBase {
         String itemId = firstItemId(catId);
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(deliveryDate);
         send(catId);
         send(itemId);

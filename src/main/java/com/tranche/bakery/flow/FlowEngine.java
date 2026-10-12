@@ -2,9 +2,12 @@ package com.tranche.bakery.flow;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.time.format.TextStyle;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +47,10 @@ public class FlowEngine {
     // "subscribe" (optionally followed by more text) opens the self-serve subscription flow.
     private static final Pattern SUBSCRIBE_PATTERN =
             Pattern.compile("subscribe\\b.*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
+    // "renew" opens the renewal offer for a customer whose subscription has ended.
+    private static final Pattern RENEW_PATTERN =
+            Pattern.compile("renew\\b.*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     // Legacy website "Message us" deep-links (and older saved links) prefill this exact
     // phrase. It routes the customer to the contact handoff instead of the order menu.
@@ -105,15 +112,11 @@ public class FlowEngine {
             return;
         }
 
-        // Global subscribe shortcut — opens the self-serve subscription flow for eligible (F&F) customers.
+        // Global subscribe shortcut — opens the self-serve subscription flow (open to all customers;
+        // the plan list shows F&F plans to F&F and public plans to everyone else).
         if (SUBSCRIBE_PATTERN.matcher(input.trim()).matches() && isAtRestingPoint(conversation)) {
-            if (customer.isSubscriptionEligible()) {
-                conversation.setContext(new HashMap<>());
-                enterState(customer, conversation, "SUB_START", input, messageType, rawMessage);
-            } else {
-                whatsAppClient.sendText(phone,
-                        "Weekly subscriptions are invite-only right now. Send *hi* to browse our menu. 🥖");
-            }
+            conversation.setContext(new HashMap<>());
+            enterState(customer, conversation, "SUB_START", input, messageType, rawMessage);
             return;
         }
 
@@ -181,6 +184,46 @@ public class FlowEngine {
             } else {
                 whatsAppClient.sendText(phone,
                         "This subscription can no longer be paid. Send *hi* to return to the main menu.");
+            }
+            return;
+        }
+
+        // Renewal "Renew" button (renew_yes) from the end-of-subscription offer — clone the customer's
+        // last subscription into a fresh cycle and go straight to payment. Arrives in any state (often an
+        // out-of-window template reply at IDLE), so handle globally like the feedback buttons.
+        if (input.trim().matches("renew_yes")) {
+            Optional<Subscription> renewed = subscriptionService.renewFrom(customer);
+            if (renewed.isPresent()) {
+                Map<String, Object> subCtx = new HashMap<>();
+                subCtx.put("subId", renewed.get().getId().toString());
+                conversation.setContext(subCtx);
+                enterState(customer, conversation, "SUB_PAYMENT", input, messageType, rawMessage);
+            } else {
+                // Can't clone (plan retired, item discontinued, or one already in progress) — pick fresh.
+                conversation.setContext(new HashMap<>());
+                enterState(customer, conversation, "SUB_START", input, messageType, rawMessage);
+            }
+            return;
+        }
+        // Renewal "Change plan" button (renew_change) — run the normal subscribe flow.
+        if (input.trim().matches("renew_change")) {
+            conversation.setContext(new HashMap<>());
+            enterState(customer, conversation, "SUB_START", input, messageType, rawMessage);
+            return;
+        }
+        // Typed "renew" — present the Renew-same / Change-plan offer for the last subscription.
+        if (RENEW_PATTERN.matcher(input.trim()).matches() && isAtRestingPoint(conversation)) {
+            Subscription last = subscriptionRepository.findAllByCustomerIdOrderByCreatedAtDesc(customer.getId())
+                    .stream().findFirst().orElse(null);
+            if (last == null) {
+                conversation.setContext(new HashMap<>());
+                enterState(customer, conversation, "SUB_START", input, messageType, rawMessage);
+            } else {
+                String day = last.getDeliveryDay().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+                whatsAppClient.sendButtons(phone,
+                        "Renew your *" + last.getPlanName() + "* subscription (delivered on *" + day + "s*)?",
+                        List.of(new WhatsAppMessage.Button("renew_yes", "Renew same"),
+                                new WhatsAppMessage.Button("renew_change", "Change plan")));
             }
             return;
         }

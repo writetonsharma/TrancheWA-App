@@ -28,13 +28,16 @@ public class ShowOrderChoiceAction implements FlowAction {
     @Override
     public void execute(ActionContext ctx) {
         String phone = ctx.getCustomer().getPhone();
+        List<PlanConfig> plans = catalog.activePlansFor(ctx.getCustomer().isFriendsAndFamily());
 
         StringBuilder sb = new StringBuilder("🥖 *One-time order, or subscribe & save?*\n\n");
         sb.append("A *Weekly Subscription* gets you:\n");
         sb.append("• A fresh bundle every week — mix a *half loaf* with rolls, a sweet roll, or *two half loaves*\n");
         sb.append("• Delivered on *your chosen day*\n");
 
-        String freeWeek = freeWeekLine();
+        String effective = effectiveLine(plans);
+        if (effective != null) sb.append(effective);
+        String freeWeek = freeWeekLine(plans);
         if (freeWeek != null) sb.append(freeWeek);
         sb.append("• Prepaid — no weekly re-ordering\n\n");
         sb.append("Or place a quick *one-time order*. What would you like?");
@@ -44,9 +47,20 @@ public class ShowOrderChoiceAction implements FlowAction {
                 new WhatsAppMessage.Button("subscription", "Weekly Subscription")));
     }
 
-    // "• Pay for N weeks, get week N+1 FREE — saving ₹X–₹Y every cycle" computed from the active FF plans.
-    private String freeWeekLine() {
-        List<PlanConfig> plans = catalog.activePlansForAudience("FF");
+    // "• Effectively from ₹X/week — the free week is already baked in" (the lowest effective price across plans).
+    private String effectiveLine(List<PlanConfig> plans) {
+        BigDecimal min = null;
+        for (PlanConfig p : plans) {
+            BigDecimal eff = catalog.effectiveWeeklyPrice(p);
+            min = (min == null) ? eff : eff.min(min);
+        }
+        if (min == null) return null;
+        return "• *Effectively from ₹" + min.stripTrailingZeros().toPlainString()
+                + "/week* — your free week is already baked into the price\n";
+    }
+
+    // "• Pay for N weeks, get week N+1 FREE — saving ₹X–₹Y every cycle" computed from the active plans.
+    private String freeWeekLine(List<PlanConfig> plans) {
         BigDecimal minSave = null, maxSave = null;
         int freeWeeks = 0, paidWeeks = 0;
         for (PlanConfig p : plans) {

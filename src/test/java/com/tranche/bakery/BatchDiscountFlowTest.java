@@ -140,7 +140,7 @@ class BatchDiscountFlowTest extends FlowScenarioBase {
         seedBookedDemand(item, date, 2);
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(date.toString());
 
         assertThat(sentTexts).anyMatch(t ->
@@ -151,7 +151,7 @@ class BatchDiscountFlowTest extends FlowScenarioBase {
     @Test
     void dateSelection_noNudgeWhenNothingHot() {
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(nextDeliveryDate());
         assertThat(sentTexts).noneMatch(t -> t.contains("Batch discount active"));
     }
@@ -182,7 +182,7 @@ class BatchDiscountFlowTest extends FlowScenarioBase {
         seedBookedDemand(item, dateWithDemand, 2);
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(dateWithout.toString());
 
         assertThat(sentTexts).noneMatch(t -> t.contains("Batch discount active"));

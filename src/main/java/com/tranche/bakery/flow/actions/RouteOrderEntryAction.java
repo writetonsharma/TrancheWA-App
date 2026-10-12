@@ -8,8 +8,8 @@ import com.tranche.bakery.flow.FlowAction;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Entry point for the Order button: subscription-eligible (F&F) customers get the one-time vs
- * subscription choice; everyone else goes straight to the normal ordering flow.
+ * Entry point for the Order button: everyone gets the one-time vs subscription choice so the
+ * subscription is discoverable (subscriptions are open to all customers, not just F&F).
  */
 @Component
 @RequiredArgsConstructor
@@ -20,10 +20,6 @@ public class RouteOrderEntryAction implements FlowAction {
 
     @Override
     public void execute(ActionContext ctx) {
-        if (ctx.getCustomer() != null && ctx.getCustomer().isSubscriptionEligible()) {
-            ctx.setRedirectState("ORDER_CHOICE");
-        } else {
-            ctx.setRedirectState("ORDER_GATE");
-        }
+        ctx.setRedirectState("ORDER_CHOICE");
     }
 }

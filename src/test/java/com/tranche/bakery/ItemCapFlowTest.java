@@ -35,7 +35,7 @@ class ItemCapFlowTest extends FlowScenarioBase {
         String itemId = firstItemId(catId);
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(nextDeliveryDate());
         send(catId);
         send(itemId);
@@ -54,7 +54,7 @@ class ItemCapFlowTest extends FlowScenarioBase {
         String itemId = firstItemId(catId);
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(nextDeliveryDate());
         send(catId);
         send(itemId);
@@ -79,7 +79,7 @@ class ItemCapFlowTest extends FlowScenarioBase {
         String itemId = firstItemId(catId);
 
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(nextDeliveryDate());
         send(catId);
         send(itemId);
@@ -122,7 +122,7 @@ class ItemCapFlowTest extends FlowScenarioBase {
 
         String catId  = firstCategoryId();
         String itemId = firstItemId(catId);
-        send("order");
+        send("order"); send("one_time");
         assertState("ORDER_SELECT_DATE");
         send(nextDeliveryDate());
         assertState("ORDER_SELECT_CATEGORY");
@@ -143,14 +143,14 @@ class ItemCapFlowTest extends FlowScenarioBase {
         String itemId = firstItemId(catId);
 
         // Order 1: 3 items on date D -> PENDING_CONFIRMATION.
-        send("hi"); send("order"); send(date);
+        send("hi"); send("order"); send("one_time"); send(date);
         send(catId); send(itemId); send("3"); send("view_order");
         send("use_address"); send("pref_gate"); send("loaf_sliced"); send("confirm");
         assertThat(orderRepository.findAllByCustomerIdAndStatus(
                 customer.getId(), OrderStatus.PENDING_CONFIRMATION)).hasSize(1);
 
         // New order, same date -> blocked at the date step.
-        send("hi"); send("order");
+        send("hi"); send("order"); send("one_time");
         sentTexts.clear();
         send(date);
 
@@ -168,12 +168,12 @@ class ItemCapFlowTest extends FlowScenarioBase {
         String itemId = firstItemId(catId);
 
         // Order 1: 1 item on date D -> PENDING_CONFIRMATION.
-        send("hi"); send("order"); send(date);
+        send("hi"); send("order"); send("one_time"); send(date);
         send(catId); send(itemId); send("1"); send("view_order");
         send("use_address"); send("pref_gate"); send("loaf_sliced"); send("confirm");
 
         // New order, same date: pending is 1 (< limit) so browsing is allowed.
-        send("hi"); send("order"); send(date);
+        send("hi"); send("order"); send("one_time"); send(date);
         assertState("ORDER_SELECT_CATEGORY");
 
         // Adding 2 is allowed (1 pending + 2 = 3).
@@ -190,7 +190,7 @@ class ItemCapFlowTest extends FlowScenarioBase {
         String catId  = firstCategoryId();
         String itemId = firstItemId(catId);
         send("hi");
-        send("order");
+        send("order"); send("one_time");
         send(nextDeliveryDate());
         send(catId);
         send(itemId);

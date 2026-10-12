@@ -82,6 +82,9 @@ public class SubShowSummaryAction implements FlowAction {
         } else {
             sb.append("*").append(total).append(" weekly deliveries*.\n");
         }
+        BigDecimal effective = catalog.effectiveWeeklyPrice(plan);
+        sb.append("That's effectively *₹").append(effective.stripTrailingZeros().toPlainString())
+                .append("/week* for your bakes.\n");
         sb.append(freeDelivery
                 ? "Delivery: *included*.\n\n"
                 : "Delivery: ₹" + delivery.stripTrailingZeros().toPlainString() + "/week, included in the total.\n\n");
