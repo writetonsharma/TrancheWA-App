@@ -5,8 +5,11 @@ import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +21,7 @@ import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.customer.CustomerRepository;
 import com.tranche.bakery.menu.MenuItem;
 import com.tranche.bakery.menu.MenuItemRepository;
+import com.tranche.bakery.order.DeliveryRules;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderItem;
 import com.tranche.bakery.order.OrderItemRepository;
@@ -46,6 +50,8 @@ public class SubscriptionService {
     @Value("${bakery.subscription.generate-lead-days:7}")
     private int generateLeadDays;
 
+    private static final DateTimeFormatter ADMIN_DATE_FMT = DateTimeFormatter.ofPattern("EEE, d MMM");
+
     private final SubscriptionCatalog catalog;
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionPeriodRepository periodRepository;
@@ -57,6 +63,7 @@ public class SubscriptionService {
     private final WhatsAppClient whatsAppClient;
     private final CustomerRepository customerRepository;
     private final AlertService alertService;
+    private final DeliveryRules deliveryRules;
 
     /** One chosen bundle line, resolved from the plan option + the customer's pick. */
     public record ChosenItem(String itemName, int quantity, String portion) {}
@@ -166,7 +173,9 @@ public class SubscriptionService {
         Subscription sub = subscriptionRepository.findById(subscriptionId).orElse(null);
         if (sub == null || sub.getStatus() != SubscriptionStatus.PENDING_PAYMENT) return;
 
-        LocalDate firstDelivery = nextOccurrence(LocalDate.now().plusDays(1), sub.getDeliveryDay());
+        // Honour the same 5 PM cutoff as one-time orders: a payment after the cutoff can't claim the next day.
+        LocalDate earliest = deliveryRules.earliestDate(new DeliveryRules.CartFlags(false, false, 0, true));
+        LocalDate firstDelivery = nextOccurrence(earliest, sub.getDeliveryDay());
         LocalDate endDate = firstDelivery.plusWeeks(totalWeeks(sub) - 1L);
 
         // Atomic flip so a duplicate/concurrent approval can't send the confirmation twice.
@@ -178,14 +187,32 @@ public class SubscriptionService {
         Subscription active = subscriptionRepository.findById(subscriptionId).orElseThrow();
         consumeCredit(active);
         customerNotifier.subscriptionConfirmed(active, firstDelivery);
+        notifyAdminSubscriptionPaid(active, firstDelivery);
         generateForSubscription(active);
         log.info("Subscription {} activated for customer {} — {} deliveries from {}, delivery on {}",
                 active.getId(), active.getCustomer().getId(), totalWeeks(active), firstDelivery, active.getDeliveryDay());
     }
 
+    // Gateway subscriptions auto-activate with no screenshot to review, so ping the admin that a paid subscription landed.
+    private void notifyAdminSubscriptionPaid(Subscription sub, LocalDate firstDelivery) {
+        Customer c = sub.getCustomer();
+        String name = (c != null && c.getName() != null) ? c.getName() : (c != null ? c.getPhone() : "customer");
+        String phone = c != null ? c.getPhone() : null;
+        String amt = sub.getUpfrontAmount() != null
+                ? " \u00b7 \u20b9" + sub.getUpfrontAmount().setScale(0, RoundingMode.DOWN) : "";
+        String day = sub.getDeliveryDay() != null
+                ? sub.getDeliveryDay().getDisplayName(TextStyle.FULL, Locale.ENGLISH) + "s" : "";
+        String first = firstDelivery != null ? firstDelivery.format(ADMIN_DATE_FMT) : "soon";
+        alertService.raise("SUBSCRIPTION_PAID",
+                "\uD83D\uDC9B New paid subscription" + amt + "\n\n" +
+                "Plan: *" + sub.getPlanName() + "* \u00b7 delivers " + day + "\n" +
+                "First delivery: " + first + "\n" +
+                "Customer: " + name + (phone != null ? " (" + phone + ")" : ""),
+                null, phone);
+    }
+
     // Deduct the credit this subscription used from the customer's running balance (once, on activation).
-    private void consumeCredit(Subscription sub) {
-        BigDecimal applied = sub.getCreditApplied();
+    private void consumeCredit(Subscription sub) {        BigDecimal applied = sub.getCreditApplied();
         if (applied == null || applied.signum() <= 0) return;
         Customer c = sub.getCustomer();
         if (c == null) return;

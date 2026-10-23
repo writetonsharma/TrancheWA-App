@@ -9,6 +9,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.tranche.bakery.order.DeliveryRules;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
@@ -25,10 +26,13 @@ class SubscriptionServiceTest extends FlowScenarioBase {
     @Autowired private SubscriptionRepository subscriptionRepository;
     @Autowired private SubscriptionPeriodRepository periodRepository;
     @Autowired private OrderRepository orders;
+    @Autowired private com.tranche.bakery.alert.AlertRepository alertRepository;
+    @Autowired private DeliveryRules deliveryRules;
 
-    // A delivery day 1–2 days out (never Wednesday) so activation generates the first order immediately.
+    // A delivery day a few days out (never Wednesday) that stays within the generate window even after
+    // the cutoff bumps the earliest date to +2, so activation generates the first order immediately.
     private DayOfWeek soonDeliveryDay() {
-        LocalDate d = LocalDate.now().plusDays(1);
+        LocalDate d = LocalDate.now().plusDays(2);
         if (d.getDayOfWeek() == DayOfWeek.WEDNESDAY) d = d.plusDays(1);
         return d.getDayOfWeek();
     }
@@ -89,6 +93,9 @@ class SubscriptionServiceTest extends FlowScenarioBase {
         Subscription reloaded = subscriptionRepository.findById(sub.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
         assertThat(reloaded.getStartDate().getDayOfWeek()).isEqualTo(day);
+        assertThat(reloaded.getStartDate())
+                .as("first delivery respects the 5 PM cutoff floor")
+                .isAfterOrEqualTo(deliveryRules.earliestDate(new DeliveryRules.CartFlags(false, false, 0, true)));
         assertThat(reloaded.getEndDate()).isEqualTo(reloaded.getStartDate().plusWeeks(4)); // 4 paid + 1 free
 
         var periods = periodRepository.findAllBySubscriptionId(sub.getId());
@@ -230,5 +237,16 @@ class SubscriptionServiceTest extends FlowScenarioBase {
     @Test
     void renewFrom_emptyWhenNoPriorSubscription() {
         assertThat(subscriptionService.renewFrom(customer)).isEmpty();
+    }
+
+    @Test
+    void activate_alertsAdminOfPaidSubscription() {
+        Subscription sub = subscriptionService.createPending(customer, "PUB_NORMAL", halfLoafPlusRolls(), soonDeliveryDay());
+
+        subscriptionService.activate(sub.getId());
+
+        assertThat(alertRepository.findAll())
+                .as("admin is pinged when a subscription is paid/activated")
+                .anyMatch(a -> "SUBSCRIPTION_PAID".equals(a.getType()));
     }
 }
