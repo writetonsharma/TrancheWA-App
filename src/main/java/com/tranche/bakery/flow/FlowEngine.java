@@ -92,13 +92,7 @@ public class FlowEngine {
 
         // Global greeting — "hi" (optionally followed by more text) cancels draft, resets conversation
         if (GREETING_PATTERN.matcher(input.trim()).matches()) {
-            orderService.cancelDraftIfExists(customer);
-            conversation.setContext(new HashMap<>());
-            // First-time customers give their name, then go straight to the menu.
-            // Delivery area/pincode is no longer gated — anyone can explore and order;
-            // the delivery address and pinned location are collected at checkout.
-            String nextState = (customer.getName() == null || customer.getName().isBlank()) ? "NAME_COLLECT" : "MAIN_MENU";
-            enterState(customer, conversation, nextState, input, messageType, rawMessage);
+            enterGreeting(customer, conversation, input, messageType, rawMessage);
             return;
         }
 
@@ -303,6 +297,13 @@ public class FlowEngine {
         TransitionConfig transition = findTransition(stateConfig, input, messageType);
 
         if (transition == null) {
+            // A customer at a resting point (IDLE / MAIN_MENU) who sends anything we don't
+            // recognise is simply starting over — greet them and show the menu instead of
+            // making them discover the exact word "hi".
+            if (isAtRestingPoint(conversation)) {
+                enterGreeting(customer, conversation, input, messageType, rawMessage);
+                return;
+            }
             if (stateConfig.getDefaultResponse() != null) {
                 whatsAppClient.sendText(phone, stateConfig.getDefaultResponse() + helpHintFor(conversation));
             }
@@ -343,6 +344,17 @@ public class FlowEngine {
     private boolean isAtRestingPoint(WhatsappConversation conversation) {
         String state = conversation.getState();
         return state == null || RESTING_STATES.contains(state);
+    }
+
+    // Starts a fresh session: cancel any draft, clear context and show the menu — first-timers
+    // give their name first. Used for an explicit "hi" and for any stray text at a resting point.
+    // Delivery area/pincode is not gated; address + pinned location are taken at checkout.
+    private void enterGreeting(Customer customer, WhatsappConversation conversation,
+                               String input, String messageType, JsonNode rawMessage) {
+        orderService.cancelDraftIfExists(customer);
+        conversation.setContext(new HashMap<>());
+        String nextState = (customer.getName() == null || customer.getName().isBlank()) ? "NAME_COLLECT" : "MAIN_MENU";
+        enterState(customer, conversation, nextState, input, messageType, rawMessage);
     }
 
     // Only nudges customers who are mid-order; at a resting point (IDLE/MAIN_MENU)
