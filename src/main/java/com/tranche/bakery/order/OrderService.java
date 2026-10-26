@@ -4,10 +4,19 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.tranche.bakery.conversation.WhatsappConversation;
 import com.tranche.bakery.customer.Customer;
@@ -17,7 +26,11 @@ import com.tranche.bakery.payment.Payment;
 import com.tranche.bakery.payment.PaymentRepository;
 import com.tranche.bakery.payment.PaymentStatus;
 import com.tranche.bakery.payment.RazorpayService;
+import com.tranche.bakery.payment.PaymentLinkRevocations;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -34,6 +47,13 @@ public class OrderService {
     private final RazorpayService razorpayService;
     private final OrderNumberGenerator orderNumberGenerator;
 
+    @Autowired private CapacityLock capacityLock;
+    @Autowired private DeliveryRules deliveryRules;
+    @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private PlatformTransactionManager transactionManager;
+    @Autowired private PaymentLinkRevocations revocations;
+    @PersistenceContext private EntityManager entityManager;
+
     @Value("${bakery.order.cutoff-hour}")
     private int cutoffHour;
 
@@ -41,8 +61,12 @@ public class OrderService {
     public void cancelDraftIfExists(Customer customer) {
         orderRepository.findTopByCustomerIdAndStatusOrderByCreatedAtDesc(customer.getId(), OrderStatus.DRAFT)
                 .ifPresent(order -> {
-                    order.setStatus(OrderStatus.CANCELLED);
-                    orderRepository.save(order);
+                    if (lockDraftRow(order)) {
+                        Order current = fresh(order);
+                        requireMutable(current);
+                        current.setStatus(OrderStatus.CANCELLED);
+                        orderRepository.save(current);
+                    }
                 });
     }
 
@@ -74,10 +98,22 @@ public class OrderService {
                 .orElse(0);
     }
 
-    @Transactional
     public void mergeItems(Order source, Order target) {
-        List<OrderItem> sourceItems = orderItemRepository.findAllByOrderId(source.getId());
-        List<OrderItem> targetItems = orderItemRepository.findAllByOrderId(target.getId());
+        mutate(() -> { mergeItemsInTransaction(source, target); return null; }, ignored -> target.getId());
+    }
+
+    private void mergeItemsInTransaction(Order source, Order target) {
+        source = prepareMutation(source);
+        target = prepareMutation(target);
+        requireMutable(source);
+        requireMutable(target);
+        if (source.getId().equals(target.getId())) throw new IllegalStateException("INVALID_ORDER");
+        if (source.getStatus() != OrderStatus.DRAFT || (target.getStatus() != OrderStatus.DRAFT
+                && target.getStatus() != OrderStatus.PENDING_CONFIRMATION)) {
+            throw new IllegalStateException("INVALID_ORDER");
+        }
+        List<OrderItem> sourceItems = freshItems(source);
+        List<OrderItem> targetItems = freshItems(target);
         for (OrderItem si : sourceItems) {
             OrderItem existing = targetItems.stream()
                     .filter(ti -> ti.getMenuItem().getId().equals(si.getMenuItem().getId()))
@@ -97,18 +133,24 @@ public class OrderService {
                 orderItemRepository.save(copy);
             }
         }
+        if (DeliveryRules.capacityStatuses().contains(target.getStatus())) validateReservation(target);
         recalculateTotal(target);
         // The target's total just changed, so a link issued for the old amount has to die now — not at
         // the next payment prompt, which the customer may never reach.
         revokePaymentLink(target);
     }
 
-    @Transactional
     public void addItem(Order order, Long menuItemId, int quantity) {
-        MenuItem menuItem = menuItemRepository.findById(menuItemId)
+        mutate(() -> { addItemInTransaction(order, menuItemId, quantity); return null; }, ignored -> order.getId());
+    }
+
+    private void addItemInTransaction(Order order, Long menuItemId, int quantity) {
+        order = prepareMutation(order);
+        if (quantity <= 0) throw new IllegalArgumentException("Quantity must be positive");
+        MenuItem menuItem = menuItemRepository.findById(Objects.requireNonNull(menuItemId))
                 .orElseThrow(() -> new IllegalArgumentException("Menu item not found: " + menuItemId));
 
-        List<OrderItem> existingItems = orderItemRepository.findAllByOrderId(order.getId());
+        List<OrderItem> existingItems = freshItems(order);
         OrderItem existing = existingItems.stream()
                 .filter(i -> i.getMenuItem().getId().equals(menuItemId))
                 .findFirst().orElse(null);
@@ -128,22 +170,36 @@ public class OrderService {
             orderItemRepository.save(item);
         }
 
+        if (DeliveryRules.capacityStatuses().contains(order.getStatus())) validateReservation(order);
         recalculateTotal(order);
+        if (order.getStatus() == OrderStatus.PENDING_CONFIRMATION) revokePaymentLink(order);
     }
 
     /** Remove one line from the draft (only if it belongs to this order), then recompute totals. */
-    @Transactional
     public void removeItem(Order order, Long orderItemId) {
-        orderItemRepository.findById(orderItemId)
-                .filter(it -> it.getOrder() != null && it.getOrder().getId().equals(order.getId()))
+        mutate(() -> { removeItemInTransaction(order, orderItemId); return null; }, ignored -> order.getId());
+    }
+
+    private void removeItemInTransaction(Order order, Long orderItemId) {
+        Order current = prepareMutation(order);
+        orderItemRepository.findById(Objects.requireNonNull(orderItemId))
+                .filter(it -> it.getOrder() != null && it.getOrder().getId().equals(current.getId()))
                 .ifPresent(it -> {
-                    orderItemRepository.delete(it);
-                    recalculateTotal(order);
+                    orderItemRepository.delete(Objects.requireNonNull(it));
+                    recalculateTotal(current);
+                    if (current.getStatus() == OrderStatus.PENDING_CONFIRMATION) revokePaymentLink(current);
                 });
     }
 
     @Transactional
     public void confirm(Order order) {
+        capacityLock.acquire();
+        order = freshLocked(order);
+        requireMutable(order);
+        if (order.getStatus() != OrderStatus.DRAFT && order.getStatus() != OrderStatus.PENDING_CONFIRMATION) {
+            throw new CapacityReservationException("INVALID_ORDER");
+        }
+        validateReservation(order);
         if (order.getOrderNumber() == null) {
             order.setOrderNumber(orderNumberGenerator.generate(order.getId(), order.getCreatedAt()));
         }
@@ -151,18 +207,27 @@ public class OrderService {
         orderRepository.save(order);
     }
 
-    @Transactional
     public void cancel(Order order) {
+        mutate(() -> { cancelInTransaction(order); return null; }, ignored -> order.getId());
+    }
+
+    private void cancelInTransaction(Order order) {
+        order = lockedForMutation(order);
         order.setStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
         revokePaymentLink(order);
     }
 
-    @Transactional
     public boolean cancelByIdForCustomer(Long orderId, Long customerId) {
-        Order order = orderRepository.findById(orderId).orElse(null);
+        return mutate(() -> cancelByIdForCustomerInTransaction(orderId, customerId), ignored -> orderId);
+    }
+
+    private boolean cancelByIdForCustomerInTransaction(Long orderId, Long customerId) {
+        Order order = orderRepository.findById(Objects.requireNonNull(orderId)).orElse(null);
         if (order == null) return false;
+        if (order.getChannel() == OrderChannel.WEB) return false;
         if (!order.getCustomer().getId().equals(customerId)) return false;
+        order = lockedForMutation(order);
         if (order.getStatus() != OrderStatus.DRAFT && order.getStatus() != OrderStatus.PENDING_CONFIRMATION) return false;
         order.setStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
@@ -175,24 +240,31 @@ public class OrderService {
      * changes: a link that outlives what it was issued for can still be paid, and that money arrives
      * against an order it no longer matches.
      */
-    @Transactional
     public void revokePaymentLink(Order order) {
-        if (!razorpayService.isConfigured()) return;
+        mutate(() -> {
+            capacityLock.acquire();
+            fencePaymentLink(order);
+            return null;
+        }, ignored -> order.getId());
+    }
+
+    private void fencePaymentLink(Order order) {
         Payment payment = paymentRepository.findByOrder(order).orElse(null);
+        if (payment != null) entityManager.refresh(payment, LockModeType.PESSIMISTIC_WRITE);
         if (payment == null || payment.getGatewayLinkId() == null
                 || payment.getStatus() != PaymentStatus.PENDING) return;
+        revocations.fence(payment);
+    }
 
-        String linkId = payment.getGatewayLinkId();
-        try {
-            razorpayService.cancelPaymentLink(linkId);
-            // Cleared only on success, so a failed revoke is retried at the next payment prompt.
-            payment.setGatewayLinkId(null);
-            payment.setGatewayLinkUrl(null);
-            paymentRepository.save(payment);
-            log.info("Revoked payment link {} for order {}", linkId, order.getId());
-        } catch (Exception e) {
-            log.warn("Could not revoke payment link {} for order {} — {}", linkId, order.getId(), e.getMessage());
+    private <T> T mutate(Supplier<T> work, Function<T, Long> affectedOrder) {
+        // REQUIRED preserves the caller's atomic cancellation/cart/merge transaction. Only
+        // its owner may dispatch after execute() has committed AND cleaned up resources.
+        T result = new TransactionTemplate(transactionManager).execute(status -> work.get());
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                && !TransactionSynchronizationManager.isSynchronizationActive()) {
+            revocations.retryForOrder(affectedOrder.apply(result));
         }
+        return result;
     }
 
     /** What should happen to a finished draft once its delivery date is known. */
@@ -206,13 +278,20 @@ public class OrderService {
      * order absorbs the draft, so a customer only ever has one order per delivery day no matter which
      * channel they built it on. Other dates stay separate — they are different bakes.
      */
-    @Transactional
     public CartDecision resolveCart(Customer customer, Order draft, LocalDate date) {
+        return mutate(() -> resolveCartInTransaction(customer, draft, date), decision -> decision.order().getId());
+    }
+
+    private CartDecision resolveCartInTransaction(Customer customer, Order draft, LocalDate date) {
         Order sameDay = orderRepository
-                .findTopByCustomerIdAndStatusAndDeliveryDate(customer.getId(), OrderStatus.PENDING_CONFIRMATION, date)
+            .findAllByCustomerIdAndStatus(customer.getId(), OrderStatus.PENDING_CONFIRMATION).stream()
+            .filter(o -> o.getChannel() != OrderChannel.WEB)
+            .filter(o -> date.equals(o.getDeliveryDate()))
+            .findFirst()
                 .orElse(null);
 
         if (sameDay != null) {
+            capacityLock.acquire();
             mergeItems(draft, sameDay);
             cancel(draft);
             return new CartDecision(CartResolution.MERGED, sameDay);
@@ -233,7 +312,7 @@ public class OrderService {
 
         StringBuilder sb = new StringBuilder("🧾 *Your Order*\n\n");
         for (OrderItem item : items) {
-            BigDecimal unit = hasOverride ? customer.unitPriceFor(itemNameOf(item), categoryNameOf(item)) : null;
+            BigDecimal unit = hasOverride && customer != null ? customer.unitPriceFor(itemNameOf(item), categoryNameOf(item)) : null;
             BigDecimal special = unit != null ? unit.multiply(BigDecimal.valueOf(item.getQuantity())) : null;
             if (special != null && special.compareTo(item.getSubtotal()) < 0) {
                 // F&F flat price below list — strike the list price so the per-item saving is visible.
@@ -303,18 +382,19 @@ public class OrderService {
     }
 
     public boolean hasPendingPayment(Long customerId) {
-        return !orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PENDING_CONFIRMATION).isEmpty();
+        return findAwaitingPayment(customerId).isPresent();
     }
 
     /** The order the customer is currently being asked to pay for, if any. */
     public Optional<Order> findAwaitingPayment(Long customerId) {
         return orderRepository.findAllByCustomerIdAndStatus(customerId, OrderStatus.PENDING_CONFIRMATION)
-                .stream().findFirst();
+                .stream().filter(o -> o.getChannel() != OrderChannel.WEB).findFirst();
     }
 
     /** An order the customer may still pay for: theirs, and awaiting payment. */
     public Optional<Order> findPayableForCustomer(Long orderId, Long customerId) {
-        return orderRepository.findById(orderId)
+        return orderRepository.findById(Objects.requireNonNull(orderId))
+            .filter(o -> o.getChannel() != OrderChannel.WEB)
                 .filter(o -> o.getCustomer().getId().equals(customerId))
                 .filter(o -> o.getStatus() == OrderStatus.PENDING_CONFIRMATION);
     }
@@ -324,6 +404,7 @@ public class OrderService {
         return orderRepository
                 .findAllByCustomerIdAndStatusAndCutoffCancelledTrueOrderByUpdatedAtDesc(customerId, OrderStatus.CANCELLED)
                 .stream()
+                .filter(o -> o.getChannel() != OrderChannel.WEB)
                 .filter(o -> o.getDeliveryDate() != null)
                 .filter(o -> o.getUpdatedAt() != null && o.getUpdatedAt().toLocalDate().equals(today))
                 .findFirst();
@@ -332,7 +413,117 @@ public class OrderService {
     /** Recompute totals for an order (e.g. after its delivery date is set). */
     @Transactional
     public void recalculate(Order order) {
+        requireMutable(order);
+        // Direct pricing-only unit fixtures construct this service without a persistence context.
+        // Every Spring-managed instance has one, and must coordinate even a stale DRAFT input.
+        if (entityManager != null) {
+            LocalDate requestedDate = order.getDeliveryDate();
+            boolean draftInput = order.getStatus() == OrderStatus.DRAFT;
+            order = prepareMutation(order);
+            if (draftInput && order.getStatus() == OrderStatus.DRAFT) order.setDeliveryDate(requestedDate);
+        }
+        if (DeliveryRules.capacityStatuses().contains(order.getStatus())) {
+            validateReservation(order);
+        }
         recalculateTotal(order);
+    }
+
+    /** Re-open a legacy cutoff cancellation only after freshly reserving its replacement date. */
+    @Transactional
+    public Order reviveCutoffCancelled(Long orderId, Long customerId, LocalDate date) {
+        capacityLock.acquire();
+        Order order = orderRepository.findById(Objects.requireNonNull(orderId)).orElseThrow(() -> new IllegalStateException("INVALID_ORDER"));
+        entityManager.refresh(order, LockModeType.PESSIMISTIC_WRITE);
+        requireMutable(order);
+        if (!order.getCustomer().getId().equals(customerId) || order.getStatus() != OrderStatus.CANCELLED
+                || !order.isCutoffCancelled()) throw new IllegalStateException("INVALID_ORDER");
+        order.setDeliveryDate(date);
+        validateReservation(order);
+        order.setCutoffCancelled(false);
+        order.setStatus(OrderStatus.PENDING_CONFIRMATION);
+        return orderRepository.save(order);
+    }
+
+    private Order fresh(Order order) {
+        Order current = entityManager.find(Order.class, order.getId());
+        if (current == null) throw new IllegalStateException("INVALID_ORDER");
+        entityManager.refresh(current);
+        return current;
+    }
+
+    private Order freshLocked(Order order) {
+        Order current = entityManager.find(Order.class, order.getId());
+        if (current == null) throw new IllegalStateException("INVALID_ORDER");
+        entityManager.refresh(current, LockModeType.PESSIMISTIC_WRITE);
+        return current;
+    }
+
+    private Order prepareMutation(Order order) {
+        Order current = lockedForMutation(order);
+        if (current.getStatus() != OrderStatus.DRAFT && current.getStatus() != OrderStatus.PENDING_CONFIRMATION) {
+            throw new IllegalStateException("INVALID_ORDER");
+        }
+        return current;
+    }
+
+    private boolean lockDraftRow(Order order) {
+        boolean locked;
+        try {
+            locked = !jdbcTemplate.queryForList(
+                    "SELECT id FROM orders WHERE id = ? AND status = 'DRAFT' FOR UPDATE NOWAIT",
+                    Long.class, order.getId()).isEmpty();
+        } catch (DataAccessException ex) {
+            throw CapacityLock.translateLockFailure(ex);
+        }
+        if (locked) capacityLock.noteDraftRowLock();
+        return locked;
+    }
+
+    private Order lockedForMutation(Order order) {
+        // Draft-only edits take only their row, NOWAIT: a reservation can wait for an editing
+        // draft, but an editor never holds an order row while waiting for the global mutex.
+        boolean draftLocked = lockDraftRow(order);
+        Order current;
+        if (draftLocked) {
+            current = fresh(order);
+        } else {
+            capacityLock.acquire();
+            current = freshLocked(order);
+        }
+        requireMutable(current);
+        return current;
+    }
+
+    private void requireMutable(Order order) {
+        if (order.getChannel() == OrderChannel.WEB) throw new IllegalStateException("WEB_ORDER_IMMUTABLE");
+    }
+
+    private void validateReservation(Order order) {
+        // Flush our mutations before refreshing lines: pre-confirm may have loaded these entities
+        // before waiting for the lock, and a JPQL query alone does not refresh the first-level cache.
+        var items = freshItems(order);
+        if (items.isEmpty() || items.stream().anyMatch(i -> i.getQuantity() <= 0 || !i.getMenuItem().isActive())) {
+            throw new CapacityReservationException("INVALID_ORDER");
+        }
+        LocalDate date = order.getDeliveryDate();
+        boolean friendsAndFamily = order.getCustomer().isFriendsAndFamily();
+        if (date == null || items.stream().anyMatch(i ->
+                !deliveryRules.itemDeliverableOn(i.getMenuItem().getName(), date, friendsAndFamily))) {
+            throw new CapacityReservationException("INVALID_DELIVERY_DATE");
+        }
+        long quantity = items.stream().mapToLong(i -> i.getQuantity()).sum();
+        long others = orderItemRepository.sumBookedQuantityExcludingOrder(
+                date, DeliveryRules.capacityStatuses(), order.getId());
+        if (others + quantity > deliveryRules.getDailyCapacity()) throw new CapacityReservationException("FULLY_BOOKED");
+    }
+
+    private List<OrderItem> freshItems(Order order) {
+        List<OrderItem> items = orderItemRepository.findAllByOrderId(order.getId());
+        for (OrderItem item : items) {
+            entityManager.refresh(item);
+            entityManager.refresh(item.getMenuItem());
+        }
+        return items;
     }
 
     private String itemNameOf(OrderItem item) {

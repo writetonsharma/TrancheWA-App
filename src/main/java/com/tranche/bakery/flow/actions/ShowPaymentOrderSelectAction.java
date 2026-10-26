@@ -3,6 +3,7 @@ package com.tranche.bakery.flow.actions;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderChannel;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
@@ -32,9 +33,10 @@ public class ShowPaymentOrderSelectAction implements FlowAction {
     @Override
     public void execute(ActionContext ctx) {
         List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(
-                ctx.getCustomer().getId(), OrderStatus.PENDING_CONFIRMATION);
+                ctx.getCustomer().getId(), OrderStatus.PENDING_CONFIRMATION).stream()
+                .filter(order -> order.getChannel() != OrderChannel.WEB).toList();
 
-        if (pending.isEmpty()) return;
+        if (pending.isEmpty()) { ctx.setRedirectState("IDLE"); return; }
 
         List<WhatsAppMessage.Button> buttons = pending.stream()
                 .map(o -> {

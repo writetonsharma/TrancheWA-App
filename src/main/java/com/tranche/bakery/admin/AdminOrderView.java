@@ -1,6 +1,7 @@
 package com.tranche.bakery.admin;
 
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderChannel;
 import com.tranche.bakery.order.OrderItem;
 import com.tranche.bakery.payment.Payment;
 
@@ -17,9 +18,12 @@ public record AdminOrderView(
 ) {
     public static AdminOrderView of(Order order, List<OrderItem> items, Payment payment) {
         String mapsUrl = null;
-        // Prefer order-level location, fall back to customer default
-        var lat = order.getLocationLat() != null ? order.getLocationLat() : order.getCustomer().getLocationLat();
-        var lng = order.getLocationLng() != null ? order.getLocationLng() : order.getCustomer().getLocationLng();
+        // WEB checkout addresses are independent of the customer's WhatsApp default pin.
+        boolean useCustomerLocation = order.getChannel() != OrderChannel.WEB;
+        var lat = order.getLocationLat() != null ? order.getLocationLat()
+            : useCustomerLocation ? order.getCustomer().getLocationLat() : null;
+        var lng = order.getLocationLng() != null ? order.getLocationLng()
+            : useCustomerLocation ? order.getCustomer().getLocationLng() : null;
         if (lat != null && lng != null) {
             mapsUrl = "https://maps.google.com/?q=" + lat + "," + lng;
         }

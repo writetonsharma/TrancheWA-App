@@ -68,7 +68,23 @@ No actual push, deployment or real OTP has occurred here. Checkout is not enable
 
 ## Next implementation task
 
-T006: durable website baskets and transactional/idempotent retail checkout,
-reusing existing Razorpay links and verified webhooks. Customer history and
-subscriptions follow. WhatsApp commerce writes must not be disabled until a
-working website pilot and controlled cutover are approved.
+T006 is now implemented locally; see checkout-contract.md and the T006 batch report.
+Checkout remains independently disabled pending hosted/manual payment acceptance.
+T007 customer history and T008 subscriptions follow. WhatsApp commerce writes must
+not be disabled until a working website pilot and controlled cutover are approved.
+
+## T006 final local evidence — 2026-10-26
+
+- Complete clean backend suite: 381 tests across 47 suites, no failures/errors/skips.
+- Frontend: 64 Node tests passed; syntax/whitespace checks passed.
+- Real loopback HTTP/PostgreSQL tests cover durable cart ownership/version conflicts,
+  accepted quote tokens, immutable idempotent attempts, mocked Razorpay dispatch,
+  uncertain-provider fencing, signed webhook binding, cutoff and capacity races.
+- Review fixes release transaction resources before WhatsApp provider dispatch and
+  revocation; durable claims prevent duplicate link creation. Retired account-basket
+  recovery and WEB admin coordinate fallback are corrected. Final scoped review PASS.
+- Additive V48–V51 migrations; checkout backend flag and frontend checkoutEnabled
+  remain false. Existing live preview/login remains enabled and user-verified.
+- Credit-positive/zero-payable checkout requires support; UNKNOWN requires provider
+  reconciliation, not automatic retry/replacement. No new real OTP/order/payment,
+  push or deployment performed. Hosted browser/provider acceptance remains pending.

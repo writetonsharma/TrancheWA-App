@@ -3,6 +3,7 @@ package com.tranche.bakery.flow.actions;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderChannel;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,11 @@ public class ConfirmOrderAction implements FlowAction {
         if (orderIdStr == null) return;
 
         Order order = orderRepository.findById(Long.parseLong(orderIdStr)).orElse(null);
-        if (order == null) return;
+        if (order == null || order.getChannel() == OrderChannel.WEB
+                || !order.getCustomer().getId().equals(ctx.getCustomer().getId())) {
+            ctx.setRedirectState("IDLE");
+            return;
+        }
 
         orderService.confirm(order);
         log.info("Order {} ({}) confirmed for customer {}", order.getId(), order.getOrderNumber(), ctx.getCustomer().getPhone());

@@ -1,16 +1,23 @@
 package com.tranche.bakery.flow;
 
 import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.time.format.TextStyle;
 
 import org.springframework.stereotype.Service;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tranche.bakery.conversation.ConversationRepository;
@@ -19,8 +26,11 @@ import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.feedback.FeedbackService;
 import com.tranche.bakery.marketing.MarketingService;
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.CapacityReservationException;
 import com.tranche.bakery.order.OrderService;
 import com.tranche.bakery.payment.RazorpayService;
+import com.tranche.bakery.payment.PaymentLinkRevocations;
+import com.tranche.bakery.payment.PostTransactionEffects;
 import com.tranche.bakery.subscription.Subscription;
 import com.tranche.bakery.subscription.SubscriptionRepository;
 import com.tranche.bakery.subscription.SubscriptionService;
@@ -76,10 +86,61 @@ public class FlowEngine {
     private final FeedbackService feedbackService;
     private final MarketingService marketingService;
     private final List<FlowAction> actions;
+    private final PlatformTransactionManager transactionManager;
+    private final PaymentLinkRevocations revocations;
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void handle(Customer customer, WhatsappConversation conversation,
                        String messageType, String input, JsonNode rawMessage) {
+        PostTransactionEffects.run(() -> handleOutsideTransaction(
+            customer, conversation, messageType, input, rawMessage));
+        }
+
+        private void handleOutsideTransaction(Customer customer, WhatsappConversation conversation,
+                          String messageType, String input, JsonNode rawMessage) {
+        // Own the complete flow transaction here, not in ConversationService. Recovery must run
+        // AFTER rollback: catching inside a participating @Transactional action leaves rollback-only
+        // set, and must never advance to PAYMENT_PENDING or dispatch a payment for a rejected cart.
+        TransactionTemplate transaction = new TransactionTemplate(Objects.requireNonNull(transactionManager));
+        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        List<Runnable> postCommit = new ArrayList<>();
+        try {
+            transaction.executeWithoutResult(status ->
+                    handleInTransaction(customer, conversation, messageType, input, rawMessage, postCommit));
+        } catch (CapacityReservationException | PessimisticLockingFailureException ex) {
+            postCommit.clear();
+            log.info("Order reservation rejected for customer {}: {}", customer.getId(), ex.getMessage());
+            transaction.executeWithoutResult(status -> {
+                WhatsappConversation saved = conversationRepository.findById(Objects.requireNonNull(conversation.getId())).orElseThrow();
+                conversation.setState(saved.getState());
+                conversation.setContext(saved.getContext() == null ? new HashMap<>() : new HashMap<>(saved.getContext()));
+                if (ex instanceof CapacityReservationException rejection
+                        && ("FULLY_BOOKED".equals(rejection.getMessage())
+                            || "INVALID_DELIVERY_DATE".equals(rejection.getMessage()))) {
+                    whatsAppClient.sendText(customer.getPhone(),
+                            "That delivery date can no longer take this order. Your cart is unchanged. "
+                                    + "Please choose another morning below.");
+                        String dateState = "LATE_PAYMENT_DATE".equals(saved.getState())
+                            ? "LATE_PAYMENT_DATE" : "ORDER_SELECT_DATE";
+                        enterState(customer, conversation, dateState, "", "text", null, postCommit);
+                } else {
+                    whatsAppClient.sendText(customer.getPhone(),
+                            "We couldn't reserve your order. No payment was created. "
+                                    + "Please try again, or send *hi* to start a fresh order.");
+                }
+            });
+        }
+        // Not an afterCommit synchronization: execute() must finish resource cleanup first.
+        // The conversation's PAYMENT_PENDING + orderId is the durable retry point; payment
+        // dispatch persists/reuses its payment before exposing it to the customer.
+        // NOT_SUPPORTED also keeps any caller transaction suspended throughout dispatch.
+        revocations.retryPending();
+        for (Runnable effect : postCommit) effect.run();
+    }
+
+    private void handleInTransaction(Customer customer, WhatsappConversation conversation,
+                                     String messageType, String input, JsonNode rawMessage,
+                                     List<Runnable> postCommit) {
 
         String phone = customer.getPhone();
 
@@ -92,7 +153,7 @@ public class FlowEngine {
 
         // Global greeting — "hi" (optionally followed by more text) cancels draft, resets conversation
         if (GREETING_PATTERN.matcher(input.trim()).matches()) {
-            enterGreeting(customer, conversation, input, messageType, rawMessage);
+            enterGreeting(customer, conversation, input, messageType, rawMessage, postCommit);
             return;
         }
 
@@ -102,7 +163,7 @@ public class FlowEngine {
         // the phrase falls through to normal handling so their in-progress order is never wiped.
         if (CONTACT_PATTERN.matcher(input.trim()).matches() && isAtRestingPoint(conversation)) {
             conversation.setContext(new HashMap<>());
-            enterState(customer, conversation, "MESSAGE_CONTACT", input, messageType, rawMessage);
+            enterState(customer, conversation, "MESSAGE_CONTACT", input, messageType, rawMessage, postCommit);
             return;
         }
 
@@ -110,7 +171,7 @@ public class FlowEngine {
         // the plan list shows F&F plans to F&F and public plans to everyone else).
         if (SUBSCRIBE_PATTERN.matcher(input.trim()).matches() && isAtRestingPoint(conversation)) {
             conversation.setContext(new HashMap<>());
-            enterState(customer, conversation, "SUB_START", input, messageType, rawMessage);
+            enterState(customer, conversation, "SUB_START", input, messageType, rawMessage, postCommit);
             return;
         }
 
@@ -123,7 +184,7 @@ public class FlowEngine {
                 conversationRepository.save(conversation);
                 whatsAppClient.sendText(phone,
                         "✅ Order cancelled. Send *hi* whenever you'd like to place a new order. 🥖");
-                enterState(customer, conversation, "IDLE", input, messageType, rawMessage);
+                enterState(customer, conversation, "IDLE", input, messageType, rawMessage, postCommit);
             } else {
                 whatsAppClient.sendText(phone,
                         "This order can no longer be cancelled — it may have already been confirmed or delivered. " +
@@ -142,7 +203,7 @@ public class FlowEngine {
                 Map<String, Object> payCtx = new HashMap<>();
                 payCtx.put("orderId", payable.getId().toString());
                 conversation.setContext(payCtx);
-                enterState(customer, conversation, "PAYMENT_PENDING", input, messageType, rawMessage);
+                enterState(customer, conversation, "PAYMENT_PENDING", input, messageType, rawMessage, postCommit);
             } else {
                 whatsAppClient.sendText(phone,
                         "This order can no longer be paid \u2014 it may already be confirmed or cancelled. " +
@@ -159,7 +220,7 @@ public class FlowEngine {
                     ? "Your subscription has been cancelled. Send *hi* whenever you'd like to start again. 🥖"
                     : "That subscription can no longer be cancelled. Send *hi* to return to the main menu.");
             conversation.setContext(new HashMap<>());
-            enterState(customer, conversation, "IDLE", input, messageType, rawMessage);
+            enterState(customer, conversation, "IDLE", input, messageType, rawMessage, postCommit);
             return;
         }
 
@@ -174,7 +235,7 @@ public class FlowEngine {
                 Map<String, Object> subCtx = new HashMap<>();
                 subCtx.put("subId", sub.getId().toString());
                 conversation.setContext(subCtx);
-                enterState(customer, conversation, "SUB_PAYMENT", input, messageType, rawMessage);
+                enterState(customer, conversation, "SUB_PAYMENT", input, messageType, rawMessage, postCommit);
             } else {
                 whatsAppClient.sendText(phone,
                         "This subscription can no longer be paid. Send *hi* to return to the main menu.");
@@ -191,18 +252,18 @@ public class FlowEngine {
                 Map<String, Object> subCtx = new HashMap<>();
                 subCtx.put("subId", renewed.get().getId().toString());
                 conversation.setContext(subCtx);
-                enterState(customer, conversation, "SUB_PAYMENT", input, messageType, rawMessage);
+                enterState(customer, conversation, "SUB_PAYMENT", input, messageType, rawMessage, postCommit);
             } else {
                 // Can't clone (plan retired, item discontinued, or one already in progress) — pick fresh.
                 conversation.setContext(new HashMap<>());
-                enterState(customer, conversation, "SUB_START", input, messageType, rawMessage);
+                enterState(customer, conversation, "SUB_START", input, messageType, rawMessage, postCommit);
             }
             return;
         }
         // Renewal "Change plan" button (renew_change) — run the normal subscribe flow.
         if (input.trim().matches("renew_change")) {
             conversation.setContext(new HashMap<>());
-            enterState(customer, conversation, "SUB_START", input, messageType, rawMessage);
+            enterState(customer, conversation, "SUB_START", input, messageType, rawMessage, postCommit);
             return;
         }
         // Typed "renew" — present the Renew-same / Change-plan offer for the last subscription.
@@ -211,7 +272,7 @@ public class FlowEngine {
                     .stream().findFirst().orElse(null);
             if (last == null) {
                 conversation.setContext(new HashMap<>());
-                enterState(customer, conversation, "SUB_START", input, messageType, rawMessage);
+                enterState(customer, conversation, "SUB_START", input, messageType, rawMessage, postCommit);
             } else {
                 String day = last.getDeliveryDay().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
                 whatsAppClient.sendButtons(phone,
@@ -226,12 +287,12 @@ public class FlowEngine {
         // often as an out-of-window template reply while the customer is at IDLE — so handle globally.
         if (input.trim().matches("fbgood(_\\d+)?")) {
             feedbackService.save(customer, "Delivery feedback: 🙂 Loved it");
-            enterState(customer, conversation, "FEEDBACK_REVIEW", input, messageType, rawMessage);
+            enterState(customer, conversation, "FEEDBACK_REVIEW", input, messageType, rawMessage, postCommit);
             return;
         }
         if (input.trim().matches("fbbad(_\\d+)?")) {
             feedbackService.save(customer, "Delivery feedback: 🙁 Could be better");
-            enterState(customer, conversation, "FEEDBACK_DETAIL", input, messageType, rawMessage);
+            enterState(customer, conversation, "FEEDBACK_DETAIL", input, messageType, rawMessage, postCommit);
             return;
         }
         // Marketing opt-out — the "Stop promotions" button (payload stop_promotions) or a typed STOP/UNSUBSCRIBE.
@@ -248,7 +309,7 @@ public class FlowEngine {
             orderService.cancelDraftIfExists(customer);
             conversation.setContext(new HashMap<>());
             String next = (customer.getName() == null || customer.getName().isBlank()) ? "NAME_COLLECT" : "ORDER_SELECT_CATEGORY";
-            enterState(customer, conversation, next, input, messageType, rawMessage);
+            enterState(customer, conversation, next, input, messageType, rawMessage, postCommit);
             return;
         }
         // In gateway mode the webhook confirms payment, so a screenshot proves nothing and must not
@@ -262,7 +323,7 @@ public class FlowEngine {
                 Map<String, Object> payCtx = new HashMap<>();
                 payCtx.put("orderId", awaiting.getId().toString());
                 conversation.setContext(payCtx);
-                enterState(customer, conversation, "PAYMENT_PENDING", input, messageType, rawMessage);
+                enterState(customer, conversation, "PAYMENT_PENDING", input, messageType, rawMessage, postCommit);
                 return;
             }
         }
@@ -279,7 +340,7 @@ public class FlowEngine {
                     recoveryCtx.put("orderId", revivable.getId().toString());
                     recoveryCtx.put("lateScreenshotMediaId", mediaId);
                     conversation.setContext(recoveryCtx);
-                    enterState(customer, conversation, "LATE_PAYMENT_DATE", input, messageType, rawMessage);
+                    enterState(customer, conversation, "LATE_PAYMENT_DATE", input, messageType, rawMessage, postCommit);
                     return;
                 }
             }
@@ -290,7 +351,7 @@ public class FlowEngine {
 
         if (stateConfig == null) {
             log.warn("Unknown state '{}' for customer {}, resetting", currentStateName, phone);
-            enterState(customer, conversation, "MAIN_MENU", input, messageType, rawMessage);
+            enterState(customer, conversation, "MAIN_MENU", input, messageType, rawMessage, postCommit);
             return;
         }
 
@@ -301,20 +362,20 @@ public class FlowEngine {
             // recognise is simply starting over — greet them and show the menu instead of
             // making them discover the exact word "hi".
             if (isAtRestingPoint(conversation)) {
-                enterGreeting(customer, conversation, input, messageType, rawMessage);
+                enterGreeting(customer, conversation, input, messageType, rawMessage, postCommit);
                 return;
             }
             if (stateConfig.getDefaultResponse() != null) {
                 whatsAppClient.sendText(phone, stateConfig.getDefaultResponse() + helpHintFor(conversation));
             }
-            resendCurrentState(phone, customer, stateConfig, conversation);
+            resendCurrentState(phone, customer, stateConfig, conversation, postCommit);
             return;
         }
 
         // Error transition — send message and stay in current state
         if (transition.getErrorMessage() != null) {
             whatsAppClient.sendText(phone, transition.getErrorMessage() + helpHintFor(conversation));
-            resendCurrentState(phone, customer, stateConfig, conversation);
+            resendCurrentState(phone, customer, stateConfig, conversation, postCommit);
             return;
         }
 
@@ -326,7 +387,7 @@ public class FlowEngine {
             conversation.setContext(ctx);
         }
 
-        ActionContext actionCtx = buildActionContext(customer, conversation, input, messageType, rawMessage);
+        ActionContext actionCtx = buildActionContext(customer, conversation, input, messageType, rawMessage, postCommit);
 
         String nextStateName = transition.getNextState();
 
@@ -338,7 +399,7 @@ public class FlowEngine {
             }
         }
 
-        enterState(customer, conversation, nextStateName, input, messageType, rawMessage);
+        enterState(customer, conversation, nextStateName, input, messageType, rawMessage, postCommit);
     }
 
     private boolean isAtRestingPoint(WhatsappConversation conversation) {
@@ -350,11 +411,11 @@ public class FlowEngine {
     // give their name first. Used for an explicit "hi" and for any stray text at a resting point.
     // Delivery area/pincode is not gated; address + pinned location are taken at checkout.
     private void enterGreeting(Customer customer, WhatsappConversation conversation,
-                               String input, String messageType, JsonNode rawMessage) {
+                               String input, String messageType, JsonNode rawMessage, List<Runnable> postCommit) {
         orderService.cancelDraftIfExists(customer);
         conversation.setContext(new HashMap<>());
         String nextState = (customer.getName() == null || customer.getName().isBlank()) ? "NAME_COLLECT" : "MAIN_MENU";
-        enterState(customer, conversation, nextState, input, messageType, rawMessage);
+        enterState(customer, conversation, nextState, input, messageType, rawMessage, postCommit);
     }
 
     // Only nudges customers who are mid-order; at a resting point (IDLE/MAIN_MENU)
@@ -368,7 +429,8 @@ public class FlowEngine {
      * sends its entry message, and follows any auto-transition.
      */
     private void enterState(Customer customer, WhatsappConversation conversation,
-                            String stateName, String input, String messageType, JsonNode rawMessage) {
+                            String stateName, String input, String messageType, JsonNode rawMessage,
+                            List<Runnable> postCommit) {
         conversation.setState(stateName);
         conversationRepository.save(conversation);
 
@@ -376,12 +438,12 @@ public class FlowEngine {
         if (state == null) return;
 
         String phone = customer.getPhone();
-        ActionContext ctx = buildActionContext(customer, conversation, input, messageType, rawMessage);
+        ActionContext ctx = buildActionContext(customer, conversation, input, messageType, rawMessage, postCommit);
 
         if (state.getEntryAction() != null) {
             executeAction(state.getEntryAction(), ctx);
             if (ctx.getRedirectState() != null) {
-                enterState(customer, conversation, ctx.getRedirectState(), input, messageType, rawMessage);
+                enterState(customer, conversation, ctx.getRedirectState(), input, messageType, rawMessage, postCommit);
                 return;
             }
         }
@@ -391,15 +453,15 @@ public class FlowEngine {
         }
 
         if (state.getAutoTransition() != null) {
-            enterState(customer, conversation, state.getAutoTransition(), input, messageType, rawMessage);
+            enterState(customer, conversation, state.getAutoTransition(), input, messageType, rawMessage, postCommit);
         }
     }
 
     private void resendCurrentState(String phone, Customer customer,
-                                    StateConfig stateConfig, WhatsappConversation conversation) {
+                                    StateConfig stateConfig, WhatsappConversation conversation, List<Runnable> postCommit) {
         if (stateConfig.getEntryAction() != null) {
             executeAction(stateConfig.getEntryAction(),
-                    buildActionContext(customer, conversation, "", "", null));
+                    buildActionContext(customer, conversation, "", "", null, postCommit));
         } else if (stateConfig.getEntryMessage() != null) {
             sendEntryMessage(phone, stateConfig, conversation.getContext(), customer);
         }
@@ -485,6 +547,9 @@ public class FlowEngine {
                         a -> {
                             try {
                                 a.execute(ctx);
+                            } catch (CapacityReservationException | PessimisticLockingFailureException e) {
+                                // Abort the complete flow; the outer boundary replies after rollback.
+                                throw e;
                             } catch (Exception e) {
                                 log.error("Action '{}' threw an exception: {}", actionName, e.getMessage(), e);
                             }
@@ -493,13 +558,15 @@ public class FlowEngine {
     }
 
     private ActionContext buildActionContext(Customer customer, WhatsappConversation conversation,
-                                             String input, String messageType, JsonNode rawMessage) {
+                                             String input, String messageType, JsonNode rawMessage,
+                                             List<Runnable> postCommit) {
         return ActionContext.builder()
                 .customer(customer)
                 .conversation(conversation)
                 .input(input)
                 .messageType(messageType)
                 .rawMessage(rawMessage)
+                .postCommit(postCommit::add)
                 .build();
     }
 }

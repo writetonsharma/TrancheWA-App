@@ -4,6 +4,7 @@ import com.tranche.bakery.alert.AlertService;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderChannel;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.payment.PaymentRepository;
@@ -13,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -41,7 +41,8 @@ public class AutoConfirmOrderAction implements FlowAction {
         if (orderIdStr == null) return;
 
         Order order = orderRepository.findById(Long.parseLong(orderIdStr)).orElse(null);
-        if (order == null) return;
+        if (order == null || order.getChannel() == OrderChannel.WEB
+                || !order.getCustomer().getId().equals(ctx.getCustomer().getId())) return;
 
                 order.setStatus(OrderStatus.PAYMENT_SCREENSHOT_RECEIVED);
                 orderRepository.save(order);
@@ -64,7 +65,8 @@ public class AutoConfirmOrderAction implements FlowAction {
 
         // Show any remaining pending orders so customer knows what still needs payment
         List<Order> remaining = orderRepository
-                .findAllByCustomerIdAndStatus(ctx.getCustomer().getId(), OrderStatus.PENDING_CONFIRMATION);
+                .findAllByCustomerIdAndStatus(ctx.getCustomer().getId(), OrderStatus.PENDING_CONFIRMATION).stream()
+                .filter(pending -> pending.getChannel() != OrderChannel.WEB).toList();
         if (!remaining.isEmpty()) {
             msg.append("\n\n*Still awaiting payment:*\n");
             for (Order r : remaining) {

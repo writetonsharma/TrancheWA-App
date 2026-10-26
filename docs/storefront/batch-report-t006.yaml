@@ -1,0 +1,21 @@
+task: T006
+requirements: [REQ-002, REQ-003, REQ-004, REQ-005, REQ-006, REQ-009]
+status: implemented_locally_hosted_acceptance_pending
+backend_tests: {tests: 381, suites: 47, failures: 0, errors: 0, skipped: 0}
+frontend_tests: {tests: 64, failures: 0, skipped: 0}
+review: scoped_pass_after_corrections
+endpoint_probes:
+  environment: real_loopback_http_local_postgresql_mocked_provider
+  routes: ["GET /api/cart", "PUT /api/cart", "POST /api/checkout/prepare", "POST /api/checkout", "GET /api/checkout/{opaqueId}"]
+  result: pass_in_integration_tests
+migrations: [V48, V49, V50, V51]
+default_gates: {backend_checkout: false, frontend_checkout: false}
+restrictions:
+  - Positive customer credit or zero payable requires support.
+  - UNKNOWN provider outcomes require manual reconciliation; no replacement dispatch.
+  - Frontend attempt recovery is in memory; reload/logout requires support if uncertain.
+pending:
+  - Hosted Vercel rewrite and authenticated checkout transport verification.
+  - User-authorized real payment and webhook/admin/receipt acceptance.
+  - Actual browser responsive/accessibility checkout acceptance.
+not_performed: [push, deployment, live_provider_call, real_payment, real_otp]

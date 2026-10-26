@@ -21,6 +21,13 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     long sumBookedQuantity(@Param("date") LocalDate date,
                            @Param("statuses") Collection<OrderStatus> statuses);
 
+    @Query("select coalesce(sum(oi.quantity), 0) from OrderItem oi "
+            + "where oi.order.deliveryDate = :date and oi.order.status in :statuses "
+            + "and oi.order.id <> :excludeOrderId")
+    long sumBookedQuantityExcludingOrder(@Param("date") LocalDate date,
+                                         @Param("statuses") Collection<OrderStatus> statuses,
+                                         @Param("excludeOrderId") Long excludeOrderId);
+
     @Query("select coalesce(sum(oi.quantity), 0) from OrderItem oi where oi.order.id = :orderId")
     int sumQuantityByOrderId(@Param("orderId") Long orderId);
 

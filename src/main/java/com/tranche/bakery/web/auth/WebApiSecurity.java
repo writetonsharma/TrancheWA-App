@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -40,7 +41,8 @@ public class WebApiSecurity {
     @Bean
     @Order(1)
     SecurityFilterChain customerApiChain(HttpSecurity http, WebAuthSettings settings,
-            CookieCsrfTokenRepository customerCsrfRepository, CustomerSessionService sessions) throws Exception {
+            CookieCsrfTokenRepository customerCsrfRepository, CustomerSessionService sessions,
+            @Value("${bakery.web.checkout.enabled:false}") boolean checkoutEnabled) throws Exception {
         CsrfTokenRequestAttributeHandler handler = new CsrfTokenRequestAttributeHandler();
         http.securityMatcher("/api", "/api/**")
                 .securityContext(context -> context.securityContextRepository(new NullSecurityContextRepository()))
@@ -61,7 +63,7 @@ public class WebApiSecurity {
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, ex) -> response.setStatus(401))
                         .accessDeniedHandler((request, response, ex) -> response.setStatus(403)))
-                .addFilterBefore(new ApiGuard(settings), CorsFilter.class)
+                .addFilterBefore(new ApiGuard(settings, checkoutEnabled), CorsFilter.class)
                 .addFilterAfter(new CustomerIdentity(sessions), CsrfFilter.class);
         return http.build();
     }
@@ -90,12 +92,18 @@ public class WebApiSecurity {
     // Only installed in the API chain, not auto-registered as an application servlet filter.
     private static final class ApiGuard extends OncePerRequestFilter {
         private final WebAuthSettings settings;
-        ApiGuard(WebAuthSettings settings) { this.settings = settings; }
+        private final boolean checkoutEnabled;
+        ApiGuard(WebAuthSettings settings, boolean checkoutEnabled) {
+            this.settings = settings; this.checkoutEnabled = checkoutEnabled;
+        }
         @Override protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain chain)
                 throws ServletException, IOException {
             response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store, private");
             response.setHeader(HttpHeaders.PRAGMA, "no-cache");
             if (!settings.enabled) { response.setStatus(404); return; }
+                String path = request.getRequestURI().substring(request.getContextPath().length());
+                if (!checkoutEnabled && ("/api/cart".equals(path) || "/api/checkout".equals(path)
+                    || path.startsWith("/api/checkout/"))) { response.setStatus(404); return; }
             String origin = request.getHeader(HttpHeaders.ORIGIN);
             String sameOrigin = request.getScheme() + "://" + request.getServerName()
                     + ((request.getServerPort() == 443 && "https".equals(request.getScheme()))

@@ -3,6 +3,7 @@ package com.tranche.bakery.flow.actions;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderChannel;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class ApplyPaymentScreenshotAction implements FlowAction {
         Order order = orderRepository.findById(orderId).orElse(null);
 
         if (order == null
+            || order.getChannel() == OrderChannel.WEB
                 || !order.getCustomer().getId().equals(ctx.getCustomer().getId())
                 || order.getStatus() != OrderStatus.PENDING_CONFIRMATION) {
             ctx.setRedirectState("PAYMENT_ORDER_SELECT");

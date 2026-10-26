@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class CommercialOrderService {
     private final OrderNumberGenerator orderNumberGenerator;
     private final ReceiptPdfService receiptPdfService;
     private final QrCodeService qrCodeService;
+    private final CapacityLock capacityLock;
 
     @Value("${bakery.payment.upi-id}")
     private String upiId;
@@ -74,6 +76,7 @@ public class CommercialOrderService {
                                LocalDate deliveryDate, String deliveryAddress, String notes,
                                BigDecimal deliveryCharge, SellerProfileType sellerProfile,
                                boolean notifyCustomer, List<Line> lines) {
+                    capacityLock.acquire(); // before creating/updating the customer, not just before the order insert
         String normalizedPhone = PhoneNumbers.normalize(phone);
         Customer customer = customerRepository.findByPhone(normalizedPhone).orElse(null);
         if (customer == null) {
@@ -105,7 +108,7 @@ public class CommercialOrderService {
         List<OrderItem> items = new ArrayList<>();
         for (Line ln : lines) {
             if (ln == null || ln.menuItemId() == null || ln.quantity() <= 0) continue;
-            MenuItem mi = menuItemRepository.findById(ln.menuItemId()).orElse(null);
+            MenuItem mi = menuItemRepository.findById(Objects.requireNonNull(ln.menuItemId())).orElse(null);
             if (mi == null) continue;
             boolean comp = ln.complimentary();
             if (!comp && ln.unitPrice() == null) continue; // a paid line needs a price
@@ -136,7 +139,8 @@ public class CommercialOrderService {
     /** Admin confirms payment received — order moves to CONFIRMED and joins the bake list (capacity not enforced). */
     @Transactional
     public void markPaid(Long orderId) {
-        orderRepository.findById(orderId).ifPresent(order -> {
+        capacityLock.acquire();
+        orderRepository.findById(Objects.requireNonNull(orderId)).ifPresent(order -> {
             if (order.getSource() != OrderSource.COMMERCIAL) return;
             order.setStatus(OrderStatus.CONFIRMED);
             if (order.getOrderNumber() == null) {
@@ -149,7 +153,8 @@ public class CommercialOrderService {
 
     @Transactional
     public void cancel(Long orderId) {
-        orderRepository.findById(orderId).ifPresent(order -> {
+        capacityLock.acquire();
+        orderRepository.findById(Objects.requireNonNull(orderId)).ifPresent(order -> {
             if (order.getSource() != OrderSource.COMMERCIAL) return;
             order.setStatus(OrderStatus.CANCELLED);
             orderRepository.save(order);
@@ -158,7 +163,7 @@ public class CommercialOrderService {
 
     @Transactional(readOnly = true)
     public byte[] invoicePdf(Long orderId) {
-        Order order = orderRepository.findById(orderId).orElse(null);
+        Order order = orderRepository.findById(Objects.requireNonNull(orderId)).orElse(null);
         if (order == null || order.getSource() != OrderSource.COMMERCIAL) return null;
         byte[] qr = null;
         BigDecimal amount = order.getTotalAmount();
@@ -176,7 +181,7 @@ public class CommercialOrderService {
 
     @Transactional(readOnly = true)
     public byte[] receiptPdf(Long orderId) {
-        Order order = orderRepository.findById(orderId).orElse(null);
+        Order order = orderRepository.findById(Objects.requireNonNull(orderId)).orElse(null);
         if (order == null || order.getSource() != OrderSource.COMMERCIAL) return null;
         return receiptPdfService.build(order, sellerLine(order));
     }
@@ -204,6 +209,6 @@ public class CommercialOrderService {
 
     @Transactional(readOnly = true)
     public Order find(Long orderId) {
-        return orderRepository.findById(orderId).orElse(null);
+        return orderRepository.findById(Objects.requireNonNull(orderId)).orElse(null);
     }
 }

@@ -8,9 +8,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -61,6 +60,9 @@ public class StorefrontCatalogService {
         return new StorefrontDtos.Catalog(List.copyOf(items), offers, dates);
     }
 
+    // Validation can be deliberately rendered as stale-cart problems by a calling
+    // transaction. It performs no writes and must not poison that transaction.
+    @Transactional(readOnly = true, noRollbackFor = StorefrontProblemException.class)
     public StorefrontDtos.Quote quote(JsonNode body, Customer customer) {
         requireFields(body, Set.of("lines", "date"));
         JsonNode requestedLines = body.get("lines");
@@ -92,9 +94,10 @@ public class StorefrontCatalogService {
             quantities.put(id.longValue(), (int) merged);
         }
 
-        Map<Long, MenuItem> menu = itemRepository.findAllById(quantities.keySet()).stream()
-                .filter(StorefrontCatalogService::isActive)
-                .collect(Collectors.toMap(MenuItem::getId, Function.identity()));
+        Map<Long, MenuItem> menu = new LinkedHashMap<>();
+        for (MenuItem item : itemRepository.findAllById(Objects.requireNonNull(quantities.keySet()))) {
+            if (isActive(item)) menu.put(item.getId(), item);
+        }
         if (!menu.keySet().containsAll(quantities.keySet())) {
             throw bad("ITEM_UNAVAILABLE", "One or more items are unavailable. Please refresh the catalogue.");
         }

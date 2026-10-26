@@ -11,16 +11,25 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.function.Consumer;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.lang.NonNull;
+import org.springframework.orm.jpa.EntityManagerFactoryUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.tranche.bakery.alert.AlertRepository;
 import com.tranche.bakery.alert.AlertService;
@@ -28,7 +37,9 @@ import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.customer.CustomerRepository;
 import com.tranche.bakery.feedback.FeedbackRepository;
 import com.tranche.bakery.order.FulfillmentType;
+import com.tranche.bakery.order.CapacityLock;
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderChannel;
 import com.tranche.bakery.order.OrderItem;
 import com.tranche.bakery.order.OrderItemRepository;
 import com.tranche.bakery.order.OrderRepository;
@@ -38,6 +49,7 @@ import com.tranche.bakery.payment.PaymentRepository;
 import com.tranche.bakery.payment.PaymentStatus;
 import com.tranche.bakery.whatsapp.CustomerNotifier;
 
+import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +68,10 @@ public class AdminService {
     private final CustomerRepository customerRepository;
     private final AdminMessageRepository adminMessageRepository;
     private final CustomerNotifier customerNotifier;
+    private final CapacityLock capacityLock;
+    private final JdbcTemplate jdbcTemplate;
+    private final EntityManagerFactory entityManagerFactory;
+    private final PlatformTransactionManager transactionManager;
 
     private static final DateTimeFormatter ADMIN_DATE_FMT = DateTimeFormatter.ofPattern("EEE, d MMM");
 
@@ -131,7 +147,16 @@ public class AdminService {
     }
 
     @Transactional
-    public void approvePayment(Long orderId) {
+    public void approvePayment(@NonNull Long orderId) {
+        capacityLock.acquire();
+        Order candidate = orderRepository.findById(orderId).orElse(null);
+        if (candidate == null) return;
+        // WEB checkout is gateway-only. Screenshot approval must not bypass its binding checks.
+        if (candidate.getChannel() == OrderChannel.WEB) {
+            Payment payment = paymentRepository.findByOrder(candidate).orElse(null);
+            if (payment != null) holdWebPayment(candidate, payment, "Screenshot approval is not valid for WEB checkout");
+            return;
+        }
         int flipped = orderRepository.confirmIfNotConfirmed(orderId, OrderStatus.CONFIRMED);
         orderRepository.findById(orderId).ifPresent(order -> {
             paymentRepository.findByOrder(order).ifPresent(payment -> {
@@ -158,13 +183,64 @@ public class AdminService {
      * Confirms an order from an already signature-verified gateway webhook. A payment whose amount
      * doesn't match what we charged is held for review rather than auto-confirmed.
      */
-    @Transactional
-    public void confirmGatewayPayment(Long orderId, String gatewayPaymentId, String gatewayLinkId,
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void confirmGatewayPayment(@NonNull Long orderId, String gatewayPaymentId, String gatewayLinkId,
                                       BigDecimal paidAmount) {
+        confirmGatewayPaymentAfterCommit(orderId, gatewayPaymentId, gatewayLinkId, paidAmount,
+                null, null, null, false);
+    }
+
+    /** Signed webhook boundary. Missing WEB notes never fall back to the trusted cutoff path. */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void confirmGatewayPayment(@NonNull Long orderId, String gatewayPaymentId, String gatewayLinkId,
+                                      BigDecimal paidAmount, String webAttemptId,
+                                      String providerReference, String currency) {
+        confirmGatewayPaymentAfterCommit(orderId, gatewayPaymentId, gatewayLinkId, paidAmount,
+                webAttemptId, providerReference, currency, true);
+    }
+
+    private void confirmGatewayPaymentAfterCommit(@NonNull Long orderId, String gatewayPaymentId,
+                                                  String gatewayLinkId, BigDecimal paidAmount,
+                                                  String webAttemptId, String providerReference,
+                                                  String currency, boolean webhook) {
+        List<Runnable> effects = new ArrayList<>();
+        TransactionTemplate settlement = new TransactionTemplate(Objects.requireNonNull(transactionManager));
+        settlement.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        settlement.executeWithoutResult(status -> confirmGatewayPaymentInternal(orderId, gatewayPaymentId,
+                gatewayLinkId, paidAmount, webAttemptId, providerReference, currency, webhook, effects::add));
+        // execute() returns only after commit AND resource cleanup/capacity release. NOT_SUPPORTED
+        // keeps any caller transaction suspended until all effects finish (afterCommit alone cannot).
+        // If settlement/commit throws, none of the collected effects are delivered.
+        for (Runnable effect : effects) effect.run();
+    }
+
+    /**
+     * Cutoff coordinator boundary: identical settlement guards, but no network under its capacity lock.
+     * The caller must run the returned effects only after its enclosing transaction commits.
+     */
+    @Transactional
+    public List<Runnable> confirmGatewayPaymentAtCutoff(@NonNull Long orderId, String gatewayPaymentId,
+                                                       String gatewayLinkId, BigDecimal paidAmount) {
+        List<Runnable> effects = new ArrayList<>();
+        confirmGatewayPaymentInternal(orderId, gatewayPaymentId, gatewayLinkId, paidAmount,
+                null, null, null, false, effects::add);
+        return effects;
+    }
+
+    private void confirmGatewayPaymentInternal(@NonNull Long orderId, String gatewayPaymentId, String gatewayLinkId,
+                                               BigDecimal paidAmount, String webAttemptId,
+                                               String providerReference, String currency, boolean webhook,
+                                               Consumer<Runnable> effects) {
+        capacityLock.acquire();
         Order order = orderRepository.findById(orderId).orElse(null);
         if (order == null) {
-            alertService.raise("PAYMENT_UNKNOWN_ORDER",
-                    "Gateway payment " + gatewayPaymentId + " referenced unknown order " + orderId, orderId, null);
+            effects.accept(() -> alertService.raise("PAYMENT_UNKNOWN_ORDER",
+                    "Gateway payment " + gatewayPaymentId + " referenced unknown order " + orderId, orderId, null));
+            return;
+        }
+        if (order.getChannel() == OrderChannel.WEB) {
+            confirmWebPayment(order, gatewayPaymentId, gatewayLinkId, paidAmount,
+                    webAttemptId, providerReference, currency, webhook, effects);
             return;
         }
         String customerPhone = order.getCustomer() != null ? order.getCustomer().getPhone() : null;
@@ -178,6 +254,11 @@ public class AdminService {
         BigDecimal expected = payment.getAmount() != null ? payment.getAmount() : order.getTotalAmount();
         String priorPaymentId = payment.getGatewayPaymentId();
 
+        if (payment.getGatewayLinkId() != null && !payment.getGatewayLinkId().equals(gatewayLinkId)) {
+            holdWebPayment(order, payment, "Gateway link does not match the saved payment link", effects);
+            return;
+        }
+
         payment.setProvider("RAZORPAY");
         // Keep whichever payment actually settled the order; a second id means a duplicate charge.
         if (gatewayPaymentId != null && priorPaymentId == null) payment.setGatewayPaymentId(gatewayPaymentId);
@@ -190,12 +271,12 @@ public class AdminService {
             // means the customer was charged twice.
             boolean sameChargeRetried = gatewayPaymentId != null && gatewayPaymentId.equals(priorPaymentId);
             if (gatewayPaymentId != null && !sameChargeRetried) {
-                alertService.raise("PAYMENT_DUPLICATE_CHARGE",
+                effects.accept(() -> alertService.raise("PAYMENT_DUPLICATE_CHARGE",
                         "Order " + orderId + " was already settled"
                                 + (priorPaymentId != null ? " by " + priorPaymentId : " without a gateway payment")
                                 + ", but gateway payment " + gatewayPaymentId + " of " + paidAmount
                                 + " also arrived. Refund required.",
-                        orderId, customerPhone);
+                        orderId, customerPhone));
             } else {
                 log.info("Gateway payment {} for already-confirmed order {} — no action", gatewayPaymentId, orderId);
             }
@@ -206,10 +287,10 @@ public class AdminService {
             // payable). Never auto-confirm it — a human must refund or revive it onto a valid bake day.
             payment.setStatus(PaymentStatus.REVIEW_REQUIRED);
             paymentRepository.save(payment);
-            alertService.raise("PAYMENT_FOR_INACTIVE_ORDER",
+            effects.accept(() -> alertService.raise("PAYMENT_FOR_INACTIVE_ORDER",
                     "Order " + orderId + " is " + order.getStatus() + " but gateway payment " + gatewayPaymentId
                             + " of " + paidAmount + " arrived. Refund or revive manually.",
-                    orderId, customerPhone);
+                    orderId, customerPhone));
             return;
         }
 
@@ -219,10 +300,10 @@ public class AdminService {
             paymentRepository.save(payment);
             order.setStatus(OrderStatus.PAYMENT_REVIEW_REQUIRED);
             orderRepository.save(order);
-            alertService.raise("PAYMENT_AMOUNT_MISMATCH",
+            effects.accept(() -> alertService.raise("PAYMENT_AMOUNT_MISMATCH",
                     "Order " + orderId + ": paid " + paidAmount + " but expected " + expected
                             + " (gateway payment " + gatewayPaymentId + "). Held for review.",
-                    orderId, customerPhone);
+                    orderId, customerPhone));
             return;
         }
 
@@ -235,11 +316,127 @@ public class AdminService {
         if (flipped == 1) {
             orderRepository.findById(orderId).ifPresent(confirmed -> {
                 consumeCredit(confirmed);
-                customerNotifier.orderConfirmed(confirmed);
-                notifyAdminOrderPaid(confirmed);
+                paymentConfirmationEffects(confirmed, effects);
             });
         }
         log.info("Gateway payment {} confirmed order {}", gatewayPaymentId, orderId);
+    }
+
+    private record WebBinding(String id, String reference, String link, String state) { }
+
+    private void confirmWebPayment(Order order, String paymentId, String linkId, BigDecimal amount,
+                                   String attemptId, String reference, String currency, boolean webhook,
+                                   Consumer<Runnable> effects) {
+        Payment payment = paymentRepository.findByOrder(order).orElse(null);
+        if (payment == null) {
+            effects.accept(() -> alertService.raise("PAYMENT_WEB_BINDING", "WEB order has no accepted payment",
+                    order.getId(), null));
+            return;
+        }
+        // Capacity is always acquired first. The attempt row serializes early binding with dispatch persistence.
+        List<WebBinding> bindings = jdbcTemplate.query("""
+            select id,provider_reference,provider_link_id,state
+            from web_checkout_attempts where order_id=? and customer_id=? for update
+            """, (rs, row) -> new WebBinding(rs.getString("id"), rs.getString("provider_reference"),
+                rs.getString("provider_link_id"), rs.getString("state")),
+            order.getId(), order.getCustomer().getId());
+        WebBinding binding = bindings.size() == 1 ? bindings.get(0) : null;
+        // PostgreSQL now() is transaction-start time. Recheck wall-clock time AFTER all lock waits.
+        boolean live = binding != null && Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+            "select expires_at > clock_timestamp() from web_checkout_attempts where id=?",
+            Boolean.class, binding.id()));
+        boolean settled = payment.getStatus() == PaymentStatus.GATEWAY_CAPTURED;
+        boolean samePayment = paymentId != null && paymentId.equals(payment.getGatewayPaymentId());
+        boolean active = AWAITING_PAYMENT.contains(order.getStatus())
+            || (settled && (order.getStatus() == OrderStatus.CONFIRMED
+                || order.getStatus() == OrderStatus.IN_BAKING
+                || order.getStatus() == OrderStatus.OUT_FOR_DELIVERY
+                || order.getStatus() == OrderStatus.COMPLETED));
+        boolean validMoney = amount != null && amount.signum() > 0 && amount.scale() <= 2
+            && payment.getAmount() != null && amount.compareTo(payment.getAmount()) == 0
+            && order.getTotalAmount() != null && amount.compareTo(order.getTotalAmount()) == 0;
+        boolean validIds = paymentId != null && paymentId.matches("pay_[A-Za-z0-9_]{1,96}")
+            && linkId != null && linkId.matches("plink_[A-Za-z0-9_]{1,94}");
+        boolean stateAllows = binding != null && Set.of("CREATING", "UNKNOWN", "PAYABLE").contains(binding.state());
+        boolean signedBinding = binding != null && binding.id().equals(attemptId)
+            && binding.reference() != null && binding.reference().equals(reference) && "INR".equals(currency);
+        boolean savedLink = binding != null && linkId != null && linkId.equals(binding.link())
+            && linkId.equals(payment.getGatewayLinkId());
+        boolean canBind = webhook && signedBinding && binding != null
+            && Set.of("CREATING", "UNKNOWN").contains(binding.state())
+            && binding.link() == null && payment.getGatewayLinkId() == null;
+        boolean conflictingPayment = payment.getGatewayPaymentId() != null && !samePayment;
+        if (binding == null || !stateAllows || !"RAZORPAY".equals(payment.getProvider())
+            || (!live && !(settled && samePayment && savedLink))
+            || !active || order.isCutoffCancelled() || !validMoney || !validIds || conflictingPayment
+            || (webhook ? !signedBinding : !savedLink) || (!savedLink && !canBind)
+            || (order.getCreditApplied() != null && order.getCreditApplied().signum() != 0)) {
+            holdWebPayment(order, payment,
+                    "WEB payment failed attempt, deadline, amount, currency or provider binding checks", effects);
+            return;
+        }
+        if (canBind) {
+            Boolean used = jdbcTemplate.queryForObject(
+                    "select exists(select 1 from web_checkout_attempts where provider_link_id=? and id<>?)",
+                    Boolean.class, linkId, binding.id());
+            if (Boolean.TRUE.equals(used)) {
+                holdWebPayment(order, payment, "Gateway link is already bound to another WEB attempt", effects);
+                return;
+            }
+            jdbcTemplate.update("""
+                update web_checkout_attempts set provider_link_id=?,updated_at=now()
+                where id=? and provider_link_id is null
+                """, linkId, binding.id());
+            payment.setGatewayLinkId(linkId);
+        }
+        if (settled && samePayment) return;
+        payment.setGatewayPaymentId(paymentId);
+        payment.setStatus(PaymentStatus.GATEWAY_CAPTURED);
+        paymentsCaptured(order, payment, effects);
+    }
+
+    private void paymentsCaptured(Order order, @NonNull Payment payment, Consumer<Runnable> effects) {
+        paymentRepository.saveAndFlush(payment);
+        order.setStatus(OrderStatus.CONFIRMED);
+        orderRepository.save(order);
+        paymentConfirmationEffects(order, effects);
+    }
+
+    private void paymentConfirmationEffects(Order order, Consumer<Runnable> effects) {
+        // Load the customer while attached; cutoff executes these effects with no persistence context.
+        if (order.getCustomer() != null) org.hibernate.Hibernate.initialize(order.getCustomer());
+        effects.accept(() -> notifyPaymentConfirmed(order));
+        effects.accept(() -> notifyAdminOrderPaid(order));
+    }
+
+    private void notifyPaymentConfirmed(Order order) {
+        TransactionTemplate receiptScope = new TransactionTemplate(Objects.requireNonNull(transactionManager));
+        receiptScope.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
+        receiptScope.executeWithoutResult(status -> {
+            // An empty transaction scope provides synchronization, not a database transaction.
+            // Let Spring own both the holder and its synchronization: repository transactions
+            // can then suspend/resume it safely, and cleanup cannot orphan a synchronization
+            // before the subsequent REQUIRES_NEW admin alert. This also works without HTTP OSIV.
+            Objects.requireNonNull(EntityManagerFactoryUtils.getTransactionalEntityManager(
+                    Objects.requireNonNull(entityManagerFactory)));
+            customerNotifier.orderConfirmed(order);
+        });
+    }
+
+    private void holdWebPayment(Order order, Payment payment, String reason) {
+        holdWebPayment(order, payment, reason, effect -> effect.run());
+    }
+
+    private void holdWebPayment(Order order, Payment payment, String reason, Consumer<Runnable> effects) {
+        payment.setStatus(PaymentStatus.REVIEW_REQUIRED);
+        paymentRepository.save(payment);
+        if (AWAITING_PAYMENT.contains(order.getStatus())) {
+            order.setStatus(OrderStatus.PAYMENT_REVIEW_REQUIRED);
+            orderRepository.save(order);
+        }
+        String phone = order.getCustomer() != null ? order.getCustomer().getPhone() : null;
+        effects.accept(() -> alertService.raise("PAYMENT_WEB_BINDING", reason + " (order " + order.getId() + ")",
+                order.getId(), phone));
     }
 
     // Gateway payments auto-confirm with no screenshot to review, so ping the admin that a paid order landed.
@@ -260,6 +457,7 @@ public class AdminService {
 
     // Deduct the credit this order used from the customer's running balance (once, on first confirm).
     private void consumeCredit(Order order) {
+        if (order.getChannel() == OrderChannel.WEB) return;
         java.math.BigDecimal applied = order.getCreditApplied();
         if (applied == null || applied.signum() <= 0) return;
         Customer c = order.getCustomer();
@@ -274,7 +472,8 @@ public class AdminService {
     }
 
     @Transactional
-    public void flagForReview(Long orderId) {
+    public void flagForReview(@NonNull Long orderId) {
+        capacityLock.acquire();
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.PAYMENT_REVIEW_REQUIRED);
             orderRepository.save(order);
@@ -318,8 +517,15 @@ public class AdminService {
     }
 
     @Transactional
-    public void updateOrderDeliveryDate(Long orderId, LocalDate deliveryDate) {
+    public void updateOrderDeliveryDate(@NonNull Long orderId, LocalDate deliveryDate) {
+        capacityLock.acquire();
         orderRepository.findById(orderId).ifPresent(order -> {
+            // Accepted WEB quotes include the bake date. This ordinary admin form cannot re-quote,
+            // and its controller does not catch service exceptions: reject without mutating or throwing.
+            if (order.getChannel() == OrderChannel.WEB) {
+                log.warn("Rejected ordinary delivery-date edit for immutable WEB order {}", orderId);
+                return;
+            }
             LocalDate previous = order.getDeliveryDate();
             order.setDeliveryDate(deliveryDate);
             orderRepository.save(order);
@@ -345,7 +551,8 @@ public class AdminService {
     }
 
     @Transactional
-    public void markInBaking(Long orderId) {
+    public void markInBaking(@NonNull Long orderId) {
+        capacityLock.acquire();
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.IN_BAKING);
             orderRepository.save(order);
@@ -355,7 +562,8 @@ public class AdminService {
     }
 
     @Transactional
-    public void markOutForDelivery(Long orderId) {
+    public void markOutForDelivery(@NonNull Long orderId) {
+        capacityLock.acquire();
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.OUT_FOR_DELIVERY);
             orderRepository.save(order);
@@ -365,7 +573,8 @@ public class AdminService {
     }
 
     @Transactional
-    public void markCompleted(Long orderId) {
+    public void markCompleted(@NonNull Long orderId) {
+        capacityLock.acquire();
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.COMPLETED);
             orderRepository.save(order);
@@ -375,7 +584,8 @@ public class AdminService {
     }
 
     @Transactional
-    public void cancelOrder(Long orderId) {
+    public void cancelOrder(@NonNull Long orderId) {
+        capacityLock.acquire();
         orderRepository.findById(orderId).ifPresent(order -> {
             order.setStatus(OrderStatus.CANCELLED);
             orderRepository.save(order);
@@ -386,7 +596,7 @@ public class AdminService {
 
     /** Flip whether status changes on this order send WhatsApp updates to the customer. Returns the new state. */
     @Transactional
-    public boolean toggleNotify(Long orderId) {
+    public boolean toggleNotify(@NonNull Long orderId) {
         Order order = orderRepository.findById(orderId).orElse(null);
         if (order == null) return false;
         order.setNotifyCustomer(!order.isNotifyCustomer());
@@ -395,7 +605,7 @@ public class AdminService {
         return order.isNotifyCustomer();
     }
 
-    public byte[] getQrImage(Long orderId) {
+    public byte[] getQrImage(@NonNull Long orderId) {
         return orderRepository.findById(orderId)
                 .flatMap(paymentRepository::findByOrder)
                 .map(p -> p.getQrImageData())
@@ -408,7 +618,7 @@ public class AdminService {
         String q = query.trim();
         List<Customer> customers = customerRepository.findByPhoneContainingOrNameContainingIgnoreCase(q, q);
         if (customers.isEmpty()) return List.of();
-        List<Long> customerIds = customers.stream().map(Customer::getId).toList();
+        List<Long> customerIds = customers.stream().map(c -> c.getId()).toList();
         return loadViews(orderRepository.findAllByCustomerIdInOrderByCreatedAtDesc(customerIds));
     }
 
@@ -488,7 +698,7 @@ public class AdminService {
         };
     }
 
-    private Sort orderSort() {
+    private @NonNull Sort orderSort() {
         return Sort.by(Sort.Order.desc("deliveryDate"), Sort.Order.desc("createdAt"));
     }
 
@@ -515,7 +725,7 @@ public class AdminService {
 
         return aggregation.entrySet().stream()
                 .map(e -> new BakeListItem(e.getKey(), e.getValue()[0], e.getValue()[1]))
-                .sorted(Comparator.comparingInt(BakeListItem::totalQuantity).reversed())
+                .sorted(Comparator.comparingInt((BakeListItem item) -> item.totalQuantity()).reversed())
                 .toList();
     }
 
@@ -524,7 +734,7 @@ public class AdminService {
         List<Order> orders = orderRepository.findAllByStatusInAndDeliveryDateOrderByDeliveryDateAsc(
                 Set.of(OrderStatus.CONFIRMED, OrderStatus.IN_BAKING), date);
         List<BakeListItem> aggregate = buildBakeList(date);
-        int totalItems = aggregate.stream().mapToInt(BakeListItem::totalQuantity).sum();
+        int totalItems = aggregate.stream().mapToInt(item -> item.totalQuantity()).sum();
         return new BakeSheet(date, aggregate, loadViews(orders), totalItems);
     }
 

@@ -1,0 +1,9 @@
+tasks:
+  - id: T006
+    requirements: [REQ-002, REQ-003, REQ-004, REQ-005, REQ-006, REQ-009]
+    implementation: [WebCartService, WebCheckoutService, CapacityLock, PostTransactionEffects, PaymentLinkRevocations, CheckoutFlow]
+    evidence: ../batch-report-t006.yaml
+    local_validation: pass
+    hosted_acceptance: pending
+    enabled_by_default: false
+    exclusions: [customer_history, website_subscriptions, whatsapp_commerce_cutover]

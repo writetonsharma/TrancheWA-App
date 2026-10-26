@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.Map;
+import java.util.function.Consumer;
 
 @Getter
 @Builder
@@ -17,6 +18,15 @@ public class ActionContext {
     private final String input;
     private final String messageType;
     private final JsonNode rawMessage;
+    /** Flow-owned queue, drained only after a successful commit AND transaction cleanup. */
+    private final Consumer<Runnable> postCommit;
+
+    public void afterCommit(Runnable effect) {
+        if (postCommit == null) {
+            throw new IllegalStateException("Post-commit dispatch requires a FlowEngine action context");
+        }
+        postCommit.accept(effect);
+    }
 
     /** Set by an action to override the next state the engine transitions to. */
     @Setter

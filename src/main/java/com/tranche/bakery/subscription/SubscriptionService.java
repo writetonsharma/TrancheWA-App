@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import com.tranche.bakery.customer.CustomerRepository;
 import com.tranche.bakery.menu.MenuItem;
 import com.tranche.bakery.menu.MenuItemRepository;
 import com.tranche.bakery.order.DeliveryRules;
+import com.tranche.bakery.order.CapacityLock;
 import com.tranche.bakery.order.Order;
 import com.tranche.bakery.order.OrderItem;
 import com.tranche.bakery.order.OrderItemRepository;
@@ -64,6 +66,7 @@ public class SubscriptionService {
     private final CustomerRepository customerRepository;
     private final AlertService alertService;
     private final DeliveryRules deliveryRules;
+    private final CapacityLock capacityLock;
 
     /** One chosen bundle line, resolved from the plan option + the customer's pick. */
     public record ChosenItem(String itemName, int quantity, String portion) {}
@@ -120,7 +123,7 @@ public class SubscriptionService {
         Subscription last = subscriptionRepository.findAllByCustomerIdOrderByCreatedAtDesc(customer.getId())
                 .stream().findFirst().orElse(null);
         if (last == null) return Optional.empty();
-        PlanConfig plan = catalog.plan(last.getPlanCode()).filter(PlanConfig::isActive).orElse(null);
+        PlanConfig plan = catalog.plan(last.getPlanCode()).filter(p -> p.isActive()).orElse(null);
         if (plan == null) return Optional.empty();
         List<ChosenItem> items = new ArrayList<>();
         for (SubscriptionItem si : last.getItems()) {
@@ -135,7 +138,8 @@ public class SubscriptionService {
     @Transactional
     public void activateFromGateway(Long subscriptionId, String gatewayPaymentId, String gatewayLinkId,
                                     BigDecimal paidAmount) {
-        Subscription sub = subscriptionRepository.findById(subscriptionId).orElse(null);
+        capacityLock.acquire();
+        Subscription sub = subscriptionRepository.findById(Objects.requireNonNull(subscriptionId)).orElse(null);
         if (sub == null) {
             alertService.raise("PAYMENT_UNKNOWN_SUBSCRIPTION",
                     "Gateway payment " + gatewayPaymentId + " referenced unknown subscription " + subscriptionId,
@@ -170,7 +174,8 @@ public class SubscriptionService {
     /** Payment verified: activate, set the 4-week window, generate any due orders, and notify. */
     @Transactional
     public void activate(Long subscriptionId) {
-        Subscription sub = subscriptionRepository.findById(subscriptionId).orElse(null);
+        capacityLock.acquire();
+        Subscription sub = subscriptionRepository.findById(Objects.requireNonNull(subscriptionId)).orElse(null);
         if (sub == null || sub.getStatus() != SubscriptionStatus.PENDING_PAYMENT) return;
 
         // Honour the same 5 PM cutoff as one-time orders: a payment after the cutoff can't claim the next day.
@@ -184,7 +189,7 @@ public class SubscriptionService {
                 SubscriptionStatus.ACTIVE, SubscriptionStatus.PENDING_PAYMENT);
         if (flipped == 0) return;
 
-        Subscription active = subscriptionRepository.findById(subscriptionId).orElseThrow();
+        Subscription active = subscriptionRepository.findById(Objects.requireNonNull(subscriptionId)).orElseThrow();
         consumeCredit(active);
         customerNotifier.subscriptionConfirmed(active, firstDelivery);
         notifyAdminSubscriptionPaid(active, firstDelivery);
@@ -227,6 +232,7 @@ public class SubscriptionService {
     /** Scheduled: create the ₹0 order for any subscription week whose delivery is near. */
     @Transactional
     public void generateDueOrders() {
+        capacityLock.acquire();
         for (Subscription sub : subscriptionRepository.findAllByStatus(SubscriptionStatus.ACTIVE)) {
             generateForSubscription(sub);
         }
@@ -249,7 +255,8 @@ public class SubscriptionService {
     /** Admin action: cancel a subscription — remaining weeks won't be generated. */
     @Transactional
     public void cancel(Long subscriptionId) {
-        subscriptionRepository.findById(subscriptionId).ifPresent(sub -> {
+        capacityLock.acquire();
+        subscriptionRepository.findById(Objects.requireNonNull(subscriptionId)).ifPresent(sub -> {
             sub.setStatus(SubscriptionStatus.CANCELLED);
             subscriptionRepository.save(sub);
             cancelUpcomingOrders(subscriptionId);
@@ -260,7 +267,8 @@ public class SubscriptionService {
     /** Customer self-cancel: only their own, still-cancellable subscription. Returns true if cancelled. */
     @Transactional
     public boolean cancelForCustomer(Long subscriptionId, Long customerId) {
-        Subscription sub = subscriptionRepository.findById(subscriptionId).orElse(null);
+        capacityLock.acquire();
+        Subscription sub = subscriptionRepository.findById(Objects.requireNonNull(subscriptionId)).orElse(null);
         if (sub == null || !sub.getCustomer().getId().equals(customerId)) return false;
         if (sub.getStatus() == SubscriptionStatus.CANCELLED || sub.getStatus() == SubscriptionStatus.COMPLETED) return false;
         sub.setStatus(SubscriptionStatus.CANCELLED);
@@ -277,7 +285,7 @@ public class SubscriptionService {
         for (Order order : upcoming) {
             order.setStatus(OrderStatus.CANCELLED);
         }
-        orderRepository.saveAll(upcoming);
+        orderRepository.saveAll(Objects.requireNonNull(upcoming));
     }
 
     /** Evening cleanup: cancel unpaid draft subscriptions created before today's cutoff, and notify. */

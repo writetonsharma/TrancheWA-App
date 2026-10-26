@@ -50,10 +50,19 @@ public class RazorpayWebhookController {
             // path emits order.paid/payment.captured and needs handling added here before it is used.
             if ("payment_link.paid".equals(event)) {
                 JsonNode linkEntity = root.path("payload").path("payment_link").path("entity");
+                JsonNode paymentEntity = root.path("payload").path("payment").path("entity");
+                String currency = text(linkEntity.path("currency"));
+                BigDecimal amount = rupees(linkEntity.path("amount_paid"));
+                // Legacy fixtures may omit currency; an explicitly conflicting currency is never INR.
+                if ((!linkEntity.path("currency").isMissingNode() && !"INR".equals(currency))
+                    || (!paymentEntity.path("currency").isMissingNode()
+                        && !"INR".equals(text(paymentEntity.path("currency"))))) {
+                    amount = null;
+                    currency = null;
+                }
                 route(event, linkEntity.path("notes"),
-                        root.path("payload").path("payment").path("entity").path("id").asText(null),
-                        linkEntity.path("id").asText(null),
-                        rupees(linkEntity.path("amount_paid")));
+                    text(paymentEntity.path("id")), text(linkEntity.path("id")), amount,
+                    text(linkEntity.path("reference_id")), currency);
             } else if ("payment_link.partially_paid".equals(event)) {
                 // We always create links with accept_partial=false, so this only happens if the link was
                 // edited in the dashboard. It stays partially_paid and never emits payment_link.paid,
@@ -76,13 +85,18 @@ public class RazorpayWebhookController {
         }
     }
 
-    private void route(String event, JsonNode notes, String paymentId, String linkId, BigDecimal paidAmount) {
+    private void route(String event, JsonNode notes, String paymentId, String linkId, BigDecimal paidAmount,
+                       String reference, String currency) {
         String kind = notes.isMissingNode() || notes.isNull() ? "" : notes.path("kind").asText("");
         if ("ORDER".equals(kind)) {
-            long id = notes.path("orderId").asLong(0);
+            long id = positiveId(notes.path("orderId"));
             if (id > 0) {
                 // Idempotent: first CONFIRMED only notifies/consumes credit.
-                adminService.confirmGatewayPayment(id, paymentId, linkId, paidAmount);
+                String webReference = text(notes.path("webReference"));
+                // Both values come from the signature-verified body; neither alone can authorize binding.
+                String boundReference = reference != null && reference.equals(webReference) ? reference : null;
+                adminService.confirmGatewayPayment(id, paymentId, linkId, paidAmount,
+                    text(notes.path("webAttemptId")), boundReference, currency);
                 log.info("Razorpay {} → order {} (payment {})", event, id, paymentId);
                 return;
             }
@@ -103,8 +117,23 @@ public class RazorpayWebhookController {
                 null, null);
     }
 
-    /** Razorpay reports money in paise; null when absent or not a number, and callers never confirm on null. */
+    private static String text(JsonNode node) {
+        return node.isTextual() ? node.textValue() : null;
+    }
+
+    private static long positiveId(JsonNode node) {
+        if (node.isIntegralNumber() && node.canConvertToLong()) return node.longValue();
+        if (!node.isTextual() || !node.textValue().matches("[1-9][0-9]{0,18}")) return 0;
+        try {
+            return Long.parseLong(node.textValue());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /** Only positive, bounded integer paise; never truncate decimals or coerce strings. */
     private static BigDecimal rupees(JsonNode node) {
-        return node.isNumber() ? BigDecimal.valueOf(node.asLong()).movePointLeft(2) : null;
+        return node.isIntegralNumber() && node.canConvertToLong() && node.longValue() > 0
+                ? BigDecimal.valueOf(node.longValue()).movePointLeft(2) : null;
     }
 }

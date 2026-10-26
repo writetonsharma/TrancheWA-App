@@ -9,7 +9,7 @@ Status: implementation started 2026-10-25. Baseline: 161 Java tests passed again
 | T003 Implement bounded catalogue/quote API and shared authoritative pricing with regression tests | REQ-004,009 | Locally validated |
 | T004 Add opt-in accessible preview cart and login UI without altering default public workflow | REQ-002,003,005 | Locally validated; exact production HTTPS origins enabled for approved live test |
 | T005 Validate batch, security review and document Meta/deployment prerequisites | REQ-003,004,005,009 | Local checks complete; hosted live test pending user deployment |
-| T006 Persist website baskets and build transactional/idempotent retail checkout | REQ-006 | Not started |
+| T006 Persist website baskets and build transactional/idempotent retail checkout | REQ-006 | Implemented and locally validated; independent checkout gate OFF; hosted payment pilot pending |
 | T007 Customer history, receipts, reorder and saved preferences | REQ-006 | Not started |
 | T008 Website subscription signup, schedule, payment and renewal | REQ-007 | Not started |
 | T009 Guard all WhatsApp commerce mutations and route actions to website | REQ-001,008 | Not started; blocked on website pilot |

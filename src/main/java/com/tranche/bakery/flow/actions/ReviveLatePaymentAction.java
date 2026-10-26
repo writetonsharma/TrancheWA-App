@@ -8,8 +8,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderChannel;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
+import com.tranche.bakery.order.OrderService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,7 @@ public class ReviveLatePaymentAction implements FlowAction {
 
     private final OrderRepository orderRepository;
     private final SavePaymentScreenshotAction savePaymentScreenshotAction;
+    private final OrderService orderService;
 
     @Override
     public String getName() { return "REVIVE_LATE_PAYMENT"; }
@@ -53,6 +56,7 @@ public class ReviveLatePaymentAction implements FlowAction {
 
         Order order = orderRepository.findById(Long.parseLong(orderIdStr)).orElse(null);
         if (order == null
+            || order.getChannel() == OrderChannel.WEB
                 || !order.getCustomer().getId().equals(ctx.getCustomer().getId())
                 || order.getStatus() != OrderStatus.CANCELLED
                 || !order.isCutoffCancelled()) {
@@ -60,11 +64,8 @@ public class ReviveLatePaymentAction implements FlowAction {
             return;
         }
 
-        // Revive the cancelled order on the newly-chosen bake day, then carry the payment over.
-        order.setDeliveryDate(deliveryDate);
-        order.setCutoffCancelled(false);
-        order.setStatus(OrderStatus.PENDING_CONFIRMATION);
-        orderRepository.save(order);
+        // Reserve again under the shared transaction lock before carrying the payment over.
+        order = orderService.reviveCutoffCancelled(order.getId(), ctx.getCustomer().getId(), deliveryDate);
 
         savePaymentScreenshotAction.applyScreenshot(mediaId, order);
 

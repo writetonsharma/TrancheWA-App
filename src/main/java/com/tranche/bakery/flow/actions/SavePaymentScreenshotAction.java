@@ -3,6 +3,7 @@ package com.tranche.bakery.flow.actions;
 import com.tranche.bakery.flow.ActionContext;
 import com.tranche.bakery.flow.FlowAction;
 import com.tranche.bakery.order.Order;
+import com.tranche.bakery.order.OrderChannel;
 import com.tranche.bakery.order.OrderRepository;
 import com.tranche.bakery.order.OrderStatus;
 import com.tranche.bakery.payment.Payment;
@@ -34,9 +35,10 @@ public class SavePaymentScreenshotAction implements FlowAction {
         if (mediaId == null) return;
 
         List<Order> pending = orderRepository.findAllByCustomerIdAndStatus(
-                ctx.getCustomer().getId(), OrderStatus.PENDING_CONFIRMATION);
+            ctx.getCustomer().getId(), OrderStatus.PENDING_CONFIRMATION).stream()
+            .filter(order -> order.getChannel() != OrderChannel.WEB).toList();
 
-        if (pending.isEmpty()) return;
+        if (pending.isEmpty()) { ctx.setRedirectState("IDLE"); return; }
 
         if (pending.size() == 1) {
             // Single order — attach screenshot directly
@@ -54,6 +56,8 @@ public class SavePaymentScreenshotAction implements FlowAction {
     }
 
     public void applyScreenshot(String mediaId, Order order) {
+        // Defense in depth for stale/forged conversation context and late-payment callers.
+        if (order.getChannel() == OrderChannel.WEB) return;
         Payment payment = paymentRepository.findByOrder(order).orElseGet(() -> {
             Payment p = new Payment();
             p.setOrder(order);

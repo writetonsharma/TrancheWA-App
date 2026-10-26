@@ -6,7 +6,6 @@ import com.tranche.bakery.flow.FlowEngine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -16,8 +15,8 @@ public class ConversationService {
     private final ConversationRepository conversationRepository;
     private final FlowEngine flowEngine;
 
-    @Transactional
     public void handle(Customer customer, String messageType, JsonNode message) {
+        // FlowEngine owns commit/rollback and only handles reservation failures after rollback.
         WhatsappConversation conversation = conversationRepository
                 .findTopByCustomerOrderByStartedAtDesc(customer)
                 .orElseGet(() -> createConversation(customer));
