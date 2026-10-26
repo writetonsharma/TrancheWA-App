@@ -74,6 +74,11 @@ public class Customer {
     // Last time this customer messaged us — anchors WhatsApp's 24h free-form window.
     private LocalDateTime lastInboundAt;
 
+    // Written atomically by web auth JDBC only. Ordinary/stale entity saves must not overwrite it.
+    // Never extends the WhatsApp inbound window.
+    @Column(name = "last_web_activity_at", updatable = false)
+    private LocalDateTime lastWebActivityAt;
+
     // Flat per-unit price per menu category (by category name). A category entry wins
     // over pricingOverride; a category with no entry falls back to the item's list price.
     @ElementCollection(fetch = FetchType.EAGER)

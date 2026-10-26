@@ -208,6 +208,13 @@ public class WhatsAppMessage {
 
     // --- Template messages (Utility) ---
 
+    /** Approved Authentication template: body OTP and copy-code URL button, NOT a Utility template. */
+    public static TemplateMessage authenticationCode(String to, String name, String language, String code) {
+        return new TemplateMessage(to, new Template(name, new Language(language), List.of(
+                new Component("body", List.of(Parameter.text(code))),
+                new Component("button", "url", "0", List.of(Parameter.text(code))))));
+    }
+
     public static TemplateMessage templateMessage(String to, String name, String languageCode,
                                                   List<String> bodyParams, String docMediaId, String docFilename) {
         List<Component> components = new ArrayList<>();

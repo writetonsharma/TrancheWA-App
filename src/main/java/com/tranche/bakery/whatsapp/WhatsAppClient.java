@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -19,8 +20,10 @@ import java.util.List;
 public class WhatsAppClient {
 
     private final RestClient restClient;
+    private final RestClient authenticationRestClient;
     private final String phoneNumberId;
     private final String templateLanguage;
+    private final boolean authenticationTransportConfigured;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public WhatsAppClient(
@@ -30,14 +33,36 @@ public class WhatsAppClient {
             @Value("${whatsapp.template.language:en}") String templateLanguage) {
         this.phoneNumberId = phoneNumberId;
         this.templateLanguage = templateLanguage;
+        this.authenticationTransportConfigured = token != null && !token.isBlank()
+            && phoneNumberId != null && phoneNumberId.matches("[0-9]+") && !token.startsWith("${");
         this.restClient = RestClient.builder()
                 .baseUrl(apiUrl)
                 .defaultHeader("Authorization", "Bearer " + token)
                 .build();
+        SimpleClientHttpRequestFactory authenticationRequests = new SimpleClientHttpRequestFactory();
+        authenticationRequests.setConnectTimeout(5000);
+        authenticationRequests.setReadTimeout(10000);
+        this.authenticationRestClient = RestClient.builder().baseUrl(apiUrl)
+            .defaultHeader("Authorization", "Bearer " + token).requestFactory(authenticationRequests).build();
     }
 
     public SendOutcome sendText(String to, String body) {
         return send(to, WhatsAppMessage.text(to, body));
+    }
+
+    /** Separate path: never pass Authentication payloads through the diagnostic/logging Utility sender. */
+    public SendOutcome sendAuthenticationCode(String to, String template, String language, String code) {
+        if (!authenticationTransportConfigured || template == null || template.isBlank()) return SendOutcome.FAILED;
+        try {
+            authenticationRestClient.post().uri("/{phoneNumberId}/messages", phoneNumberId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(WhatsAppMessage.authenticationCode(to, template, language, code))
+                    .retrieve().toBodilessEntity();
+            return SendOutcome.SENT;
+        } catch (Exception ex) {
+            // Provider errors can echo OTPs and phone numbers. Deliberately omit all diagnostics here.
+            return SendOutcome.FAILED;
+        }
     }
 
     public SendOutcome sendButtons(String to, String bodyText, java.util.List<WhatsAppMessage.Button> buttons) {

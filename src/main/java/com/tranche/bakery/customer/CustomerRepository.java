@@ -4,7 +4,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -26,9 +28,10 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
             """)
     List<Customer> findMarketingAudience();
 
-    // "Ghost" rows: a stray/spam number that messaged once and never progressed. Only rows with no
-    // name, no pricing/F&F flag, no orders, subscriptions, admin messages or feedback, and dormant
-    // since before the cutoff qualify — so a real (named) lead or an admin-added contact is never hit.
+    // Ghosts have no name, pricing/F&F flag, orders, subscriptions, admin messages or feedback,
+    // and are dormant on both channels. Hold the customer lock through deletion; authentication
+    // locks customer before sessions too, preventing selection/deletion races and lock inversion.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT c FROM Customer c
             WHERE (c.name IS NULL OR TRIM(c.name) = '')
@@ -38,6 +41,7 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
               AND c.subscriptionEligible = false
               AND c.createdAt < :cutoff
               AND (c.lastInboundAt IS NULL OR c.lastInboundAt < :cutoff)
+              AND (c.lastWebActivityAt IS NULL OR c.lastWebActivityAt < :cutoff)
               AND NOT EXISTS (SELECT o FROM Order o WHERE o.customer = c)
               AND NOT EXISTS (SELECT s FROM Subscription s WHERE s.customer = c)
               AND NOT EXISTS (SELECT m FROM AdminMessage m WHERE m.customer = c)

@@ -13,11 +13,6 @@ import com.tranche.bakery.conversation.WhatsappConversation;
 import com.tranche.bakery.customer.Customer;
 import com.tranche.bakery.menu.MenuItem;
 import com.tranche.bakery.menu.MenuItemRepository;
-import com.tranche.bakery.offer.BatchDiscountBand;
-import com.tranche.bakery.offer.BatchDiscountService;
-import com.tranche.bakery.offer.PromoContext;
-import com.tranche.bakery.offer.PromoResult;
-import com.tranche.bakery.offer.PromotionEngine;
 import com.tranche.bakery.payment.Payment;
 import com.tranche.bakery.payment.PaymentRepository;
 import com.tranche.bakery.payment.PaymentStatus;
@@ -34,14 +29,10 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final MenuItemRepository menuItemRepository;
-    private final PromotionEngine promotionEngine;
-    private final BatchDiscountService batchDiscountService;
+    private final CartPricingService cartPricingService;
     private final PaymentRepository paymentRepository;
     private final RazorpayService razorpayService;
     private final OrderNumberGenerator orderNumberGenerator;
-
-    @Value("${bakery.order.delivery-charge:65}")
-    private BigDecimal deliveryCharge;
 
     @Value("${bakery.order.cutoff-hour}")
     private int cutoffHour;
@@ -344,15 +335,6 @@ public class OrderService {
         recalculateTotal(order);
     }
 
-    // Line amount for an item under an active F&F override: the item/category (or global) flat
-    // unit price × qty, or the item's normal subtotal when no flat price covers it.
-    private BigDecimal overrideLineAmount(Customer customer, OrderItem item) {
-        BigDecimal unit = customer.unitPriceFor(itemNameOf(item), categoryNameOf(item));
-        return unit != null
-                ? unit.multiply(BigDecimal.valueOf(item.getQuantity()))
-                : item.getSubtotal();
-    }
-
     private String itemNameOf(OrderItem item) {
         return item.getMenuItem() != null ? item.getMenuItem().getName() : null;
     }
@@ -374,87 +356,17 @@ public class OrderService {
 
     private void recalculateTotal(Order order) {
         List<OrderItem> items = orderItemRepository.findAllByOrderId(order.getId());
-
-        BigDecimal listSubtotal = items.stream()
-                .map(OrderItem::getSubtotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        Customer customer = order.getCustomer();
-        BigDecimal overrideTotal = null;
-        boolean freeDeliveryFlag = false;
-        int completedOrders = 0;
-        if (customer != null) {
-            if (customer.hasActiveOverride()) {
-                overrideTotal = BigDecimal.ZERO;
-                for (OrderItem it : items) {
-                    overrideTotal = overrideTotal.add(overrideLineAmount(customer, it));
-                }
-            }
-            freeDeliveryFlag = customer.isFreeDelivery();
-            completedOrders = (int) orderRepository.countByCustomerIdAndStatus(
-                    customer.getId(), OrderStatus.COMPLETED);
-        }
-
-        PromoResult promo = promotionEngine.evaluate(
-                new PromoContext(listSubtotal, overrideTotal, freeDeliveryFlag, completedOrders));
-
-        BigDecimal fee = promo.freeDelivery() ? BigDecimal.ZERO : deliveryCharge;
-        order.setDeliveryCharge(fee);
-        order.setDiscountAmount(promo.discountAmount());
-        order.setDiscountLabel(promo.discountLabel());
-        order.setGiftLabel(promo.giftLabel());
-
-        // Dynamic batch discount: once the delivery date is known, items whose booked
-        // demand for that day has reached a band threshold earn an extra percentage off
-        // their ALREADY-discounted line price (stacks on top of the launch offer). Only
-        // the units BEYOND the threshold are discounted -- the units that establish the
-        // batch (bring demand up to the threshold) are not (see discountableUnits).
-        BigDecimal itemsTotal = promo.itemsTotal();
-        BigDecimal batchDiscount = BigDecimal.ZERO;
-        String batchLabel = null;
-        boolean overrideActive = customer != null && customer.hasActiveOverride();
-        if (order.getDeliveryDate() != null && !overrideActive
-                && listSubtotal.signum() > 0) {
-            BigDecimal discountedRatio = itemsTotal.divide(listSubtotal, 10, java.math.RoundingMode.HALF_UP);
-            for (OrderItem it : items) {
-                int qty = it.getQuantity();
-                if (qty <= 0) continue;
-                BigDecimal price = it.getMenuItem().getPrice();
-                BatchDiscountBand band = batchDiscountService.bandFor(price);
-                if (band == null) continue;
-                long units = batchDiscountService.discountableUnits(
-                        it.getMenuItem().getId(), price, order.getDeliveryDate(), qty, order.getId());
-                if (units <= 0) continue;
-                BigDecimal discountedPerUnit = it.getSubtotal().multiply(discountedRatio)
-                        .divide(BigDecimal.valueOf(qty), 10, java.math.RoundingMode.HALF_UP);
-                batchDiscount = batchDiscount.add(discountedPerUnit
-                        .multiply(BigDecimal.valueOf(units))
-                        .multiply(band.getPercent())
-                        .divide(BigDecimal.valueOf(100), 10, java.math.RoundingMode.HALF_UP));
-                batchLabel = "Batch discount";
-            }
-            batchDiscount = batchDiscount.setScale(0, java.math.RoundingMode.HALF_UP);
-        }
-        if (batchDiscount.signum() > 0) {
-            itemsTotal = itemsTotal.subtract(batchDiscount);
-            if (itemsTotal.signum() < 0) itemsTotal = BigDecimal.ZERO;
-        } else {
-            batchDiscount = BigDecimal.ZERO;
-            batchLabel = null;
-        }
-        order.setBatchDiscountAmount(batchDiscount);
-        order.setBatchDiscountLabel(batchLabel);
-
-        // Account credit is applied last, on the final payable (after F&F/offers/delivery), clamped so
-        // it never drives the total below zero. The balance itself is only decremented on approval.
-        BigDecimal gross = itemsTotal.add(fee);
-        BigDecimal credit = BigDecimal.ZERO;
-        if (customer != null && customer.getCreditBalance() != null
-                && customer.getCreditBalance().signum() > 0 && gross.signum() > 0) {
-            credit = customer.getCreditBalance().min(gross);
-        }
-        order.setCreditApplied(credit);
-        order.setTotalAmount(gross.subtract(credit));
+        CartPricingService.Price price = cartPricingService.price(items.stream()
+                .map(it -> new CartPricingService.Line(it.getMenuItem(), it.getQuantity(), it.getSubtotal()))
+                .toList(), order.getCustomer(), order.getDeliveryDate(), order.getId());
+        order.setDeliveryCharge(price.deliveryCharge());
+        order.setDiscountAmount(price.discountAmount());
+        order.setDiscountLabel(price.discountLabel());
+        order.setGiftLabel(price.giftLabel());
+        order.setBatchDiscountAmount(price.batchDiscountAmount());
+        order.setBatchDiscountLabel(price.batchDiscountLabel());
+        order.setCreditApplied(price.creditApplied());
+        order.setTotalAmount(price.totalAmount());
         orderRepository.save(order);
     }
 }

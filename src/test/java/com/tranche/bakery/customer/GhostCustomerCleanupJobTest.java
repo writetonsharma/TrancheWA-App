@@ -26,8 +26,8 @@ class GhostCustomerCleanupJobTest {
     @Autowired AdminMessageRepository adminMessageRepository;
     @Autowired JdbcTemplate jdbcTemplate;
 
-    private static final LocalDateTime OLD = LocalDateTime.now().minusDays(10);
-    private static final LocalDateTime RECENT = LocalDateTime.now();
+    private static final LocalDateTime RECENT = LocalDateTime.now().withNano(0);
+    private static final LocalDateTime OLD = RECENT.minusDays(10);
 
     @BeforeEach
     void clean() {
@@ -50,6 +50,33 @@ class GhostCustomerCleanupJobTest {
         conv.setState("MAIN_MENU");
         conv.setContext(new HashMap<>());
         conversationRepository.save(conv);
+    }
+
+    @Test
+    void preserves_active_web_only_customer_without_changing_inbound_or_marketing() {
+        Customer customer = save("910000000007", null, OLD, null);
+        customer.setMarketingOptIn(false);
+        customerRepository.saveAndFlush(customer);
+        jdbcTemplate.update("UPDATE customers SET last_web_activity_at = ? WHERE phone = ?", RECENT, customer.getPhone());
+
+        job.purgeGhostCustomers();
+
+        Customer kept = customerRepository.findByPhone(customer.getPhone()).orElseThrow();
+        assertThat(kept.getLastWebActivityAt()).isEqualTo(RECENT);
+        assertThat(kept.getLastInboundAt()).isNull();
+        assertThat(kept.isMarketingOptIn()).isFalse();
+    }
+
+    @Test
+    void purges_old_inactive_web_ghost_and_legacy_ghost_without_web_activity() {
+        Customer webGhost = save("910000000008", null, OLD, null);
+        jdbcTemplate.update("UPDATE customers SET last_web_activity_at = ? WHERE phone = ?", OLD, webGhost.getPhone());
+        Customer legacyGhost = save("910000000009", null, OLD, null);
+
+        job.purgeGhostCustomers();
+
+        assertThat(customerRepository.findByPhone(webGhost.getPhone())).isEmpty();
+        assertThat(customerRepository.findByPhone(legacyGhost.getPhone())).isEmpty();
     }
 
     @Test
