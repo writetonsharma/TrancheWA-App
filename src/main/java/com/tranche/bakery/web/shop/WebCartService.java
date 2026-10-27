@@ -76,6 +76,7 @@ public class WebCartService {
         if (body.has("date")) input.set("date", body.get("date"));
         // Reuse the exact authoritative parser, active-item/day/cutoff/capacity rules and pricing.
         var quote = catalog.quote(input, customer);
+        WebRetailPolicy.requireLimit(quote, HttpStatus.BAD_REQUEST);
         var lines = quote.lines().stream().map(line -> new Line(line.itemId(), line.quantity())).toList();
         long expected = version.longValue();
         String encoded = encode(lines);

@@ -367,6 +367,7 @@ public class WebCheckoutService {
             String code = cart.problems().isEmpty() ? "INVALID_CART" : cart.problems().get(0).code();
             throw conflict(code, "Refresh the basket and choose currently available items and a delivery date.");
         }
+        WebRetailPolicy.requireLimit(cart.quote(), HttpStatus.CONFLICT);
         if (!cart.quote().valid()) {
             String code = cart.quote().problems().get(0).code();
             throw conflict(code, "The basket is not currently available for checkout.");

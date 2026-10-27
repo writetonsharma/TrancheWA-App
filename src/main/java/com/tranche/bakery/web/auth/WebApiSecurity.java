@@ -76,7 +76,8 @@ public class WebApiSecurity {
                 @NonNull HttpServletResponse response, @NonNull FilterChain chain)
                 throws ServletException, IOException {
             request.removeAttribute(StorefrontCustomerContext.CUSTOMER_ATTRIBUTE);
-            if ((request.getContextPath() + "/api/quote").equals(request.getRequestURI())) {
+                if ((request.getContextPath() + "/api/quote").equals(request.getRequestURI())
+                    || (request.getContextPath() + "/api/shopping").equals(request.getRequestURI())) {
                 try {
                     var customer = sessions.currentCustomer(request);
                     if (customer != null) request.setAttribute(StorefrontCustomerContext.CUSTOMER_ATTRIBUTE, customer);

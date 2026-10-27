@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -50,6 +51,8 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -232,6 +235,8 @@ class WebCheckoutHttpTest {
 
     void noAcceptance(Browser browser) throws Exception {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM orders WHERE customer_id=?", Integer.class, browser.customerId())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.customer_id=?",
+            Integer.class, browser.customerId())).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM web_checkout_attempts WHERE customer_id=?", Integer.class, browser.customerId())).isZero();
         verify(razorpay, never()).createPaymentLink(any(), any(), any(), any(), any(), any(), any());
     }
@@ -242,6 +247,109 @@ class WebCheckoutHttpTest {
 
     void noPaymentUrl(JsonNode body) {
         assertThat(body.path("paymentUrl").isMissingNode() || body.path("paymentUrl").isNull()).isTrue();
+    }
+
+    String boundaryLines(String shape, int total) {
+        if ("single".equals(shape)) return "[{\"itemId\":" + itemId + ",\"quantity\":" + total + "}]";
+        if ("independent".equals(shape)) {
+            var lines = mapper.createArrayNode();
+            lines.addObject().put("itemId", itemId).put("quantity", 1);
+            for (int i = 1; i < total; i++) {
+                long id = Objects.requireNonNull(jdbc.queryForObject(
+                        "INSERT INTO menu_items(category_id,name,price,display_order,active) VALUES (?,?,200,?,true) RETURNING id",
+                        Long.class, categoryId, "Other checkout loaf " + i, i));
+                lines.addObject().put("itemId", id).put("quantity", 1);
+            }
+            return lines.toString();
+        }
+        return "[{\"itemId\":" + itemId + ",\"quantity\":2},{\"itemId\":" + itemId
+                + ",\"quantity\":" + (total - 2) + "}]";
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"single", "duplicates", "independent"})
+    void fiveItemsCanBeSavedPreparedAndAccepted(String shape) throws Exception {
+        String lines = boundaryLines(shape, 5);
+        var saved = json(call("PUT", "/api/cart", "{\"version\":0,\"lines\":" + lines
+                + ",\"date\":\"" + date + "\"}", owner, true), 200);
+        assertThat(saved.path("quote").path("itemCount").asInt()).isEqualTo(5);
+        assertThat(saved.path("lines")).hasSize("independent".equals(shape) ? 5 : 1);
+        var prepared = prepare(owner, 1);
+        assertThat(prepared.path("quote")).isEqualTo(saved.path("quote"));
+        var result = checkout(owner, request(prepared, key()));
+        assertThat(result.path("status").asText()).isEqualTo("PAYABLE");
+        assertThat(jdbc.queryForObject("SELECT sum(quantity) FROM order_items WHERE order_id=?",
+                Integer.class, orderId(result.path("id").asText()))).isEqualTo(5);
+        onlyOneProviderCall();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"single", "duplicates", "independent"})
+    void sixStoredItemsRejectPrepareAndNewAcceptanceWithoutPersistenceOrProviderCalls(String shape) throws Exception {
+        cart(owner, 0, 1);
+        var body = request(prepare(owner, 1), key());
+        // Simulate a pre-policy basket at the same edit version. The old token must
+        // not bypass the limit, and rejection must precede token-hash validation.
+        jdbc.update("UPDATE web_carts SET lines=?::jsonb WHERE customer_id=?", boundaryLines(shape, 6), owner.customerId());
+        var storedCart = jdbc.queryForMap("SELECT * FROM web_carts WHERE customer_id=?", owner.customerId());
+        var storedQuote = jdbc.queryForMap("SELECT * FROM web_checkout_quotes WHERE customer_id=?", owner.customerId());
+        clearInvocations(razorpay);
+        error(call("POST", "/api/checkout/prepare", "{\"cartVersion\":1}", owner, true), 409, "RETAIL_LIMIT_EXCEEDED");
+        error(call("POST", "/api/checkout", body.toString(), owner, true), 409, "RETAIL_LIMIT_EXCEEDED");
+        assertThat(jdbc.queryForMap("SELECT * FROM web_carts WHERE customer_id=?", owner.customerId())).isEqualTo(storedCart);
+        assertThat(jdbc.queryForMap("SELECT * FROM web_checkout_quotes WHERE customer_id=?", owner.customerId())).isEqualTo(storedQuote);
+        noAcceptance(owner);
+        verifyNoInteractions(razorpay, notifier);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PAYABLE", "CREATING", "UNKNOWN", "PAID"})
+    void acceptedLegacySixItemCheckoutStillReplaysAndReportsStatusWithoutDispatch(String state) throws Exception {
+        cart(owner, 0, 1);
+        var body = request(prepare(owner, 1), key());
+        String id = checkout(owner, body).path("id").asText();
+        long orderId = orderId(id);
+        // Seed an internally consistent historical six-unit acceptance without
+        // weakening the new acceptance guard or invoking a live payment provider.
+        jdbc.update("UPDATE web_carts SET lines=?::jsonb WHERE customer_id=?", boundaryLines("single", 6), owner.customerId());
+        var legacyQuote = json(call("GET", "/api/cart", null, owner, false), 200).path("quote");
+        assertThat(legacyQuote.path("itemCount").asInt()).isEqualTo(6);
+        var snapshot = (ObjectNode) mapper.readTree(attempt(id).get("snapshot").toString());
+        snapshot.set("quote", legacyQuote);
+        String quoteHash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(mapper.writeValueAsBytes(legacyQuote)));
+        BigDecimal amount = legacyQuote.path("totalAmount").decimalValue();
+        tx.executeWithoutResult(transaction -> {
+            jdbc.update("UPDATE web_checkout_attempts SET snapshot=?::jsonb,quote_hash=? WHERE id=?", snapshot.toString(), quoteHash, id);
+            jdbc.update("UPDATE order_items SET quantity=6,subtotal=1200 WHERE order_id=?", orderId);
+            jdbc.update("UPDATE orders SET total_amount=? WHERE id=?", amount, orderId);
+            jdbc.update("UPDATE payments SET amount=? WHERE order_id=?", amount, orderId);
+            if (List.of("CREATING", "UNKNOWN").contains(state)) {
+                jdbc.update("UPDATE web_checkout_attempts SET state=?,updated_at=clock_timestamp(),provider_link_id=NULL,provider_url=NULL WHERE id=?", state, id);
+                jdbc.update("UPDATE payments SET gateway_link_id=NULL,gateway_link_url=NULL WHERE order_id=?", orderId);
+            } else if ("PAID".equals(state)) {
+                jdbc.update("UPDATE orders SET status='CONFIRMED' WHERE id=?", orderId);
+                jdbc.update("UPDATE payments SET status='GATEWAY_CAPTURED',gateway_payment_id='pay_legacy_six' WHERE order_id=?", orderId);
+            }
+        });
+        jdbc.update("UPDATE web_checkout_quotes SET expires_at=? WHERE customer_id=?",
+                Timestamp.from(Instant.now().minusSeconds(1)), owner.customerId());
+        var storedAttempt = attempt(id);
+        var storedOrder = jdbc.queryForMap("SELECT * FROM orders WHERE id=?", orderId);
+        var storedPayment = jdbc.queryForMap("SELECT * FROM payments WHERE order_id=?", orderId);
+        clearInvocations(razorpay);
+        var current = status(owner, id);
+        assertThat(current.path("status").asText()).isEqualTo(state);
+        if ("PAYABLE".equals(state)) assertThat(current.path("paymentUrl").asText()).startsWith("https://rzp.io/i/");
+        else noPaymentUrl(current);
+        assertThat(checkout(session(owner.customerId()), body)).isEqualTo(current);
+        assertThat(status(owner, id)).isEqualTo(current);
+        assertThat(attempt(id)).isEqualTo(storedAttempt);
+        assertThat(jdbc.queryForMap("SELECT * FROM orders WHERE id=?", orderId)).isEqualTo(storedOrder);
+        assertThat(jdbc.queryForMap("SELECT * FROM payments WHERE order_id=?", orderId)).isEqualTo(storedPayment);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM orders WHERE customer_id=?", Integer.class, owner.customerId())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM web_checkout_attempts WHERE customer_id=?", Integer.class, owner.customerId())).isEqualTo(1);
+        verifyNoInteractions(razorpay, notifier);
     }
 
     @Test void prepareBindsAnOpaqueQuoteWithoutReservingCapacityOrCreatingPayment() throws Exception {
@@ -669,8 +777,15 @@ class WebCheckoutHttpTest {
 
     @Test void competingCustomersNearDailyCapacityHaveOneWinnerAndNoOrphanPayment() throws Exception {
         Browser other = browser();
-        cart(owner, 0, 8);
-        cart(other, 0, 8);
+        Browser reserved = browser();
+        long reservation = Objects.requireNonNull(jdbc.queryForObject("""
+            INSERT INTO orders(customer_id,channel,status,fulfillment_type,source,total_amount,delivery_date)
+            VALUES (?,'WHATSAPP','PENDING_CONFIRMATION','DELIVERY','RETAIL',1200,?) RETURNING id
+            """, Long.class, reserved.customerId(), date));
+        jdbc.update("INSERT INTO order_items(order_id,menu_item_id,quantity,unit_price,subtotal) VALUES (?,?,6,200,1200)",
+            reservation, itemId);
+        cart(owner, 0, 5);
+        cart(other, 0, 5);
         var firstBody = request(prepare(owner, 1), key());
         var secondBody = request(prepare(other, 1), key());
         var results = race(() -> call("POST", "/api/checkout", firstBody.toString(), owner, true),
@@ -680,7 +795,7 @@ class WebCheckoutHttpTest {
             if (response.statusCode() == 409) error(response, 409, "FULLY_BOOKED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM orders WHERE customer_id IN (?,?)", Integer.class, owner.customerId(), other.customerId())).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT coalesce(sum(i.quantity),0) FROM order_items i JOIN orders o ON o.id=i.order_id WHERE o.customer_id IN (?,?)",
-                Integer.class, owner.customerId(), other.customerId())).isEqualTo(8);
+            Integer.class, owner.customerId(), other.customerId())).isEqualTo(5);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.customer_id IN (?,?)",
                 Integer.class, owner.customerId(), other.customerId())).isEqualTo(1);
         onlyOneProviderCall();
@@ -696,16 +811,16 @@ class WebCheckoutHttpTest {
                     Long.class, "9197" + String.format("%08d", java.util.concurrent.ThreadLocalRandom.current().nextInt(100_000_000))));
             long draftId = Objects.requireNonNull(jdbc.queryForObject("""
                     INSERT INTO orders(customer_id,channel,status,fulfillment_type,source,total_amount,delivery_date)
-                    VALUES (?,'WHATSAPP','DRAFT','DELIVERY','RETAIL',1600,?) RETURNING id
+                        VALUES (?,'WHATSAPP','DRAFT','DELIVERY','RETAIL',2200,?) RETURNING id
                     """, Long.class, customerId, date));
-            jdbc.update("INSERT INTO order_items(order_id,menu_item_id,quantity,unit_price,subtotal) VALUES (?,?,8,200,1600)",
+                    jdbc.update("INSERT INTO order_items(order_id,menu_item_id,quantity,unit_price,subtotal) VALUES (?,?,11,200,2200)",
                     draftId, itemId);
             return new LegacyDraft(customerId, draftId);
         }));
         assertThat(legacy).isNotNull();
         customerIds.add(legacy.customerId());
         assertThat(legacy.customerId()).isNotEqualTo(owner.customerId());
-        cart(owner, 0, 8);
+        cart(owner, 0, 5);
         var body = request(prepare(owner, 1), key());
         var results = race(
                 () -> new ReservationResult(call("POST", "/api/checkout", body.toString(), owner, true), null),
@@ -739,7 +854,7 @@ class WebCheckoutHttpTest {
                 SELECT coalesce(sum(i.quantity),0) FROM order_items i JOIN orders o ON o.id=i.order_id
                 WHERE o.customer_id IN (?,?) AND o.delivery_date=? AND o.status='PENDING_CONFIRMATION'
                 """, Integer.class, owner.customerId(), legacy.customerId(), date));
-        assertThat(booked).isEqualTo(8).isLessThanOrEqualTo(15);
+        assertThat(booked).isEqualTo(webWon ? 5 : 11).isLessThanOrEqualTo(15);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM orders WHERE customer_id=?", Integer.class, owner.customerId()))
                 .isEqualTo(webWon ? 1 : 0);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM web_checkout_attempts WHERE customer_id=?", Integer.class, owner.customerId()))

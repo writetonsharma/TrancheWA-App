@@ -42,6 +42,13 @@ public class StorefrontController {
                 "DISABLED", "Website ordering preview is unavailable.");
     }
 
+    @PostMapping("/api/shopping")
+    public ResponseEntity<StorefrontDtos.Shopping> shopping(@RequestBody(required = false) JsonNode body,
+                                                          HttpServletRequest request) {
+        requireEnabled();
+        return noStore(catalogService.shopping(body, customerContext.currentCustomer(request)));
+    }
+
     private <T> ResponseEntity<T> noStore(T body) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore().cachePrivate()).body(body);
     }

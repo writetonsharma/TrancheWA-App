@@ -30,6 +30,13 @@ import java.util.List;
 public final class StorefrontDtos {
     private StorefrontDtos() {}
 
+    public record Shopping(int retailLimit, LocalDate date, String pricingMode,
+                           List<ShoppingItem> items, List<ShoppingDate> dates) {}
+    public record ShoppingItem(Long id, String name, String category, String description,
+                               String weightLabel, BigDecimal listPrice, BigDecimal unitPrice,
+                               String priceLabel, BigDecimal singleItemBatchDiscount) {}
+    public record ShoppingDate(LocalDate date, int maxItems, List<Long> itemIds) {}
+
     public record Catalog(List<CatalogItem> items, List<PublishedOffer> offers,
                           List<LocalDate> deliveryDates) {}
     public record CatalogItem(Long id, String name, String category, String description,

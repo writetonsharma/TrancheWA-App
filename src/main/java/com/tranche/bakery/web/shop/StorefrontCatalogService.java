@@ -39,6 +39,41 @@ public class StorefrontCatalogService {
     private final CartPricingService pricingService;
     private final DeliveryRules deliveryRules;
 
+    /** Bounded read-only preview; single-item prices are not additive basket guarantees. */
+    public StorefrontDtos.Shopping shopping(JsonNode body, Customer customer) {
+        requireFields(body, Set.of("date"));
+        LocalDate selected = parseDate(body.get("date"));
+        List<LocalDate> baseDates = deliveryRules.upcomingDeliverableDays(7);
+        if (selected != null && !baseDates.contains(selected)) {
+            throw bad("INVALID_DATE", "Choose one of the seven upcoming delivery dates.");
+        }
+        boolean friendsAndFamily = customer != null && customer.isFriendsAndFamily();
+        List<MenuItem> active = new ArrayList<>();
+        for (MenuCategory category : categoryRepository.findAllByActiveTrueOrderByDisplayOrderAsc()) {
+            if (!category.isActive()) continue;
+            for (MenuItem item : itemRepository.findAllByCategoryAndActiveTrueOrderByDisplayOrderAsc(category)) {
+                if (isActive(item)) active.add(item);
+            }
+        }
+        List<StorefrontDtos.ShoppingDate> dates = baseDates.stream().map(date ->
+                new StorefrontDtos.ShoppingDate(date,
+                        (int) Math.min(WebRetailPolicy.LIMIT, Math.max(0L, deliveryRules.remainingCapacity(date))),
+                        active.stream().filter(item -> deliveryRules.itemDeliverableOn(
+                                item.getName(), date, friendsAndFamily)).map(MenuItem::getId).toList())).toList();
+        List<StorefrontDtos.ShoppingItem> items = new ArrayList<>();
+        for (MenuItem item : active) {
+            if (selected != null && !deliveryRules.itemDeliverableOn(item.getName(), selected, friendsAndFamily)) continue;
+            var line = List.of(new CartPricingService.Line(item, 1, item.getPrice()));
+            var price = pricingService.price(line, customer, selected, null);
+            items.add(new StorefrontDtos.ShoppingItem(item.getId(), item.getName(), item.getCategory().getName(),
+                    item.getDescription(), item.getWeightLabel(), item.getPrice(),
+                    price.listSubtotal().subtract(price.discountAmount()), price.discountLabel(),
+                    selected == null ? null : price.batchDiscountAmount()));
+        }
+        return new StorefrontDtos.Shopping(WebRetailPolicy.LIMIT, selected, "SINGLE_ITEM_ESTIMATE",
+                List.copyOf(items), dates);
+    }
+
     public StorefrontDtos.Catalog catalog() {
         List<StorefrontDtos.CatalogItem> items = new ArrayList<>();
         for (MenuCategory category : categoryRepository.findAllByActiveTrueOrderByDisplayOrderAsc()) {

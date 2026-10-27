@@ -192,12 +192,79 @@ class WebCartHttpTest {
         assertThat(saved.path("lines").get(0).path("quantity").asInt()).isEqualTo(3);
         assertThat(saved.path("quote").path("valid").asBoolean()).isFalse();
         assertThat(saved.path("problems").get(0).path("code").asText()).isEqualTo("DATE_REQUIRED");
-        var full = json(call("PUT", "/api/cart", input(1, 99), owner, true), 200);
+        // Historical over-capacity baskets remain readable, not silently truncated.
+        jdbc.update("UPDATE web_carts SET lines=?::jsonb,delivery_date=? WHERE customer_id=?",
+            "[{\"itemId\":" + itemId + ",\"quantity\":99}]", date, owner.customerId());
+        var full = json(call("GET", "/api/cart", null, owner, false), 200);
         assertThat(full.path("problems").get(0).path("code").asText()).isEqualTo("FULLY_BOOKED");
-        json(call("PUT", "/api/cart", duplicate.replace("\"version\":0", "\"version\":2")
+        json(call("PUT", "/api/cart", duplicate.replace("\"version\":0", "\"version\":1")
                 .replace("\"quantity\":1", "\"quantity\":99"), owner, true), 400);
-        assertThat(json(call("PUT", "/api/cart", "{\"version\":2,\"lines\":[],\"date\":null}", owner, true), 200)
+        assertThat(json(call("PUT", "/api/cart", "{\"version\":1,\"lines\":[],\"date\":null}", owner, true), 200)
                 .path("lines")).isEmpty();
+    }
+
+    @Test void fiveItemsIncludingDuplicateIdsSaveButSixNeverInsertOrOverwriteCart() throws Exception {
+        Long secondId = jdbc.queryForObject("INSERT INTO menu_items(category_id,name,price,display_order,active) VALUES (?,'Second test loaf',200,1,true) RETURNING id",
+            Long.class, categoryId);
+        String mergedSix = input(0, 3).replace("\"quantity\":3}",
+            "\"quantity\":3},{\"itemId\":" + itemId + ",\"quantity\":3}");
+        var independentLines = mapper.createArrayNode();
+        independentLines.addObject().put("itemId", itemId).put("quantity", 1);
+        independentLines.addObject().put("itemId", secondId).put("quantity", 1);
+        for (int i = 2; i < 6; i++) {
+            Long id = jdbc.queryForObject("INSERT INTO menu_items(category_id,name,price,display_order,active) VALUES (?,?,200,?,true) RETURNING id",
+                Long.class, categoryId, "Independent test loaf " + i, i);
+            independentLines.addObject().put("itemId", id).put("quantity", 1);
+        }
+        String independentSix = "{\"version\":0,\"lines\":" + independentLines + ",\"date\":\"" + date + "\"}";
+        for (String body : List.of(input(0, 6), mergedSix, independentSix)) {
+            var rejected = json(call("PUT", "/api/cart", body, owner, true), 400);
+            assertThat(rejected.path("problems").get(0).path("code").asText()).isEqualTo("RETAIL_LIMIT_EXCEEDED");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM web_carts WHERE customer_id=?", Integer.class, owner.customerId())).isZero();
+        }
+        String five = mergedSix.replace("\"quantity\":3", "\"quantity\":2")
+            .replace("}],\"date\"", "},{\"itemId\":" + secondId + ",\"quantity\":1}],\"date\"");
+        var saved = json(call("PUT", "/api/cart", five, owner, true), 200);
+        assertThat(saved.path("version").asLong()).isEqualTo(1);
+        assertThat(saved.path("lines")).hasSize(2);
+        assertThat(saved.path("lines").get(0).path("quantity").asInt()).isEqualTo(4);
+        assertThat(saved.path("quote").path("itemCount").asInt()).isEqualTo(5);
+        // This class deliberately uses daily-capacity=3: saves remain advisory,
+        // independently of the website's five-item acceptance ceiling.
+        assertThat(saved.path("problems").get(0).path("code").asText()).isEqualTo("FULLY_BOOKED");
+        var stored = jdbc.queryForMap("SELECT * FROM web_carts WHERE customer_id=?", owner.customerId());
+        for (String body : List.of(input(0, 6), mergedSix, independentSix)) {
+            var rejected = json(call("PUT", "/api/cart", body.replace("\"version\":0", "\"version\":1"), owner, true), 400);
+            assertThat(rejected.path("problems").get(0).path("code").asText()).isEqualTo("RETAIL_LIMIT_EXCEEDED");
+            assertThat(jdbc.queryForMap("SELECT * FROM web_carts WHERE customer_id=?", owner.customerId())).isEqualTo(stored);
+        }
+        assertThat(json(call("GET", "/api/cart", null, owner, false), 200)).isEqualTo(saved);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM orders WHERE customer_id=?", Integer.class, owner.customerId())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM web_checkout_quotes WHERE customer_id=?", Integer.class, owner.customerId())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM web_checkout_attempts WHERE customer_id=?", Integer.class, owner.customerId())).isZero();
+    }
+
+    @Test void legacyOversizedCartRemainsReadableAndCanOnlyBeSavedAtFiveOrBelow() throws Exception {
+        json(call("PUT", "/api/cart", input(0, 1), owner, true), 200);
+        jdbc.update("UPDATE web_carts SET lines=?::jsonb WHERE customer_id=?",
+            "[{\"itemId\":" + itemId + ",\"quantity\":8}]", owner.customerId());
+        var stored = jdbc.queryForMap("SELECT * FROM web_carts WHERE customer_id=?", owner.customerId());
+        var legacy = json(call("GET", "/api/cart", null, session(owner.customerId()), false), 200);
+        assertThat(legacy.path("version").asLong()).isEqualTo(1);
+        assertThat(legacy.path("lines").get(0).path("quantity").asInt()).isEqualTo(8);
+        assertThat(legacy.path("quote").path("itemCount").asInt()).isEqualTo(8);
+        for (int quantity : List.of(8, 7, 6)) {
+            var rejected = json(call("PUT", "/api/cart", input(1, quantity), owner, true), 400);
+            assertThat(rejected.path("problems").get(0).path("code").asText()).isEqualTo("RETAIL_LIMIT_EXCEEDED");
+            assertThat(jdbc.queryForMap("SELECT * FROM web_carts WHERE customer_id=?", owner.customerId())).isEqualTo(stored);
+        }
+        var reduced = json(call("PUT", "/api/cart", input(1, 5), owner, true), 200);
+        assertThat(reduced.path("version").asLong()).isEqualTo(2);
+        assertThat(reduced.path("quote").path("itemCount").asInt()).isEqualTo(5);
+        assertThat(reduced.path("problems").get(0).path("code").asText()).isEqualTo("FULLY_BOOKED");
+        assertThat(json(call("GET", "/api/cart", null, owner, false), 200)).isEqualTo(reduced);
+        assertThat(json(call("PUT", "/api/cart", input(2, 4), owner, true), 200)
+            .path("quote").path("itemCount").asInt()).isEqualTo(4);
     }
 
     @Test void stalePricesRefreshAndRetiredOrAgedBasketsRemainReadableWithoutMutation() throws Exception {
@@ -263,5 +330,69 @@ class WebCartHttpTest {
         var evil = http.send(HttpRequest.newBuilder(URI.create(base + "/api/cart"))
                 .header("Cookie", owner.cookies()).header("Origin", "https://evil.example").GET().build(), HttpResponse.BodyHandlers.ofString());
         assertThat(evil.statusCode()).isEqualTo(403);
+    }
+
+    JsonNode shoppingItem(JsonNode shopping) {
+        for (JsonNode item : shopping.path("items")) {
+            if (item.path("id").asLong() == itemId.longValue()) return item;
+        }
+        throw new AssertionError("Shopping response omitted the active test item");
+    }
+
+    @Test void shoppingAndQuotePersonalizeOnlyWithVerifiedBoundSessionAndNeverConsumeCredit() throws Exception {
+        jdbc.update("UPDATE customers SET pricing_override=100, free_delivery=true, credit_balance=70 WHERE id=?",
+            owner.customerId());
+        Browser anonymous = new Browser(0, "TRANCHE_WEB_CSRF=" + owner.csrf(), owner.csrf());
+        String quoteBody = "{\"lines\":[{\"itemId\":" + itemId + ",\"quantity\":1}]}";
+        JsonNode publicItem = shoppingItem(json(call("POST", "/api/shopping", "{}", anonymous, true), 200));
+        JsonNode privateItem = shoppingItem(json(call("POST", "/api/shopping", "{}", owner, true), 200));
+        assertThat(privateItem.path("listPrice").decimalValue()).isEqualByComparingTo("200");
+        assertThat(privateItem.path("unitPrice").decimalValue()).isEqualByComparingTo("100");
+        JsonNode publicQuote = json(call("POST", "/api/quote", quoteBody, anonymous, true), 200);
+        JsonNode privateQuote = json(call("POST", "/api/quote", quoteBody, owner, true), 200);
+        assertThat(publicQuote.path("creditApplied").decimalValue()).isZero();
+        assertThat(privateQuote.path("creditApplied").decimalValue()).isEqualByComparingTo("70");
+        assertThat(privateQuote.path("totalAmount").decimalValue()).isEqualByComparingTo("30");
+
+        List<Browser> invalid = List.of(
+            new Browser(owner.customerId(), anonymous.cookies() + "; " + AuthCookies.BROWSER
+                + "=invalid; " + AuthCookies.SESSION + "=invalid", owner.csrf()),
+            new Browser(owner.customerId(), anonymous.cookies() + "; " + AuthCookies.BROWSER
+                + "=" + crypto.token() + "; " + AuthCookies.SESSION + "=" + crypto.token(), owner.csrf()),
+            new Browser(owner.customerId(), owner.cookies().replaceFirst(
+                AuthCookies.BROWSER + "=[^;]+", AuthCookies.BROWSER + "=" + crypto.token()), owner.csrf()));
+        for (Browser browser : invalid) {
+            assertThat(shoppingItem(json(call("POST", "/api/shopping", "{}", browser, true), 200)))
+                .isEqualTo(publicItem);
+            assertThat(json(call("POST", "/api/quote", quoteBody, browser, true), 200)).isEqualTo(publicQuote);
+        }
+        // Even administrator credentials and claimed customer IDs cannot rescue a forged cookie pair.
+        for (String path : List.of("/api/shopping", "/api/quote")) {
+            var response = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
+                .timeout(Duration.ofSeconds(20))
+                .header("Cookie", invalid.get(0).cookies()).header("X-XSRF-TOKEN", owner.csrf())
+                .header("X-Customer-Id", String.valueOf(owner.customerId()))
+                .header("Authorization", "Basic " + java.util.Base64.getEncoder().encodeToString(
+                    "admin:testpass".getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(path.endsWith("shopping") ? "{}" : quoteBody))
+                .build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(response.headers().firstValue("Cache-Control")).hasValue("no-store, private");
+            assertThat(response.headers().firstValue("Pragma")).hasValue("no-cache");
+            JsonNode result = json(response, 200);
+            assertThat(path.endsWith("shopping") ? shoppingItem(result) : result)
+                .isEqualTo(path.endsWith("shopping") ? publicItem : publicQuote);
+        }
+        jdbc.update("UPDATE web_customer_sessions SET expires_at=? WHERE customer_id=?",
+            Timestamp.from(Instant.now().minusSeconds(1)), owner.customerId());
+        assertThat(shoppingItem(json(call("POST", "/api/shopping", "{}", owner, true), 200)))
+            .isEqualTo(publicItem);
+        assertThat(json(call("POST", "/api/quote", quoteBody, owner, true), 200)).isEqualTo(publicQuote);
+        assertThat(jdbc.queryForObject("SELECT credit_balance FROM customers WHERE id=?", BigDecimal.class,
+            owner.customerId())).isEqualByComparingTo("70");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM web_carts WHERE customer_id=?", Integer.class,
+            owner.customerId())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM orders WHERE customer_id=?", Integer.class,
+            owner.customerId())).isZero();
     }
 }

@@ -489,7 +489,169 @@ class StorefrontQuoteTest {
                 .andExpect(header().string("Cache-Control", "no-store, private"));
     }
 
-    private MockMvc mvcFor(StorefrontController target) {
+        @ParameterizedTest
+        @ValueSource(strings = {"", "{", "null", "[]", "{\"lines\":[]}", "{\"customerId\":42}",
+            "{\"date\":42}", "{\"date\":\"2026-02-30\"}", "{\"date\":\"9999-12-31\"}",
+            "{\"date\":\"2026-1-01\"}"})
+        void shoppingStrictBodyAndFiniteHorizon(String body) throws Exception {
+        mvc.perform(post("/api/shopping").contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.valid").value(false))
+            .andExpect(header().string("Cache-Control", "no-store, private"));
+        verifyNoInteractions(categories, items, offers, orders, batches, payments, gateway);
+        }
+
+        @Test
+        void shoppingProjectionContainsOnlyPublicAndOwnEffectiveFields() throws Exception {
+        launchOffers();
+        addItem(2L, "Retired", "200").setActive(false);
+        var result = mvc.perform(post("/api/shopping").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"date\":null}"))
+            .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store, private"))
+            .andExpect(jsonPath("$.retailLimit").value(5))
+            .andExpect(jsonPath("$.pricingMode").value("SINGLE_ITEM_ESTIMATE"))
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].listPrice").value(100))
+            .andExpect(jsonPath("$.items[0].unitPrice").value(80))
+            .andExpect(jsonPath("$.items[0].priceLabel").value("Launch offer"))
+            .andExpect(jsonPath("$.dates.length()").value(7))
+            .andReturn().getResponse().getContentAsString();
+        JsonNode response = mapper.readTree(result);
+        assertFields(response, Set.of("retailLimit", "date", "pricingMode", "items", "dates"));
+        assertFields(response.get("items").get(0), Set.of("id", "name", "category", "description",
+            "weightLabel", "listPrice", "unitPrice", "priceLabel", "singleItemBatchDiscount"));
+        assertFields(response.get("dates").get(0), Set.of("date", "maxItems", "itemIds"));
+        assertThat(response.get("date").isNull()).isTrue();
+        assertThat(response.get("items").get(0).get("singleItemBatchDiscount").isNull()).isTrue();
+        assertThat(result).doesNotContain("Retired", "credit", "customer", "booked", "remaining", "capacity",
+            "totalAmount", "deliveryCharge", "giftLabel", "override");
+        verifyNoInteractions(batches, payments, gateway);
+        verify(orders, never()).save(any());
+        verify(orderItems, never()).save(any());
+        }
+
+        @ParameterizedTest
+        @CsvSource({"0,5", "9,5", "10,5", "11,4", "14,1", "15,0", "25,0"})
+        void shoppingKeepsFullDatesAndClampsRetailAllowance(long booked, int allowance) throws Exception {
+        LocalDate date = rules.upcomingDeliverableDays(7).get(0);
+        when(orderItems.sumBookedQuantity(date, DeliveryRules.capacityStatuses())).thenReturn(booked);
+        var snapshot = service.shopping(mapper.readTree("{}"), null);
+        assertThat(snapshot.dates()).hasSize(7);
+        assertThat(snapshot.dates().get(0).date()).isEqualTo(date);
+        assertThat(snapshot.dates().get(0).maxItems()).isEqualTo(allowance);
+        assertThat(snapshot.dates().get(0).itemIds()).containsExactly(1L);
+        assertThat(snapshot.dates()).allSatisfy(day -> assertThat(day.maxItems()).isBetween(0, 5));
+        }
+
+        @Test
+        void shoppingDateEligibilityAndScopeUseCustomerLeadAndWeekendRules() throws Exception {
+        MenuItem bagel = addItem(2L, "Sesame bagel", "100");
+        MenuItem focaccia = addItem(3L, "Rosemary focaccia", "100");
+        MenuItem inactiveCategory = addItem(4L, "Hidden category", "100");
+        MenuCategory hidden = new MenuCategory();
+        hidden.setActive(false);
+        inactiveCategory.setCategory(hidden);
+        var snapshot = service.shopping(mapper.readTree("{}"), null);
+        assertThat(snapshot.items()).extracting(StorefrontDtos.ShoppingItem::id).containsExactly(1L, 2L, 3L);
+        Customer family = customer();
+        family.setSubscriptionEligible(true);
+        var personalized = service.shopping(mapper.readTree("{}"), family);
+        for (var day : snapshot.dates()) {
+            assertThat(day.date().getDayOfWeek()).isNotEqualTo(DayOfWeek.WEDNESDAY);
+            assertThat(day.itemIds().contains(bagel.getId())).isEqualTo(
+                rules.itemDeliverableOn(bagel.getName(), day.date(), false));
+            assertThat(day.itemIds().contains(focaccia.getId())).isEqualTo(
+                rules.itemDeliverableOn(focaccia.getName(), day.date(), false));
+            var scoped = service.shopping(mapper.readTree("{\"date\":\"" + day.date() + "\"}"), null);
+            assertThat(scoped.items()).extracting(StorefrontDtos.ShoppingItem::id)
+                .containsExactlyElementsOf(day.itemIds());
+        }
+        assertThat(personalized.dates()).allSatisfy(day -> assertThat(day.itemIds()).contains(3L));
+        LocalDate outside = snapshot.dates().get(6).date().plusDays(1);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.shopping(
+            mapper.readTree("{\"date\":\"" + outside + "\"}"), null))
+            .isInstanceOf(StorefrontProblemException.class);
+        }
+
+        @Test
+        void shoppingItemCategoryGlobalAndPublicWinnerPricesExcludeCreditAndFees() throws Exception {
+        launchOffers();
+        addItem(2L, "Second bread", "100");
+        MenuItem otherCategory = addItem(3L, "Other category", "100");
+        MenuCategory other = new MenuCategory();
+        other.setName("Other");
+        otherCategory.setCategory(other);
+        Customer customer = customer();
+        customer.setPricingOverride(new BigDecimal("70"));
+        customer.getCategoryPrices().put("Breads", new BigDecimal("40"));
+        customer.getItemPrices().put(bread.getName(), new BigDecimal("20"));
+        customer.setCreditBalance(new BigDecimal("9999"));
+        var snapshot = service.shopping(mapper.readTree("{}"), customer);
+        assertThat(snapshot.items()).extracting(StorefrontDtos.ShoppingItem::unitPrice)
+            .usingElementComparator(BigDecimal::compareTo)
+            .containsExactly(new BigDecimal("20"), new BigDecimal("40"), new BigDecimal("70"));
+        assertThat(snapshot.items()).extracting(StorefrontDtos.ShoppingItem::priceLabel)
+            .containsOnly("Special rate");
+        customer.getItemPrices().clear();
+        customer.getCategoryPrices().clear();
+        customer.setPricingOverride(new BigDecimal("95"));
+        snapshot = service.shopping(mapper.readTree("{}"), customer);
+        assertThat(snapshot.items()).allSatisfy(item -> {
+            assertMoney(item.unitPrice(), "80");
+            assertThat(item.priceLabel()).isEqualTo("Launch offer");
+        });
+        customer.setOverrideExpiresAt(LocalDateTime.now().minusDays(1));
+        assertMoney(service.shopping(mapper.readTree("{}"), customer).items().get(0).unitPrice(), "80");
+        assertMoney(customer.getCreditBalance(), "9999");
+        verifyNoInteractions(batches, payments, gateway);
+        }
+
+        @Test
+        void shoppingDatedBatchIsQuantityOneOnlyAndSuppressedForOverrides() throws Exception {
+        launchOffers();
+        LocalDate date = rules.upcomingDeliverableDays(7).get(0);
+        BatchDiscountBand band = new BatchDiscountBand();
+        band.setPercent(BigDecimal.TEN);
+        when(batches.bandFor(bread.getPrice())).thenReturn(band);
+        when(batches.discountableUnits(1L, bread.getPrice(), date, 1, null)).thenReturn(1L);
+        JsonNode input = mapper.readTree("{\"date\":\"" + date + "\"}");
+        var item = service.shopping(input, null).items().get(0);
+        assertMoney(item.unitPrice(), "80");
+        assertMoney(item.singleItemBatchDiscount(), "8");
+        verify(batches).discountableUnits(1L, bread.getPrice(), date, 1, null);
+        clearInvocations(batches);
+        Customer customer = customer();
+        customer.setPricingOverride(new BigDecimal("95"));
+        item = service.shopping(input, customer).items().get(0);
+        assertMoney(item.unitPrice(), "80");
+        assertMoney(item.singleItemBatchDiscount(), "0");
+        verifyNoInteractions(batches, payments, gateway);
+        }
+
+            @Test
+            void shoppingEstimatesDeliberatelyDoNotPromiseRoundedOrMixedBasketTotals() throws Exception {
+            launchOffers();
+            bread.setPrice(new BigDecimal("102.50"));
+            var item = service.shopping(mapper.readTree("{}"), null).items().get(0);
+            assertMoney(item.unitPrice(), "81.50"); // 20.50 discount rounds HALF_UP to 21.
+            var two = quote(2, null, null);
+            assertMoney(two.listSubtotal().subtract(two.discountAmount()), "164.00");
+            assertThat(item.unitPrice().multiply(BigDecimal.valueOf(2)))
+                .isNotEqualByComparingTo(two.listSubtotal().subtract(two.discountAmount()));
+            bread.setPrice(new BigDecimal("100"));
+            addItem(2L, "Second bread", "100");
+            Customer customer = customer();
+            customer.getItemPrices().put(bread.getName(), new BigDecimal("20"));
+            var snapshot = service.shopping(mapper.readTree("{}"), customer);
+            BigDecimal estimated = snapshot.items().stream().map(StorefrontDtos.ShoppingItem::unitPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            assertMoney(estimated, "100");
+            var basket = service.quote(mapper.readTree("""
+                {"lines":[{"itemId":1,"quantity":1},{"itemId":2,"quantity":1}]}
+                """), customer);
+            assertMoney(basket.listSubtotal().subtract(basket.discountAmount()), "120");
+            }
+
+            private MockMvc mvcFor(StorefrontController target) {
         return MockMvcBuilders.standaloneSetup(target).setControllerAdvice(new StorefrontProblemAdvice())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(mapper)).build();
     }

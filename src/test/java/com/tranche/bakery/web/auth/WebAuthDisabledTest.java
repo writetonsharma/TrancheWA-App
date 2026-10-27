@@ -30,6 +30,23 @@ class WebAuthDisabledTest {
             .andExpect(status().isNotFound());
         verifyNoInteractions(otp, sessions, cookies);
     }
+    @SuppressWarnings("null") // Spring test builders lack complete nullability metadata.
+    @Test void shoppingAndQuoteAreHiddenBeforeCsrfOriginOrIdentityWhenWebIsDisabled() throws Exception {
+        for (String path : java.util.List.of("/api/shopping", "/api/quote")) {
+            mvc.perform(post(path).header("Origin", "https://evil.example")
+                    .header("X-Customer-Id", "123")
+                    .contentType("application/json").content("{}"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(header().doesNotExist("Location"))
+                    .andExpect(header().string("Cache-Control", "no-store, private"))
+                    .andExpect(header().string("Pragma", "no-cache"));
+            mvc.perform(options(path).header("Origin", "https://evil.example")
+                    .header("Access-Control-Request-Method", "POST"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(header().string("Cache-Control", "no-store, private"));
+        }
+        verifyNoInteractions(otp, sessions, cookies);
+    }
     @Test void adminStillRedirectsAndWebhookDoesNotRequireCsrf() throws Exception {
         mvc.perform(get("/admin")).andExpect(status().is3xxRedirection());
         mvc.perform(post("/webhook")).andExpect(status().isNotFound()); // no webhook controller in this slice

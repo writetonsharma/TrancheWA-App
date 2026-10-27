@@ -1,5 +1,14 @@
 # Website ordering implementation plan
 
+## Shopping snapshot execution reference (2026-10-27)
+
+- Backend-only additive POST /api/shopping accepts strictly an object containing only optional date (ISO date or null). Optional verified session follows /api/quote; ApiGuard, CSRF, Origin and private/no-store apply. Existing catalog/quote contracts remain unchanged.
+- Confirmed sources: StorefrontController/StorefrontCatalogService, WebApiSecurity.CustomerIdentity, CartPricingService and DeliveryRules. Shared promotions choose the cheaper WHOLE-basket override/public rate and round discounts to whole rupees. Batch demand depends on date and quantity. Therefore multiplying single-item prices is an estimate, not exact basket pricing; do not export customer override maps, credit or demand.
+- Snapshot: seven upcoming base dates, including full dates; date query restricted to that finite set. Each date exposes only eligible active item IDs and remaining retail allowance clamped 0..5. Item unitPrice is shared single-item quantity-one price BEFORE batch, fee or credit; optional dated batchDiscount is explicitly quantity-one only. No basket grand total promised.
+- WEB enforcement points: WebCartService.put after shared quote parsing/duplicate merging; WebCheckoutService.validQuote for prepare/new acceptance, which runs AFTER existing idempotency lookup. Stored oversized carts remain readable; reject every save above five, allow reduction to five or fewer. No schema/WA/subscription/pricing changes.
+- Decomposition verdict: atomic, one bounded shopping contract with its WEB retail guardrail. No scenario skill root, assessment.md or task.md was supplied; this existing plan is the execution reference. Skill lookup returned none; Execution extensions returned none. Source was inspected directly, not inferred from historical notes.
+- Validation: focused standalone pricing/snapshot and security/checkout tests, then full clean Maven with prescribed JDK/Maven. No live OTP/order/payment, push, frontend or bundles.
+
 Status: implementation started 2026-10-25. Baseline: 161 Java tests passed against configured local PostgreSQL test database. Independent of parked work.
 
 | Task | Requirement mapping | Status |
