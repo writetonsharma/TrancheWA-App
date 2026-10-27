@@ -67,7 +67,7 @@ public class WebCheckoutService {
                             BigDecimal amount, Instant expires) { }
     private record View(String id, String state, String url, String link, Instant expires,
                         Instant updated, String orderStatus, boolean cutoffCancelled,
-                        String paymentStatus, String paymentLink, String paymentId) { }
+                        String paymentStatus, String paymentLink, String paymentId, boolean matchingAmount) { }
 
     public Prepared prepare(JsonNode body, HttpServletRequest request) {
         return Objects.requireNonNull(tx.execute(status -> {
@@ -252,14 +252,24 @@ public class WebCheckoutService {
     }
 
     public Checkout status(String id, HttpServletRequest request) {
+        Checkout result = readStatus(id, request, false);
+        // Read is never a create/retry operation. Known expired links may only be revoked.
+        if (Set.of("CANCELLED", "EXPIRED").contains(result.status())) expireAndRevoke(id);
+        return result;
+    }
+
+    /** Account recovery observes the same verified status/URL rules, without provider I/O or cancellation. */
+    Checkout accountStatus(String id, HttpServletRequest request) {
+        return readStatus(id, request, true);
+    }
+
+    private Checkout readStatus(String id, HttpServletRequest request, boolean accountRead) {
         Checkout result = Objects.requireNonNull(tx.execute(status -> {
             capacity.acquire();
             Customer customer = carts.requireCustomer(request);
             View view = owned(id, customer.getId());
-            return view(view);
+            return view(view, accountRead);
         }));
-        // Read is never a create/retry operation. Known expired links may only be revoked.
-        if (Set.of("CANCELLED", "EXPIRED").contains(result.status())) expireAndRevoke(id);
         return result;
     }
 
@@ -267,23 +277,35 @@ public class WebCheckoutService {
         if (id == null || !id.matches("[A-Za-z0-9_-]{16,64}")) throw notFound();
         var rows = jdbc.query("""
                 SELECT a.id,a.state,a.provider_url,a.provider_link_id,a.expires_at,a.updated_at,
-                o.status,o.cutoff_cancelled,p.status,p.gateway_link_id,p.gateway_payment_id
+                o.status,o.cutoff_cancelled,p.status,p.gateway_link_id,p.gateway_payment_id,
+                (p.provider='RAZORPAY' AND p.amount>0 AND p.amount=o.total_amount
+                 AND p.amount=(a.snapshot->'quote'->>'totalAmount')::numeric) AS matching_amount
                 FROM web_checkout_attempts a JOIN orders o ON o.id=a.order_id
                 JOIN payments p ON p.order_id=o.id WHERE a.id=? AND a.customer_id=?
                 """, (rs, row) -> new View(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
                 rs.getTimestamp(5).toInstant(), rs.getTimestamp(6).toInstant(), rs.getString(7), rs.getBoolean(8),
-                rs.getString(9), rs.getString(10), rs.getString(11)), id, customerId);
+                rs.getString(9), rs.getString(10), rs.getString(11), rs.getBoolean(12)), id, customerId);
         if (rows.size() != 1) throw notFound();
         return rows.get(0);
     }
 
-    private Checkout view(View view) {
+    private Checkout view(View view, boolean accountRead) {
         String state;
-        if (view.cutoffCancelled() || "CANCELLED".equals(view.orderStatus())) state = "CANCELLED";
+        if (accountRead && ("REVIEW_REQUIRED".equals(view.paymentStatus()) || "PAYMENT_REVIEW_REQUIRED".equals(view.orderStatus())))
+            state = "REVIEW_REQUIRED";
+        else if (view.cutoffCancelled() || "CANCELLED".equals(view.orderStatus())) state = "CANCELLED";
         else if ("REVIEW_REQUIRED".equals(view.paymentStatus()) || "PAYMENT_REVIEW_REQUIRED".equals(view.orderStatus()))
             state = "REVIEW_REQUIRED";
+        else if (accountRead && !view.matchingAmount()) state = "REVIEW_REQUIRED";
+        else if (accountRead && "GATEWAY_CAPTURED".equals(view.paymentStatus())
+            && (view.paymentId() == null || !view.paymentId().matches("pay_[A-Za-z0-9_]{1,96}")
+                    || view.link() == null || !view.link().equals(view.paymentLink()))) state = "REVIEW_REQUIRED";
         else if ("GATEWAY_CAPTURED".equals(view.paymentStatus()) && view.paymentId() != null
                 && Set.of("CONFIRMED", "IN_BAKING", "OUT_FOR_DELIVERY", "COMPLETED").contains(view.orderStatus())) state = "PAID";
+        // Expiry is not proof that an ambiguous create failed. Preserve support context on account reads.
+        else if (accountRead && Set.of("READY", "CREATING", "UNKNOWN").contains(view.state()))
+            state = "UNKNOWN".equals(view.state()) || view.updated().isBefore(clock.instant().minusSeconds(120))
+                ? "UNKNOWN" : "CREATING";
         else if (!view.expires().isAfter(clock.instant())) state = "EXPIRED";
         else if (Set.of("READY", "CREATING").contains(view.state()) && view.updated().isBefore(clock.instant().minusSeconds(120))) {
             jdbc.update("UPDATE web_checkout_attempts SET state='UNKNOWN',updated_at=clock_timestamp() WHERE id=? AND state IN ('READY','CREATING')",

@@ -25,6 +25,9 @@ class WebAuthDisabledTest {
                 .andExpect(status().isNotFound());
         mvc.perform(options("/api/session").header("Origin", "https://evil.example")
                 .header("Access-Control-Request-Method", "GET")).andExpect(status().isNotFound());
+        mvc.perform(get("/api/account/profile")).andExpect(status().isNotFound());
+        mvc.perform(put("/api/account/profile").contentType("application/json").content("{}"))
+            .andExpect(status().isNotFound());
         verifyNoInteractions(otp, sessions, cookies);
     }
     @Test void adminStillRedirectsAndWebhookDoesNotRequireCsrf() throws Exception {

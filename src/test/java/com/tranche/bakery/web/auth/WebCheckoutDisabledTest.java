@@ -30,6 +30,13 @@ class WebCheckoutDisabledTest {
         mvc.perform(post("/api/checkout").contentType("application/json").content("{}"))
                 .andExpect(status().isNotFound());
         mvc.perform(get("/api/checkout/opaque")).andExpect(status().isNotFound());
+        for (String path : java.util.List.of("/api/account", "/api/account/profile", "/api/account/orders",
+                "/api/account/orders/opaque", "/api/account/checkout", "/api/account/unknown")) {
+            mvc.perform(get(path)).andExpect(status().isNotFound())
+                    .andExpect(header().string("Cache-Control", "no-store, private"));
+            mvc.perform(put(path).contentType("application/json").content("{}"))
+                    .andExpect(status().isNotFound());
+        }
         mvc.perform(get("/api/catalog")).andExpect(status().isOk());
         verifyNoInteractions(sessions, whatsapp);
     }

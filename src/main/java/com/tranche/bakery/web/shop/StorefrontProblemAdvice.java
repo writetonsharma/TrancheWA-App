@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** Scoped to this controller so existing WhatsApp/admin error handling is unaffected. */
-@RestControllerAdvice(assignableTypes = {StorefrontController.class, WebCartController.class})
+@RestControllerAdvice(assignableTypes = {StorefrontController.class, WebCartController.class, WebAccountController.class})
 public class StorefrontProblemAdvice {
     @ExceptionHandler(StorefrontProblemException.class)
     public ResponseEntity<StorefrontDtos.Error> problem(StorefrontProblemException exception) {
