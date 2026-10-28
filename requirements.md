@@ -190,3 +190,14 @@ problem. The flat unit count is the only ceiling in the system today — the old
 item cap was removed because it duplicated this number and expressed nothing extra.
 
 Likely direction: capacity per item or per bake (oven loads), not a single daily unit total.
+
+### Unanswered free-text WhatsApp messages
+
+The bot cannot hold a conversation. When a customer types a message the flow does not
+recognise (for example, a question after an order update), the bot just shows the main
+menu. The message is not stored and nobody at the bakery is alerted, so the question is
+silently lost. Customer-facing copy now points questions to the bakery's own number
+(`bakery.support.whatsapp`), which reduces this but does not close it.
+
+Likely direction: store unrecognised inbound text and show it on the admin dashboard,
+and/or forward it to the bakery's support number.
