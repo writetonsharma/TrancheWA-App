@@ -27,6 +27,19 @@ public class WebAccountService {
             WHERE a.customer_id=? AND o.customer_id=a.customer_id AND o.channel='WEB'
             AND o.source='RETAIL' AND o.subscription_id IS NULL AND o.status<>'DRAFT'
             """;
+    // WhatsApp rows are summary-only: no checkout snapshot, detail view or payment link. orders.created_at is IST wall time.
+    private static final String HISTORY = """
+            SELECT h.channel,h.ref,h.order_number,h.at,h.status,h.snapshot,h.delivery_date,h.total_amount FROM (
+              SELECT 'WEB' AS channel,a.id AS ref,o.order_number,a.created_at AS at,o.status,a.snapshot::text AS snapshot,
+                     NULL::date AS delivery_date,NULL::numeric AS total_amount
+            """ + OWNED + """
+              UNION ALL
+              SELECT 'WHATSAPP',o.id::text,o.order_number,o.created_at AT TIME ZONE 'Asia/Kolkata',o.status,NULL,
+                     o.delivery_date,o.total_amount
+              FROM orders o WHERE o.customer_id=? AND o.channel='WHATSAPP' AND o.source='RETAIL'
+              AND o.subscription_id IS NULL AND o.status<>'DRAFT' AND o.order_number IS NOT NULL
+            ) h ORDER BY h.at DESC,h.channel,h.ref DESC LIMIT 11 OFFSET ?
+            """;
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
     private final WebCartService carts;
@@ -44,13 +57,15 @@ public class WebAccountService {
     public record Location(BigDecimal latitude, BigDecimal longitude) { }
     private record Preferences(String delivery, String loaf) { }
     public record Fulfillment(String name, String address, String deliveryPreference, String loafPreference) { }
-    public record Summary(String id, String orderNumber, Instant createdAt, LocalDate deliveryDate,
+    public record Summary(String id, String channel, String orderNumber, Instant createdAt, LocalDate deliveryDate,
                           String orderStatus, String status, BigDecimal totalAmount) { }
     public record History(List<Summary> orders, int page, boolean hasMore) { }
     public record Detail(String id, String orderNumber, Instant createdAt, String orderStatus, String status,
                          String paymentUrl, Instant expiresAt, Fulfillment fulfillment, StorefrontDtos.Quote quote) { }
     public record Recovery(Detail checkout) { }
     private record Stored(String id, String number, Instant created, String orderStatus, JsonNode snapshot) { }
+    private record HistoryRow(String channel, String ref, String number, Instant created, String orderStatus,
+                              String snapshot, LocalDate deliveryDate, BigDecimal totalAmount) { }
 
     public Profile profile(HttpServletRequest request) {
         return Objects.requireNonNull(tx.execute(status -> {
@@ -120,11 +135,16 @@ public class WebAccountService {
             capacity.acquire(); // Never acquire capacity after the customer lock.
             var customer = carts.requireCustomer(request);
             int page = page(request);
-            var rows = stored(" ORDER BY a.created_at DESC,a.id DESC LIMIT 11 OFFSET ?", customer.getId(), page * 10);
+            var rows = jdbc.query(HISTORY, (rs, n) -> new HistoryRow(rs.getString(1), rs.getString(2), rs.getString(3),
+                    rs.getTimestamp(4).toInstant(), rs.getString(5), rs.getString(6), rs.getObject(7, LocalDate.class),
+                    rs.getBigDecimal(8)), customer.getId(), customer.getId(), page * 10);
             var summaries = rows.stream().limit(10).map(row -> {
-                var quote = quote(row.snapshot());
-                var payment = checkouts.accountStatus(row.id(), request);
-                return new Summary(row.id(), row.number(), row.created(), quote.date(), row.orderStatus(), payment.status(), quote.totalAmount());
+                if (!"WEB".equals(row.channel())) return new Summary(null, row.channel(), row.number(), row.created(),
+                        row.deliveryDate(), row.orderStatus(), null, row.totalAmount());
+                var quote = quote(parse(row.snapshot()));
+                var payment = checkouts.accountStatus(row.ref(), request);
+                return new Summary(row.ref(), row.channel(), row.number(), row.created(), quote.date(), row.orderStatus(),
+                        payment.status(), quote.totalAmount());
             }).toList();
             return new History(summaries, page, rows.size() > 10);
         }));

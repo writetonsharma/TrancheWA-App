@@ -133,7 +133,7 @@ each checkout; profile defaults do not retroactively change past snapshots.
 
 Exact response:
 
-`{orders:[{id,orderNumber,createdAt,deliveryDate,orderStatus,status,totalAmount}],page,hasMore}`
+`{orders:[{id,channel,orderNumber,createdAt,deliveryDate,orderStatus,status,totalAmount}],page,hasMore}`
 
 - `page` is optional and defaults to 0. If present, it must be one canonical
   nonnegative decimal query string in 0..10000 (`0` or nonzero first digit).
@@ -143,12 +143,15 @@ Exact response:
   are fetched (ten plus lookahead); `hasMore` is a boolean. Empty/beyond-end pages
   return an empty array and false. Offset pagination can shift across requests if
   a newer checkout is added; this is not a multi-page snapshot/cursor guarantee.
-- Only the signed-in customer's **RETAIL WEB orders backed by an accepted
-  `web_checkout_attempts` row**. Both attempt and order must belong to that same
-  customer. DRAFT, WhatsApp, commercial, subscription-generated and unbacked WEB
-  orders are excluded. This is **website order history**, not the customer's full
-  bakery/WhatsApp/subscription history; UI must state this scope.
-- Stable order: attempt `created_at DESC, id DESC`, including timestamp ties.
+- The signed-in customer's **RETAIL WEB orders backed by an accepted
+  `web_checkout_attempts` row** (`channel: "WEB"`), plus their numbered non-DRAFT
+  RETAIL WhatsApp orders (`channel: "WHATSAPP"`). WhatsApp rows are summary-only:
+  `id` and `status` are null, `deliveryDate`/`totalAmount` may be null, and there is
+  no detail, recovery or payment link. Commercial, subscription-generated, DRAFT,
+  unnumbered WhatsApp and unbacked WEB orders are excluded. WhatsApp `createdAt` is
+  the order's IST creation time as an Instant. Clients must accept rows without
+  `channel` (older backend) as WEB.
+- Stable order: `createdAt DESC`, then WEB before WHATSAPP, then id DESC, including timestamp ties.
   V52 adds the matching customer/history index. `createdAt` is the accepted
   attempt timestamp as an ISO-8601 Instant; `deliveryDate` is the original quote
   date as `yyyy-MM-dd`. `orderNumber` is the human-facing order number (no numeric

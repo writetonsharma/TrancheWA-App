@@ -387,7 +387,7 @@ class WebAccountHttpTest {
         problem(call(get("/api/account/checkout"), idle, false, 401), "INVALID_SESSION");
     }
 
-    @Test void historyIsTenPerPageStableAtTiesPrivateAndWebsiteRetailOnly() throws Exception {
+    @Test void historyIsTenPerPageStableAtTiesPrivateAndRetailOnlyWithWhatsAppSummaries() throws Exception {
         var included = new ArrayList<String>();
         Instant same = Instant.parse("2026-10-01T00:00:00Z");
         for (int i = 0; i < 12; i++) {
@@ -397,9 +397,15 @@ class WebAccountHttpTest {
         }
         included.sort(Comparator.reverseOrder());
         Attempt foreign = seed(browser());
-        Attempt wa = seed(owner); jdbc.update("UPDATE orders SET channel='WHATSAPP' WHERE id=?", wa.orderId());
+        Attempt wa = seed(owner);
+        // orders.created_at is IST wall time: 10:00 IST is 04:30Z, older than every website attempt.
+        jdbc.update("UPDATE orders SET channel='WHATSAPP',status='CONFIRMED',total_amount=345,created_at='2026-09-30 10:00:00' WHERE id=?", wa.orderId());
+        Attempt foreignWa = seed(browser()); jdbc.update("UPDATE orders SET channel='WHATSAPP' WHERE id=?", foreignWa.orderId());
+        Attempt unnumberedWa = seed(owner);
+        jdbc.update("UPDATE orders SET channel='WHATSAPP',order_number=NULL WHERE id=?", unnumberedWa.orderId());
         Attempt commercial = seed(owner); jdbc.update("UPDATE orders SET source='COMMERCIAL' WHERE id=?", commercial.orderId());
-        Attempt draft = seed(owner); jdbc.update("UPDATE orders SET status='DRAFT' WHERE id=?", draft.orderId());
+        // One draft per customer: a numbered WhatsApp draft also proves the website-only DRAFT exclusion.
+        Attempt draft = seed(owner); jdbc.update("UPDATE orders SET channel='WHATSAPP',status='DRAFT' WHERE id=?", draft.orderId());
         Long subscriptionId = jdbc.queryForObject("""
             INSERT INTO subscriptions(customer_id,plan_code,plan_name,tier,weekly_price,delivery_charge,
             commitment_weeks,delivery_day,status,created_at,updated_at)
@@ -415,7 +421,8 @@ class WebAccountHttpTest {
         assertThat(first.path("hasMore").asBoolean()).isTrue();
         var actual = new ArrayList<String>();
         for (var row : first.path("orders")) {
-            fields(row, "id", "orderNumber", "createdAt", "deliveryDate", "orderStatus", "status", "totalAmount");
+            fields(row, "id", "channel", "orderNumber", "createdAt", "deliveryDate", "orderStatus", "status", "totalAmount");
+            assertThat(row.path("channel").asText()).isEqualTo("WEB");
             actual.add(row.path("id").asText());
             assertThat(Instant.parse(row.path("createdAt").asText())).isEqualTo(same);
             assertThat(row.path("deliveryDate").asText()).isEqualTo(date.toString());
@@ -423,15 +430,28 @@ class WebAccountHttpTest {
         }
         assertThat(actual).containsExactlyElementsOf(included.subList(0, 10));
         var second = call(get("/api/account/orders").param("page", "1"), owner, false, 200);
-        assertThat(second.path("orders")).hasSize(2);
+        assertThat(second.path("orders")).hasSize(3);
         assertThat(second.path("page").asInt()).isEqualTo(1);
         assertThat(second.path("hasMore").asBoolean()).isFalse();
         assertThat(second.path("orders").get(0).path("id").asText()).isEqualTo(included.get(10));
         assertThat(second.path("orders").get(1).path("id").asText()).isEqualTo(included.get(11));
+        var whatsapp = second.path("orders").get(2);
+        fields(whatsapp, "id", "channel", "orderNumber", "createdAt", "deliveryDate", "orderStatus", "status", "totalAmount");
+        assertThat(whatsapp.path("id").isNull()).isTrue();
+        assertThat(whatsapp.path("status").isNull()).isTrue();
+        assertThat(whatsapp.path("channel").asText()).isEqualTo("WHATSAPP");
+        assertThat(whatsapp.path("orderNumber").asText()).isEqualTo("ACC-" + wa.orderId());
+        assertThat(Instant.parse(whatsapp.path("createdAt").asText())).isEqualTo(Instant.parse("2026-09-30T04:30:00Z"));
+        assertThat(whatsapp.path("deliveryDate").asText()).isEqualTo(date.toString());
+        assertThat(whatsapp.path("orderStatus").asText()).isEqualTo("CONFIRMED");
+        assertThat(whatsapp.path("totalAmount").decimalValue()).isEqualByComparingTo("345");
+        assertThat(second.toString()).doesNotContain(ADDRESS, "plink_", "paymentUrl", wa.id(),
+                "\"ACC-" + foreignWa.orderId() + "\"", "\"ACC-" + draft.orderId() + "\"", "\"ACC-" + commercial.orderId() + "\"",
+                "\"ACC-" + unnumberedWa.orderId() + "\"");
         assertThat(call(get("/api/account/orders").param("page", "10000"), owner, false, 200).path("orders")).isEmpty();
         assertThat(first.toString()).doesNotContain("customerId", "orderId", "paymentUrl", "fulfillment", ADDRESS,
                 "Accepted Name", "phone", "plink_", "token-secret", "request-secret", "web_", foreign.id(), wa.id(), commercial.id(), draft.id(), subscription.id());
-        for (Attempt excluded : List.of(foreign, wa, commercial, draft, subscription))
+        for (Attempt excluded : List.of(foreign, wa, foreignWa, unnumberedWa, commercial, draft, subscription))
             problem(call(get("/api/account/orders/" + excluded.id()), owner, false, 404), "CHECKOUT_NOT_FOUND");
         assertThat(call(get("/api/account/checkout"), owner, false, 200).path("checkout").path("id").asText()).isEqualTo(included.get(0));
         verifyNoInteractions(razorpay, notifier);
