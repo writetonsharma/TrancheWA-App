@@ -499,7 +499,12 @@ class WebCheckoutHttpTest {
         assertThat(status(owner, id)).isEqualTo(paid);
         verify(notifier, times(1)).orderConfirmed(any());
         onlyOneProviderCall();
-        var later = checkout(owner, request(prepare(owner, 1), key()));
+        var cleared = json(call("GET", "/api/cart", null, owner, false), 200);
+        assertThat(cleared.path("version").asLong()).isEqualTo(2);
+        assertThat(cleared.path("lines").size()).isZero();
+        assertThat(cleared.hasNonNull("date")).isFalse();
+        cart(owner, 2, 1);
+        var later = checkout(owner, request(prepare(owner, 3), key()));
         assertThat(later.path("status").asText()).isEqualTo("PAYABLE");
         assertThat(later.path("id").asText()).isNotEqualTo(id);
         assertCaptured(id, "pay_early", "plink_early");
@@ -1059,9 +1064,13 @@ class WebCheckoutHttpTest {
         noPaymentUrl(unknown);
         assertThat(attempt(id).get("state")).isEqualTo("UNKNOWN");
         assertThat(attempt(id).get("provider_link_id")).isNull();
+        cart(owner, 1, 2);
         admin.confirmGatewayPayment(orderId(id), "pay_reconciled", "plink_reconciled",
                 prepared.path("quote").path("totalAmount").decimalValue(), id, "web_" + id, "INR");
         assertCaptured(id, "pay_reconciled", "plink_reconciled");
+        var edited = json(call("GET", "/api/cart", null, owner, false), 200);
+        assertThat(edited.path("version").asLong()).isEqualTo(2);
+        assertThat(edited.path("lines").get(0).path("quantity").asInt()).isEqualTo(2);
         var paid = status(owner, id);
         assertThat(paid.path("status").asText()).isEqualTo("PAID");
         noPaymentUrl(paid);
@@ -1071,7 +1080,7 @@ class WebCheckoutHttpTest {
                 prepared.path("quote").path("totalAmount").decimalValue(), id, "web_" + id, "INR");
         assertThat(status(owner, id)).isEqualTo(paid);
         onlyOneProviderCall();
-        var later = checkout(owner, request(prepare(owner, 1), key()));
+        var later = checkout(owner, request(prepare(owner, 2), key()));
         assertThat(later.path("status").asText()).isEqualTo("PAYABLE");
         assertThat(later.path("id").asText()).isNotEqualTo(id);
         assertCaptured(id, "pay_reconciled", "plink_reconciled");

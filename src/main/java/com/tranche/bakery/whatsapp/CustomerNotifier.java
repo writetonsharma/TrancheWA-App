@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.tranche.bakery.customer.Customer;
@@ -29,6 +30,10 @@ public class CustomerNotifier {
 
     private final WhatsAppClient whatsAppClient;
     private final ReceiptService receiptService;
+
+    // The bot cannot hold a conversation, so questions go to the bakery's own WhatsApp.
+    @Value("${bakery.support.whatsapp}")
+    private String supportPhone;
 
     static final String T_CONFIRMED = "order_confirmation";
     static final String T_IN_BAKING = "order_in_baking";
@@ -137,7 +142,8 @@ public class CustomerNotifier {
         if (withinWindow(order)) {
             String text = "Your order *" + ref + "* has been cancelled." +
                     (reason != null && !reason.isBlank() ? " " + reason : "") +
-                    "\n\nIf you have any questions, please message us. Send *hi* to place a new order. 🥖";
+                    "\n\nQuestions? Message the bakery at " + supportLink() + " and we'll be happy to help. " +
+                    "Send *hi* to place a new order. 🥖";
             whatsAppClient.sendText(phone, text);
         } else {
             String templateReason = (reason != null && !reason.isBlank()) ? reason : "Cancelled by the bakery.";
@@ -168,7 +174,7 @@ public class CustomerNotifier {
         if (withinWindow(order)) {
             whatsAppClient.sendText(phone, "📅 *Delivery date updated*\n\n" +
                     "Your order *" + ref + "* will now be delivered on *" + date + "* in the morning.\n\n" +
-                    "If this doesn't work for you, just message us. 🥖");
+                    "If this doesn't work for you, message the bakery at " + supportLink() + ". 🥖");
         } else {
             whatsAppClient.sendTemplate(phone, T_DATE_CHANGED, List.of(firstName(order), ref, date));
         }
@@ -187,6 +193,10 @@ public class CustomerNotifier {
     }
 
     // --- helpers ---
+    private String supportLink() {
+        return "https://wa.me/" + supportPhone.replaceAll("\\D", "");
+    }
+
     private boolean withinWindow(Order order) {
         return order.getCustomer() != null && withinWindow(order.getCustomer());
     }

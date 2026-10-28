@@ -6,6 +6,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -110,5 +111,18 @@ class CustomerNotifierTest {
 
         verify(client).sendTemplate("9199", "order_cancelled",
                 List.of("Naveen", "TRB-1", "Cancelled by the bakery."));
+    }
+
+    @Test
+    void cancelled_inWindow_pointsQuestionsToTheBakeryNotTheBot() {
+        WhatsAppClient client = mock(WhatsAppClient.class);
+        ReceiptService receipt = mock(ReceiptService.class);
+        CustomerNotifier notifier = new CustomerNotifier(client, receipt);
+        ReflectionTestUtils.setField(notifier, "supportPhone", "+91 87967 70308");
+
+        notifier.orderCancelled(order("Naveen", "9199", "TRB-1", IN_WINDOW), null);
+
+        verify(client).sendText(eq("9199"), contains("Message the bakery at https://wa.me/918796770308"));
+        verify(client, never()).sendTemplate(any(), any(), any());
     }
 }

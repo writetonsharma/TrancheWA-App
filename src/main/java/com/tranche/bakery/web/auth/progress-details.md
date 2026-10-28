@@ -80,3 +80,7 @@
 - Resolved pre-existing null-safety diagnostics in the touched integration test using non-null contracts/checks, without suppressions. Final editor diagnostics: zero errors/warnings across all three Java files. Existing Hibernate/runtime fault-injection warnings remain unrelated to this change.
 - Final system Maven -B -q clean test (Java 17, serial sole terminal owner): exit 0; 49 suites, 444 tests, 0 failures, 0 errors, 0 skipped (439 baseline + 5). AuthCryptoTest: 5 passed; WebAuthIntegrationTest: 17 passed. Full suite passed both before and after null-safety cleanup; git diff --check clean.
 - No frontend, WhatsApp source, customer/global normalization, DB migration, dual read/legacy merging, parked files, bundles, push or live changes. No supplied task.md to enrich; research was recorded above before source edits; scenario root/Execution/Breakdown Hints not supplied; atomic verdict retained.
+
+## Paid web basket cleared — 2026-10-28
+- AdminService.confirmWebPayment empties web_carts (lines '[]', date null, version+1) in the capture transaction, only when the cart version still equals the attempt's cart_version. Edits made after checkout are kept.
+- WebCheckoutHttpTest: early-webhook capture asserts the emptied cart (version 2) and re-adds before the next checkout; reconciled capture asserts a post-checkout edit (version 2, quantity 2) is preserved. Full suite 449/449.

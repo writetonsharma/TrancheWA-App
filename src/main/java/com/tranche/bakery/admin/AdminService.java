@@ -392,6 +392,11 @@ public class AdminService {
         if (settled && samePayment) return;
         payment.setGatewayPaymentId(paymentId);
         payment.setStatus(PaymentStatus.GATEWAY_CAPTURED);
+        // Empty the paid basket, but keep any edits the customer made after checkout.
+        jdbcTemplate.update("""
+                update web_carts set version=version+1, lines='[]'::jsonb, delivery_date=null, updated_at=now()
+                where customer_id=? and version=(select cart_version from web_checkout_attempts where id=?)
+                """, order.getCustomer().getId(), binding.id());
         paymentsCaptured(order, payment, effects);
     }
 
