@@ -145,7 +145,7 @@ class WebAuthIntegrationTest {
         browser = originalBrowser;
         assertThat(sessions.currentCustomer(request(verified.token()))).isNotNull();
     }
-    @Test void newCustomersNeverOptInAndExistingCustomerInboundWindowIsUntouched() {
+    @Test void newCustomersOptInByDefaultWhileExistingConsentAndInboundWindowAreUntouched() {
         String phone = "919800000022";
         Customer customer = customers.findByPhone(phone).orElseGet(() -> {
             Customer created = new Customer(); created.setPhone(phone); return customers.save(created);
@@ -159,10 +159,10 @@ class WebAuthIntegrationTest {
         var persisted = customers.findById(requireNonNull(customer.getId())).orElseThrow();
         assertThat(persisted.getLastInboundAt()).isEqualTo(customer.getLastInboundAt());
         assertThat(persisted.isMarketingOptIn()).isFalse();
-        // Unique test phone; no inbound helper and no implicit marketing consent.
+        // Unique test phone; no inbound helper, same marketing default as WhatsApp customers.
         var newChallenge = otp.challenge("919800000023", browser, "192.0.2.1");
         var created = verify(newChallenge).customer();
-        assertThat(created.isMarketingOptIn()).isFalse();
+        assertThat(created.isMarketingOptIn()).isTrue();
         assertThat(created.getLastInboundAt()).isNull();
     }
     @Test void indianShorthandReusesExistingFriendsFamilyCustomerPricingAndSessionOwnership() throws Exception {

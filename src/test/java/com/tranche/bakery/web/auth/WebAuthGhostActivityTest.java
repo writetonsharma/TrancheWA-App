@@ -65,11 +65,11 @@ class WebAuthGhostActivityTest {
     }
 
     @Test
-    void newWebOnlyCustomerGetsDedicatedActivityWithoutInboundOrMarketingConsent() {
+    void newWebOnlyCustomerGetsDedicatedActivityWithoutInboundAndDefaultMarketingOptIn() {
         Customer created = login().customer();
         assertThat(created.getLastWebActivityAt()).isEqualTo(local(NOW));
         assertThat(created.getLastInboundAt()).isNull();
-        assertThat(created.isMarketingOptIn()).isFalse();
+        assertThat(created.isMarketingOptIn()).isTrue();
     }
 
     @Test

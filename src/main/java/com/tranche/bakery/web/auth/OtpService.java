@@ -97,10 +97,11 @@ public class OtpService {
             if (!correct) return null; // Commit failed attempts instead of rolling them back via exception.
             String phone = (String) row.get("phone");
                 // Lock/update the customer before sessions, matching cleanup's lock order. Only web
-                // activity changes on conflict; login never opens an inbound window or changes consent.
+                // activity changes on conflict; login never opens an inbound window or changes existing consent.
+                // New customers start opted in like WhatsApp customers; STOP on any broadcast opts them out.
             jdbc.update("""
                     INSERT INTO customers(phone,free_delivery,credit_balance,subscription_eligible,marketing_opt_in,created_at,updated_at,last_web_activity_at)
-                    VALUES (?,false,0,false,false,?,?,?) ON CONFLICT(phone) DO UPDATE
+                    VALUES (?,false,0,false,true,?,?,?) ON CONFLICT(phone) DO UPDATE
                     SET last_web_activity_at = GREATEST(customers.last_web_activity_at, EXCLUDED.last_web_activity_at)
                     """, phone, Timestamp.from(now), Timestamp.from(now), LocalDateTime.ofInstant(now, ZoneId.of("Asia/Kolkata")));
             Customer customer = customers.findByPhone(phone).orElseThrow();

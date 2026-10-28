@@ -422,6 +422,15 @@ class WebCheckoutHttpTest {
         onlyOneProviderCall();
     }
 
+    @Test void acceptanceFillsOnlyABlankCustomerNameFromCheckout() throws Exception {
+        jdbc.update("UPDATE customers SET name='   ' WHERE id=?", owner.customerId());
+        cart(owner, 0, 1);
+        checkout(owner, request(prepare(owner, 1), key()));
+        assertThat(jdbc.queryForObject("SELECT name FROM customers WHERE id=?", String.class, owner.customerId()))
+                .isEqualTo("Checkout Snapshot Name");
+        onlyOneProviderCall();
+    }
+
     @Test void providerDispatchSeesCommittedCreatingAttemptAndPaymentOutsideTransaction() throws Exception {
         cart(owner, 0, 1);
         var prepared = prepare(owner, 1);

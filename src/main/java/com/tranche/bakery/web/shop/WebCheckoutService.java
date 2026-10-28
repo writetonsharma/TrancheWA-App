@@ -154,6 +154,9 @@ public class WebCheckoutService {
                 quote.creditApplied(), quote.date(), input.address(), input.delivery(), input.loaf()));
         jdbc.update("UPDATE orders SET order_number=? WHERE id=?",
                 numbers.generate(orderId, LocalDateTime.ofInstant(clock.instant(), IST)), orderId);
+        // Only fills a blank name; names set on WhatsApp or by admin are never overwritten.
+        jdbc.update("UPDATE customers SET name=?, updated_at=now() WHERE id=? AND (name IS NULL OR TRIM(name)='')",
+                input.name(), customer.getId());
         for (var line : quote.lines()) jdbc.update("""
                 INSERT INTO order_items(order_id,menu_item_id,quantity,unit_price,subtotal) VALUES (?,?,?,?,?)
                 """, orderId, line.itemId(), line.quantity(), line.unitPrice(), line.lineTotal());
