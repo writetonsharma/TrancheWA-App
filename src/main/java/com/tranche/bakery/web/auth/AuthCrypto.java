@@ -32,8 +32,9 @@ public class AuthCrypto {
     }
     static boolean validToken(String value) { return value != null && value.matches("[A-Za-z0-9_-]{43}"); }
     static String phone(String value) {
-        // Canonical international form only: accept optional '+', never guess a country or strip arbitrary input.
+        // Website-only Indian shorthand; explicit '+' always denotes an international number.
         if (value == null || !value.matches("\\+?[1-9][0-9]{7,14}")) return null;
-        return value.startsWith("+") ? value.substring(1) : value;
+        if (value.startsWith("+")) return value.substring(1);
+        return value.length() == 10 ? "91" + value : value;
     }
 }

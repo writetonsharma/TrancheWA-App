@@ -13,8 +13,20 @@ class AuthCryptoTest {
     @Test void strictCanonicalPhone() {
         assertThat(AuthCrypto.phone("+919811843373")).isEqualTo("919811843373");
         assertThat(AuthCrypto.phone("919811843373")).isEqualTo("919811843373");
-        for (String invalid : new String[]{"", " 919811843373", "91 9811843373", "00919811843373", "+0919811843373", "123", "<script>"})
+        for (String invalid : new String[]{null, "", " 919811843373", "91 9811843373", "00919811843373", "+0919811843373",
+                "123", "<script>", "0981184337", "9811843373 ", "98118-43373", "(9811843373)", "++919811843373",
+                "９８１１８４３３７３", "+1234567890123456"})
             assertThat(AuthCrypto.phone(invalid)).isNull();
+    }
+    @Test void bareTenDigitsAreIndianButExplicitInternationalAndOtherLengthsArePreserved() {
+        assertThat(AuthCrypto.phone("9811843373")).isEqualTo("919811843373");
+        assertThat(AuthCrypto.phone("1234567890")).isEqualTo("911234567890");
+        for (String international : new String[]{"12345678", "123456789", "1234567890", "14155552671",
+                "919811843373", "441234567890", "123456789012345"}) {
+            assertThat(AuthCrypto.phone("+" + international)).isEqualTo(international);
+            if (international.length() != 10)
+                assertThat(AuthCrypto.phone(international)).isEqualTo(international);
+        }
     }
     @Test void tokensAndCodeAreRandomAndHashesArePurposeBound() {
         AuthCrypto crypto = new AuthCrypto(settings());

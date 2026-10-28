@@ -41,6 +41,8 @@ public class WebAccountService {
     }
 
     public record Profile(long version, String name, String address, String deliveryPreference, String loafPreference) { }
+    public record Location(BigDecimal latitude, BigDecimal longitude) { }
+    private record Preferences(String delivery, String loaf) { }
     public record Fulfillment(String name, String address, String deliveryPreference, String loafPreference) { }
     public record Summary(String id, String orderNumber, Instant createdAt, LocalDate deliveryDate,
                           String orderStatus, String status, BigDecimal totalAmount) { }
@@ -58,9 +60,35 @@ public class WebAccountService {
                     FROM web_customer_profiles WHERE customer_id=?
                     """, (rs, row) -> new Profile(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5)),
                     customer.getId());
-            // These are suggestions, not persisted website defaults or consent.
-                return rows.isEmpty() ? new Profile(0, suggestion(customer.getName(), 1, 100),
-                    suggestion(customer.getDeliveryAddress(), 10, 2000), "", "") : rows.get(0);
+            if (!rows.isEmpty()) return rows.get(0);
+            // WhatsApp keeps preferences on previous orders, not Customer. Read only
+            // accepted retail orders; never copy another customer's or a subscription's defaults.
+            var preferences = jdbc.query("""
+                    SELECT
+                    (SELECT delivery_preference FROM orders WHERE customer_id=? AND subscription_id IS NULL
+                     AND source='RETAIL' AND status NOT IN ('DRAFT','CANCELLED')
+                     AND delivery_preference IN ('GATE','DOOR','IN_PERSON') ORDER BY created_at DESC,id DESC LIMIT 1),
+                    (SELECT loaf_preference FROM orders WHERE customer_id=? AND subscription_id IS NULL
+                     AND source='RETAIL' AND status NOT IN ('DRAFT','CANCELLED')
+                     AND loaf_preference IN ('SLICED','WHOLE') ORDER BY created_at DESC,id DESC LIMIT 1)
+                    """, (rs, row) -> new Preferences(rs.getString(1), rs.getString(2)), customer.getId(), customer.getId());
+            var previous = preferences.isEmpty() ? new Preferences(null, null) : preferences.get(0);
+            // Suggestions are not persisted website defaults or consent.
+            return new Profile(0, suggestion(customer.getName(), 1, 100),
+                    suggestion(customer.getDeliveryAddress(), 10, 2000),
+                    previous.delivery() == null ? "" : previous.delivery(), previous.loaf() == null ? "" : previous.loaf());
+        }));
+    }
+
+    public Location location(HttpServletRequest request) {
+        return Objects.requireNonNull(tx.execute(status -> {
+            var customer = carts.requireCustomer(request);
+            if (!request.getParameterMap().isEmpty()) throw invalid();
+            BigDecimal lat = customer.getLocationLat(), lng = customer.getLocationLng();
+            // Omit both when legacy coordinates are incomplete or outside geographic bounds.
+            if (lat == null || lng == null || lat.abs().compareTo(BigDecimal.valueOf(90)) > 0
+                    || lng.abs().compareTo(BigDecimal.valueOf(180)) > 0) return new Location(null, null);
+            return new Location(lat, lng);
         }));
     }
 

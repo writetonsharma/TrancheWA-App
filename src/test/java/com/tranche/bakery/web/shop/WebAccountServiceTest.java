@@ -53,6 +53,7 @@ class WebAccountServiceTest {
             assertThat(customer.getName()).isEqualTo(legacy[0]);
             assertThat(customer.getDeliveryAddress()).isEqualTo(legacy[1]);
             verify(jdbc).query(anyString(), ArgumentMatchers.<RowMapper<WebAccountService.Profile>>any(), eq(7L));
+            verify(jdbc).query(anyString(), ArgumentMatchers.<RowMapper<Object>>any(), eq(7L), eq(7L));
             verifyNoMoreInteractions(jdbc); // No profile INSERT/UPDATE or shared-customer write.
             verify(carts).requireCustomer(request);
             verifyNoMoreInteractions(carts);

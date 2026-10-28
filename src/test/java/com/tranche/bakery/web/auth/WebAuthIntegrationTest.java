@@ -1,5 +1,6 @@
 package com.tranche.bakery.web.auth;
 
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -76,10 +77,10 @@ class WebAuthIntegrationTest {
     }
     // Exercise the actual cookie repository. Spring's csrf() processor replaces its repository
     // inside the cached filter chain and can contaminate subsequent real-bootstrap tests.
-    org.springframework.test.web.servlet.request.RequestPostProcessor apiCsrf() {
+    @org.springframework.lang.NonNull org.springframework.test.web.servlet.request.RequestPostProcessor apiCsrf() {
         return request -> {
             String token = java.util.UUID.randomUUID().toString();
-            request.addHeader("X-XSRF-TOKEN", token);
+            request.addHeader("X-XSRF-TOKEN", requireNonNull(token));
             java.util.List<Cookie> cookies = new java.util.ArrayList<>();
             if (request.getCookies() != null) cookies.addAll(java.util.Arrays.asList(request.getCookies()));
             cookies.add(new Cookie("TRANCHE_WEB_CSRF", token));
@@ -155,7 +156,7 @@ class WebAuthIntegrationTest {
         var challenge = otp.challenge(phone, browser, "192.0.2.1");
         var loggedIn = verify(challenge);
         assertThat(loggedIn.customer().getId()).isEqualTo(customer.getId());
-        var persisted = customers.findById(customer.getId()).orElseThrow();
+        var persisted = customers.findById(requireNonNull(customer.getId())).orElseThrow();
         assertThat(persisted.getLastInboundAt()).isEqualTo(customer.getLastInboundAt());
         assertThat(persisted.isMarketingOptIn()).isFalse();
         // Unique test phone; no inbound helper and no implicit marketing consent.
@@ -163,6 +164,79 @@ class WebAuthIntegrationTest {
         var created = verify(newChallenge).customer();
         assertThat(created.isMarketingOptIn()).isFalse();
         assertThat(created.getLastInboundAt()).isNull();
+    }
+    @Test void indianShorthandReusesExistingFriendsFamilyCustomerPricingAndSessionOwnership() throws Exception {
+        String phone = "919800000061";
+        Customer existing = customers.findByPhone(phone).orElseGet(() -> {
+            Customer created = new Customer(); created.setPhone(phone); return created;
+        });
+        existing.setName("Website F&F fixture");
+        existing.setPricingOverride(new java.math.BigDecimal("150"));
+        existing.getCategoryPrices().put("Sweet Bakes", new java.math.BigDecimal("125"));
+        existing.getItemPrices().put("Cinnamon Rolls", new java.math.BigDecimal("100"));
+        existing.setSubscriptionEligible(true);
+        existing.setCreditBalance(new java.math.BigDecimal("70"));
+        existing = customers.saveAndFlush(existing);
+        long countBefore = customers.count();
+        Long customerId = existing.getId();
+        for (String input : new String[]{"9800000061", phone, "+" + phone}) {
+            var challenge = otp.challenge(input, browser, "192.0.2.61");
+            assertThat(jdbc.queryForObject("SELECT phone FROM web_otp_challenges WHERE id = ?", String.class,
+                    challenge.challengeId())).isEqualTo(phone);
+            var verified = verify(challenge);
+            Customer owner = sessions.currentCustomer(request(verified.token()));
+            assertThat(owner.getId()).isEqualTo(customerId);
+            assertThat(verified.customer().getId()).isEqualTo(customerId);
+            assertThat(owner.getPhone()).isEqualTo(phone);
+            assertThat(owner.getName()).isEqualTo("Website F&F fixture");
+            assertThat(owner.isFriendsAndFamily()).isTrue();
+            assertThat(owner.isSubscriptionEligible()).isTrue();
+            assertThat(owner.unitPriceFor("Cinnamon Rolls", "Sweet Bakes")).isEqualByComparingTo("100");
+            assertThat(owner.unitPriceFor("Other", "Sweet Bakes")).isEqualByComparingTo("125");
+            assertThat(owner.unitPriceFor("Other", "Other")).isEqualByComparingTo("150");
+            assertThat(owner.getCreditBalance()).isEqualByComparingTo("70");
+            assertThat(jdbc.queryForObject("SELECT customer_id FROM web_customer_sessions WHERE token_hash = ?",
+                    Long.class, crypto.hash("session", verified.token()))).isEqualTo(customerId);
+            mvc.perform(get("/api/session").cookie(new Cookie(AuthCookies.BROWSER, browser),
+                    new Cookie(AuthCookies.SESSION, verified.token())))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.customer.id").value(customerId));
+        }
+        assertThat(customers.count()).isEqualTo(countBefore);
+        assertThat(customers.findByPhone("9800000061")).isEmpty();
+        org.mockito.Mockito.verify(whatsapp, times(3)).sendAuthenticationCode(eq(phone), anyString(), anyString(), anyString());
+    }
+    @Test void indianSpellingsSharePhoneBudgetAcrossIndependentBrowsersAndIps() {
+        String phone = "919800000062";
+        String[] inputs = {"9800000062", phone, "+" + phone, "9800000062", phone};
+        for (int i = 0; i < inputs.length; i++)
+            otp.challenge(inputs[i], crypto.token(), "192.0.2." + (70 + i));
+        String bucket = "phone:" + crypto.hash("phone", phone);
+        assertThat(jdbc.queryForObject("SELECT hits FROM web_auth_limits WHERE bucket = ?", Integer.class, bucket)).isEqualTo(5);
+        for (String input : new String[]{"9800000062", phone, "+" + phone})
+            assertThatThrownBy(() -> otp.challenge(input, crypto.token(), "192.0.2.80"))
+                    .isInstanceOfSatisfying(OtpService.AuthFailure.class, failure -> assertThat(failure.status).isEqualTo(429));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM web_auth_limits WHERE bucket LIKE 'phone:%'", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM web_otp_challenges", Integer.class)).isEqualTo(5);
+        org.mockito.Mockito.verify(whatsapp, times(5)).sendAuthenticationCode(eq(phone), anyString(), anyString(), anyString());
+    }
+    @Test void explicitTenDigitInternationalIdentityIsNotReinterpretedAsIndian() {
+        for (String input : new String[]{"+1980000063", "+14155550063", "441234560063", "12345678", "123456789012345"}) {
+            String expected = input.startsWith("+") ? input.substring(1) : input;
+            var challenge = otp.challenge(input, browser, "192.0.2.63");
+            assertThat(jdbc.queryForObject("SELECT phone FROM web_otp_challenges WHERE id = ?", String.class,
+                    challenge.challengeId())).isEqualTo(expected);
+            assertThat(verify(challenge).customer().getPhone()).isEqualTo(expected);
+            org.mockito.Mockito.verify(whatsapp).sendAuthenticationCode(eq(expected), anyString(), anyString(), anyString());
+        }
+        assertThat(customers.findByPhone("911980000063")).isEmpty();
+    }
+    @Test void invalidPhoneFormatsNeverConsumeBudgetsOrSendCodes() {
+        for (String input : new String[]{"0980000064", "98000 00064", "9800000064 ", "+0980000064", "９８００００００６４"})
+            assertThatThrownBy(() -> otp.challenge(input, browser, "192.0.2.64"))
+                    .isInstanceOfSatisfying(OtpService.AuthFailure.class, failure -> assertThat(failure.status).isEqualTo(400));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM web_auth_limits", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM web_otp_challenges", Integer.class)).isZero();
+        verifyNoInteractions(whatsapp);
     }
     @Test void durablePhoneBrowserAndIpBudgetsAndSenderFailuresAreClosed() {
         for (int i = 0; i < 5; i++) challenge();
@@ -201,7 +275,7 @@ class WebAuthIntegrationTest {
         } finally { executor.shutdownNow(); }
     }
     @Test void anonymousCsrfBootstrapWorksAndAllUnsafeApiMethodsRequireCsrfAndAdminIsNotCustomer() throws Exception {
-        var bootstrap = mvc.perform(get("/api/session").with(user("admin").roles("ADMIN")))
+        var bootstrap = mvc.perform(get("/api/session").with(requireNonNull(user("admin").roles("ADMIN"))))
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store, private"))
                 .andExpect(jsonPath("$.authenticated").value(false)).andExpect(jsonPath("$.customer").isEmpty())
                 .andExpect(jsonPath("$.csrfHeaderName").value("X-XSRF-TOKEN"))
@@ -228,15 +302,15 @@ class WebAuthIntegrationTest {
             assertThat(cookie).contains("Secure", "HttpOnly").doesNotContain("Domain="));
         // Servlet 6 stores SameSite as a generic Cookie attribute; MockHttpServletResponse's
         // Set-Cookie string omits it, unlike the real Tomcat serializer. Check the actual cookie.
-        assertThat(response.getCookie("TRANCHE_WEB_CSRF").getAttribute("SameSite")).isEqualTo("Lax");
-        assertThat(response.getCookie(AuthCookies.BROWSER).getAttribute("SameSite")).isEqualTo("Lax");
+        assertThat(requireNonNull(response.getCookie("TRANCHE_WEB_CSRF")).getAttribute("SameSite")).isEqualTo("Lax");
+        assertThat(requireNonNull(response.getCookie(AuthCookies.BROWSER)).getAttribute("SameSite")).isEqualTo("Lax");
         mvc.perform(get("/api/session").header("Origin", "http://localhost"))
                 .andExpect(status().isOk());
     }
     @Test void verifySetsSessionCookieAndHttpLogoutRevokesIt() throws Exception {
         var challenge = challenge();
         var response = mvc.perform(post("/api/auth/verify").with(apiCsrf()).cookie(new Cookie(AuthCookies.BROWSER, browser))
-                .contentType("application/json").content(mapper.writeValueAsString(new AuthController.VerifyInput(challenge.challengeId(), delivered.get()))))
+                .contentType("application/json").content(requireNonNull(mapper.writeValueAsString(new AuthController.VerifyInput(challenge.challengeId(), delivered.get())))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.authenticated").value(true))
                 .andExpect(jsonPath("$.customer.phone").doesNotExist()).andReturn().getResponse();
         String sessionHeader = response.getHeaders("Set-Cookie").stream().filter(c -> c.startsWith(AuthCookies.SESSION + "=")).findFirst().orElseThrow();
@@ -254,7 +328,7 @@ class WebAuthIntegrationTest {
         var response = mvc.perform(post("/api/auth/verify")
             .cookie(new Cookie(AuthCookies.BROWSER, browser), new Cookie("TRANCHE_WEB_CSRF", oldCsrf))
             .header("X-XSRF-TOKEN", oldCsrf).contentType("application/json")
-            .content(mapper.writeValueAsString(new AuthController.VerifyInput(challenge.challengeId(), delivered.get()))))
+            .content(requireNonNull(mapper.writeValueAsString(new AuthController.VerifyInput(challenge.challengeId(), delivered.get())))))
             .andExpect(status().isOk()).andReturn().getResponse();
         String newCsrf = mapper.readTree(response.getContentAsString()).get("csrfToken").asText();
         assertThat(newCsrf).isNotEqualTo(oldCsrf);
@@ -279,13 +353,13 @@ class WebAuthIntegrationTest {
         mvc.perform(post("/api/quote").with(apiCsrf()).cookie(binding, session)
             .contentType("application/json").content("{\"lines\":[]}"))
             .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store, private"));
-        assertThat(jdbc.queryForObject("SELECT last_seen_at FROM web_customer_sessions", Timestamp.class).toInstant()).isEqualTo(NOW);
+        assertThat(requireNonNull(jdbc.queryForObject("SELECT last_seen_at FROM web_customer_sessions", Timestamp.class)).toInstant()).isEqualTo(NOW);
         org.mockito.Mockito.verify(catalog).quote(any(), argThat(customer -> customer != null && customer.getId().equals(verified.customer().getId())));
         clearInvocations(catalog);
         mvc.perform(post("/api/auth/logout").with(apiCsrf()).cookie(binding, session))
             .andExpect(status().isOk());
         mvc.perform(post("/api/quote").with(apiCsrf()).cookie(binding, session)
-            .with(user("admin").roles("ADMIN")).header("X-Customer-Id", verified.customer().getId())
+            .with(requireNonNull(user("admin").roles("ADMIN"))).header("X-Customer-Id", verified.customer().getId())
             .contentType("application/json").content("{\"lines\":[]}"))
             .andExpect(status().isOk());
         org.mockito.Mockito.verify(catalog).quote(any(), isNull());

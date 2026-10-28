@@ -1,5 +1,33 @@
 # Website customer account API contract
 
+## Account failure correction — 2026-10-28 (supersedes historical validation below)
+
+Clean Java-17 Maven validation: **447 tests / 49 suites**, no failures/errors/skips.
+Full sibling frontend validation: **340 tests**, no failures/skips; **26** source
+and test JS/MJS syntax checks pass. No dependencies or migrations added.
+
+Real loopback HTTP (embedded Tomcat + local test PostgreSQL, providers mocked)
+created a checkout through cart/prepare/acceptance, exercised settlement with its
+stored provider binding, and read PAYABLE then PAID detail/history. The exact
+serialized response projections were exported under the ignored build output
+and passed through the actual sibling frontend validators. `createdAt` was a
+UTC string with microseconds, `expiresAt` a UTC string, dates strings and amounts
+JSON numbers. No timestamp serializer defect was reproduced with current config.
+
+A deliberately corrupted **synthetic test** historical quote returned HTTP 500
+while the same authenticated profile still returned 200. Before the frontend fix,
+the wire-contract regression failed with profile `null`: Promise.all tied profile
+visibility to history success. Afterward profile loads alone; website history is
+explicitly requested and fails independently. This proves the coupling, **not**
+that the hosted customer's history is corrupt. No production account was read;
+the hosted initiating fault, cookie/proxy behavior and browser acceptance remain
+unobserved. Neither a cookie defect nor hosted Jackson defect is claimed.
+
+Backend first is compatible with older strict clients: the profile keeps exactly
+five fields and PUT validation/versioning/checkout prefill are unchanged. The new
+location endpoint is separate; the new frontend tolerates its 404/error without
+hiding the profile. No data migration, account merge or default mutation occurs.
+
 Implementation started 2026-10-26. Final local validation: clean system-Maven
 run passed **398 tests / 49 suites**, zero failures/errors/skips; website passed
 **132 tests** and all **19 JS/MJS syntax checks**. Final scoped review PASS after
@@ -39,8 +67,29 @@ Exact successful response (no extra fields):
 - `version`: JSON safe integer, initially 0, persisted versions 1..9007199254740991.
 - All other fields are strings, never null. Without a saved website profile,
   `name`/`address` may be suggested from the existing shared customer; absent values
-  become `""`. Both preference defaults are always `""` in this initial response.
+  become `""`. Preferences are suggested independently from the customer's latest
+  valid delivery/loaf choices on accepted non-cancelled RETAIL orders, excluding
+  DRAFT and subscription orders. Shared Customer has no preference columns:
+  WhatsApp keeps these on prior orders. Each query is scoped to the authenticated
+  customer and allowlisted enum; absent/unsupported choices become `""`.
+  A saved website profile takes precedence over all suggestions.
 - GET never inserts a profile or records acceptance/consent to those suggestions.
+
+## GET /api/account/location
+
+Exact response: `{latitude:number|null,longitude:number|null}`. Both fields are
+always present. Uses only the authenticated customer's shared saved pin, never a
+customer/order identifier parameter. Any query parameter returns 400 after auth.
+Incomplete or out-of-range stored pairs return both null; valid inclusive bounds
+are latitude -90..90 and longitude -180..180. Zero is valid. No POST/PUT route.
+
+The existing cookie-pair, independent rollout gates, exact Origin and private
+no-store protections apply. No address, phone, ID or arbitrary URL is included.
+No shared field/profile/order is changed; only existing auth activity can advance.
+The frontend strictly validates numeric types/ranges and constructs an outbound
+no-referrer Maps link only from the validated pair. No map embed, geolocation
+permission, pin save or external request happens automatically. A nullable pair
+or optional endpoint error never hides the profile; 401/403 still clears all PII.
 
 ## PUT /api/account/profile
 

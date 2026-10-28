@@ -43,7 +43,7 @@ class WebCheckoutDisabledTest {
         mvc.perform(post("/api/checkout").contentType("application/json").content("{}"))
                 .andExpect(status().isNotFound());
         mvc.perform(get("/api/checkout/opaque")).andExpect(status().isNotFound());
-        for (String path : java.util.List.of("/api/account", "/api/account/profile", "/api/account/orders",
+        for (String path : java.util.List.of("/api/account", "/api/account/profile", "/api/account/location", "/api/account/orders",
                 "/api/account/orders/opaque", "/api/account/checkout", "/api/account/unknown")) {
             mvc.perform(get(path)).andExpect(status().isNotFound())
                     .andExpect(header().string("Cache-Control", "no-store, private"));

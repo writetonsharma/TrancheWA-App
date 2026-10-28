@@ -36,6 +36,12 @@ public class WebAccountController {
         return accounts.save(body, request);
     }
 
+    @GetMapping("/location")
+    public WebAccountService.Location location(HttpServletRequest request) {
+        requireEnabled();
+        return accounts.location(request);
+    }
+
     @GetMapping("/orders")
     public WebAccountService.History orders(HttpServletRequest request) {
         requireEnabled();

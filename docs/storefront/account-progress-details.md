@@ -63,3 +63,50 @@ cart/checkout/webhook/cutoff/capacity and full regressions. Check warnings as we
 as failures. No passing test/build claim is made by this implementation worker.
 No task.md/progress workflow paths were supplied, so research and append-only
 execution evidence are recorded here instead of inventing workflow task folders.
+
+## Account/profile escalation correction — 2026-10-28
+
+- Execution extension lookup: none apply. Preserved pre-existing AuthCrypto/phone
+  work and all website copy/phone changes. No lifecycle tools, task folders,
+  parked source, production account/provider/OTP access, push or bundles.
+- Baseline account tests passed before edits. Added real random-port loopback HTTP
+  on the local test database to create cart/quote/checkout, then exercise actual
+  settlement binding and read PAYABLE/PAID history and detail. Providers and
+  notification boundaries stay mocked; this is not a real payment/webhook claim.
+- Passed serialized backend projections through the actual sibling Node validators.
+  Observed createdAt `2026-10-27T18:46:23.918016Z`, expiresAt
+  `2026-11-05T17:30:00Z`, string date and numeric total; validators accept them.
+  No local Jackson timestamp defect found; no serializer config was changed.
+- Injected a null quote only into a synthetic test attempt: history returned 500,
+  same-cookie profile stayed 200. Before fix, frontend wire regression failed
+  because profile was null. Root cause proven: refresh Promise.all couples profile
+  to unrelated history. Hosted initiating fault remains unknown, not inferred to
+  be corrupt history, a cookie problem, or a timestamp defect.
+- Backend changes: WebAccountService/Controller suggest name/address from shared
+  Customer and safe preferences from own accepted non-subscription retail orders
+  only when no dedicated profile exists. Separate GET location is own-cookie-only,
+  no query parameters, exact numeric/null pair with inclusive geographic bounds.
+  No write endpoint, shared-default mutation, entity serialization or migration.
+  Strict five-field profile GET/PUT, CAS and checkout prefill remain compatible.
+- Backend tests changed: WebAccountHttpTest, WebAccountServiceTest,
+  WebAuthDisabledTest, WebCheckoutDisabledTest. Cover own/foreign auth, Origin,
+  read-only methods, disabled gates, shared-data immutability (excluding the normal
+  auth web-activity timestamp), prior preference scope/profile priority, nullable/
+  incomplete/out-of-range/zero/boundary pins and actual paid wire responses.
+- Frontend changes: account page/controller/model, exact API allowlist and Vercel
+  location rewrite; account/API/routing/wire tests plus one stale checkout copy
+  assertion. Profile is independent, history explicit-click, optional pin errors
+  cannot hide profile, refresh bursts coalesce and privacy generations/DOM wiping
+  remain. Top refresh/instruction removed, Sign in shortened, reload/discard hidden
+  normally and shown only for failure/conflict recovery. Detailed frontend files
+  and evidence also appended to sibling storefront/progress-details.md.
+- Final validation: clean Java-17 system Maven **447 tests / 49 suites**, zero
+  failures/errors/skips. Full frontend **340/340**, no skips/cancellations;
+  **26/26** source/test script syntax checks; both git diff --check and scoped
+  editor diagnostics pass. Initial new test assertions were corrected to use the
+  prepared quote amount (acceptance has no quote) and exclude documented normal
+  auth activity, not by weakening production settlement/data protections.
+- Limits/decision: hosted initiating fault and native-browser/hosted cookie,
+  Vercel routing and UX are not validated here. Backend-first deployment remains
+  required; older clients ignore the separate endpoint, new frontend tolerates
+  it being unavailable. No account merge/data migration decision is needed.

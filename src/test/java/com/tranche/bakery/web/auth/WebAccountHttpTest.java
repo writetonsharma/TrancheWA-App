@@ -23,7 +23,14 @@ import com.tranche.bakery.whatsapp.CustomerNotifier;
 import com.tranche.bakery.whatsapp.WhatsAppClient;
 import jakarta.servlet.http.Cookie;
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -51,7 +58,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /** Real PostgreSQL, security filters and cookie-pair identity; all providers are mocked. */
-@SpringBootTest(properties = {
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
+    "server.address=127.0.0.1", "server.forward-headers-strategy=none",
         "bakery.web.enabled=true", "bakery.web.checkout.enabled=true", "bakery.web.otp.enabled=false",
         "bakery.web.cookie.secure=false", "bakery.cleanup.enabled=false",
         "bakery.web.auth-secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
@@ -63,6 +71,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @ActiveProfiles("test")
 class WebAccountHttpTest {
     private static final String ADDRESS = "Flat 42, Account Lane, Gurugram";
+    @org.springframework.boot.test.web.server.LocalServerPort int port;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper mapper;
@@ -340,7 +349,7 @@ class WebAccountHttpTest {
 
     @Test void accountRequiresCookiePairNotAdminSessionHeadersOrOtherBrowserBinding() throws Exception {
         Attempt accepted = seed(owner);
-        List<String> paths = List.of("/api/account/profile", "/api/account/orders", "/api/account/checkout",
+        List<String> paths = List.of("/api/account/profile", "/api/account/location", "/api/account/orders", "/api/account/checkout",
                 "/api/account/orders/" + accepted.id());
         Browser other = browser();
         for (String path : paths) {
@@ -557,5 +566,122 @@ class WebAccountHttpTest {
         save(profile(0), owner, 200);
         jdbc.update("DELETE FROM customers WHERE id=?", owner.customerId());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM web_customer_profiles WHERE customer_id=?", Integer.class, owner.customerId())).isZero();
+    }
+
+        private HttpResponse<String> wire(String method, String path, JsonNode body) throws Exception {
+        var cookies = java.util.Arrays.stream(owner.cookies()).map(c -> c.getName() + "=" + c.getValue())
+            .collect(java.util.stream.Collectors.joining("; "));
+        var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
+            .timeout(Duration.ofSeconds(25)).header("Cookie", cookies).header("X-XSRF-TOKEN", owner.csrf());
+        if (body != null) request.header("Content-Type", "application/json");
+        var response = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build().send(
+            request.method(method, body == null ? HttpRequest.BodyPublishers.noBody()
+                : HttpRequest.BodyPublishers.ofString(body.toString())).build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(response.headers().firstValue("Cache-Control")).hasValue("no-store, private");
+        return response;
+        }
+
+        private JsonNode wireJson(String method, String path, JsonNode body) throws Exception {
+        var response = wire(method, path, body);
+        assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(200);
+        return mapper.readTree(response.body());
+        }
+
+        @Test void loopbackRealCheckoutPaidHistoryAndBrokenHistoryExportFrontendContract() throws Exception {
+        when(razorpay.isGatewayMode()).thenReturn(true);
+        when(razorpay.isConfigured()).thenReturn(true);
+        when(razorpay.webhookConfigured()).thenReturn(true);
+        when(razorpay.createPaymentLink(any(), any(), any(), any(), any(), any(), any()))
+            .thenReturn(new RazorpayService.PaymentLink("plink_account_wire", "https://rzp.io/i/account-wire"));
+        jdbc.update("UPDATE customers SET name='Wire Customer',delivery_address=? WHERE id=?", ADDRESS, owner.customerId());
+        var payload = mapper.createObjectNode();
+        payload.set("session", wireJson("GET", "/api/session", null));
+        payload.set("profile", wireJson("GET", "/api/account/profile", null));
+        var cart = mapper.createObjectNode().put("version", 0).put("date", date.toString());
+        cart.putArray("lines").addObject().put("itemId", itemId).put("quantity", 1);
+        wireJson("PUT", "/api/cart", cart);
+        var prepared = wireJson("POST", "/api/checkout/prepare", mapper.createObjectNode().put("cartVersion", 1));
+        var input = mapper.createObjectNode().put("idempotencyKey", UUID.randomUUID().toString()).put("cartVersion", 1)
+            .put("quoteToken", prepared.path("quoteToken").asText()).put("name", "Wire Customer")
+            .put("address", ADDRESS).put("deliveryPreference", "DOOR").put("loafPreference", "SLICED");
+        var accepted = wireJson("POST", "/api/checkout", input);
+        String id = accepted.path("id").asText();
+        long orderId = jdbc.queryForObject("SELECT order_id FROM web_checkout_attempts WHERE id=?", Long.class, id);
+        payload.set("payable", wireJson("GET", "/api/account/orders/" + id, null));
+        admin.confirmGatewayPayment(orderId, "pay_account_wire", "plink_account_wire", prepared.path("quote").path("totalAmount").decimalValue(),
+            id, "web_" + id, "INR");
+        payload.set("paid", wireJson("GET", "/api/account/orders/" + id, null));
+        payload.set("history", wireJson("GET", "/api/account/orders?page=0", null));
+        payload.set("profile", wireJson("GET", "/api/account/profile", null));
+        payload.set("location", wireJson("GET", "/api/account/location", null));
+        assertThat(payload.path("paid").path("status").asText()).isEqualTo("PAID");
+        assertThat(payload.path("history").path("orders").get(0).path("createdAt").isTextual()).isTrue();
+        assertThat(Instant.parse(payload.path("paid").path("createdAt").asText())).isNotNull();
+        // A corrupt historical snapshot is independent of valid identity/profile. Local synthetic data only.
+        jdbc.update("UPDATE web_checkout_attempts SET snapshot=jsonb_set(snapshot,'{quote}','null'::jsonb) WHERE id=?", id);
+        var failed = wire("GET", "/api/account/orders?page=0", null);
+        assertThat(failed.statusCode()).isEqualTo(500);
+        payload.put("historyFailureStatus", failed.statusCode());
+        assertThat(wireJson("GET", "/api/account/profile", null)).isEqualTo(payload.get("profile"));
+        // Test-only wire artifact: no real customer, OTP or provider data. Consumed by sibling Node contract tests.
+        Files.writeString(Path.of("target/account-http-contract.json"), mapper.writeValueAsString(payload));
+        verify(razorpay).createPaymentLink(any(), any(), any(), any(), any(), any(), any());
+        }
+
+    @Test void existingPreferencesAndOwnPinAreReadOnlySuggestionsAndSavedProfileWins() throws Exception {
+        Attempt previous = seed(owner);
+        jdbc.update("UPDATE orders SET delivery_preference='IN_PERSON',loaf_preference='SLICED' WHERE id=?", previous.orderId());
+        Attempt foreign = seed(browser());
+        jdbc.update("UPDATE orders SET delivery_preference='GATE',loaf_preference='WHOLE' WHERE id=?", foreign.orderId());
+        Attempt draft = seed(owner);
+        jdbc.update("UPDATE orders SET status='DRAFT',delivery_preference='DOOR',loaf_preference='WHOLE' WHERE id=?", draft.orderId());
+        jdbc.update("UPDATE customers SET location_lat=28.45,location_lng=77.02 WHERE id=?", owner.customerId());
+        var shared = jdbc.queryForMap("SELECT * FROM customers WHERE id=?", owner.customerId());
+        shared.remove("last_web_activity_at"); // Normal authentication activity is intentionally updated.
+        var order = jdbc.queryForMap("SELECT * FROM orders WHERE id=?", previous.orderId());
+        var suggestions = call(get("/api/account/profile"), owner, false, 200);
+        fields(suggestions, "version", "name", "address", "deliveryPreference", "loafPreference");
+        assertThat(suggestions.path("deliveryPreference").asText()).isEqualTo("IN_PERSON");
+        assertThat(suggestions.path("loafPreference").asText()).isEqualTo("SLICED");
+        var location = call(get("/api/account/location"), owner, false, 200);
+        fields(location, "latitude", "longitude");
+        assertThat(location.path("latitude").decimalValue()).isEqualByComparingTo("28.45");
+        assertThat(location.path("longitude").decimalValue()).isEqualByComparingTo("77.02");
+        var other = call(get("/api/account/location"), browser(), false, 200);
+        assertThat(other.path("latitude").isNull()).isTrue();
+        assertThat(other.path("longitude").isNull()).isTrue();
+        problem(call(get("/api/account/location").param("customerId", String.valueOf(foreign.orderId())), owner, false, 400), "INVALID_REQUEST");
+        call(get("/api/account/location").header("Origin", "https://evil.example"), owner, false, 403);
+        call(put("/api/account/location").contentType("application/json").content("{}"), owner, true, 405);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM web_customer_profiles WHERE customer_id=?", Integer.class, owner.customerId())).isZero();
+        var saved = save(profile(0), owner, 200);
+        assertThat(call(get("/api/account/profile"), owner, false, 200)).isEqualTo(saved);
+        assertThat(call(get("/api/account/location"), owner, false, 200)).isEqualTo(location);
+        var after = jdbc.queryForMap("SELECT * FROM customers WHERE id=?", owner.customerId());
+        after.remove("last_web_activity_at");
+        assertThat(after).isEqualTo(shared);
+        assertThat(jdbc.queryForMap("SELECT * FROM orders WHERE id=?", previous.orderId())).isEqualTo(order);
+        verifyNoInteractions(razorpay, notifier);
+    }
+
+    @Test void incompleteAndOutOfRangePinsAreOmittedWithoutChangingStoredValues() throws Exception {
+        for (String[] pair : new String[][] {{null, null}, {"28", null}, {null, "77"}, {"90.000001", "77"},
+                {"28", "180.000001"}, {"-90.000001", "77"}, {"28", "-180.000001"}}) {
+            jdbc.update("UPDATE customers SET location_lat=?,location_lng=? WHERE id=?",
+                    pair[0] == null ? null : new BigDecimal(pair[0]), pair[1] == null ? null : new BigDecimal(pair[1]), owner.customerId());
+            var before = jdbc.queryForMap("SELECT location_lat,location_lng FROM customers WHERE id=?", owner.customerId());
+            var result = call(get("/api/account/location"), owner, false, 200);
+            fields(result, "latitude", "longitude");
+            assertThat(result.path("latitude").isNull()).isTrue();
+            assertThat(result.path("longitude").isNull()).isTrue();
+            assertThat(jdbc.queryForMap("SELECT location_lat,location_lng FROM customers WHERE id=?", owner.customerId())).isEqualTo(before);
+        }
+        for (String[] pair : new String[][] {{"0", "0"}, {"-90", "180"}, {"90", "-180"}}) {
+            jdbc.update("UPDATE customers SET location_lat=?,location_lng=? WHERE id=?", new BigDecimal(pair[0]), new BigDecimal(pair[1]), owner.customerId());
+            var result = call(get("/api/account/location"), owner, false, 200);
+            assertThat(result.path("latitude").decimalValue()).isEqualByComparingTo(pair[0]);
+            assertThat(result.path("longitude").decimalValue()).isEqualByComparingTo(pair[1]);
+        }
+        verifyNoInteractions(razorpay, notifier);
     }
 }
