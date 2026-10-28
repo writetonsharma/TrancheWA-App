@@ -105,7 +105,8 @@ public class WebApiSecurity {
                 String path = request.getRequestURI().substring(request.getContextPath().length());
                 if (!checkoutEnabled && ("/api/cart".equals(path) || "/api/checkout".equals(path)
                     || path.startsWith("/api/checkout/") || "/api/account".equals(path)
-                    || path.startsWith("/api/account/"))) { response.setStatus(404); return; }
+                    || path.startsWith("/api/account/") || "/api/subscriptions".equals(path)
+                    || path.startsWith("/api/subscriptions/"))) { response.setStatus(404); return; }
             String origin = request.getHeader(HttpHeaders.ORIGIN);
             String sameOrigin = request.getScheme() + "://" + request.getServerName()
                     + ((request.getServerPort() == 443 && "https".equals(request.getScheme()))

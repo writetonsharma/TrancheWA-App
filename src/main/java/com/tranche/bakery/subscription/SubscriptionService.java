@@ -178,9 +178,7 @@ public class SubscriptionService {
         Subscription sub = subscriptionRepository.findById(Objects.requireNonNull(subscriptionId)).orElse(null);
         if (sub == null || sub.getStatus() != SubscriptionStatus.PENDING_PAYMENT) return;
 
-        // Honour the same 5 PM cutoff as one-time orders: a payment after the cutoff can't claim the next day.
-        LocalDate earliest = deliveryRules.earliestDate(new DeliveryRules.CartFlags(false, false, 0, true));
-        LocalDate firstDelivery = nextOccurrence(earliest, sub.getDeliveryDay());
+        LocalDate firstDelivery = firstDeliveryFor(sub.getDeliveryDay());
         LocalDate endDate = firstDelivery.plusWeeks(totalWeeks(sub) - 1L);
 
         // Atomic flip so a duplicate/concurrent approval can't send the confirmation twice.
@@ -196,6 +194,12 @@ public class SubscriptionService {
         generateForSubscription(active);
         log.info("Subscription {} activated for customer {} — {} deliveries from {}, delivery on {}",
                 active.getId(), active.getCustomer().getId(), totalWeeks(active), firstDelivery, active.getDeliveryDay());
+    }
+
+    /** First delivery if paid now. Honours the same 5 PM cutoff as one-time orders. */
+    public LocalDate firstDeliveryFor(DayOfWeek day) {
+        LocalDate earliest = deliveryRules.earliestDate(new DeliveryRules.CartFlags(false, false, 0, true));
+        return nextOccurrence(earliest, day);
     }
 
     // Gateway subscriptions auto-activate with no screenshot to review, so ping the admin that a paid subscription landed.
@@ -299,7 +303,9 @@ public class SubscriptionService {
                 if (sub.getCustomer() != null && sub.getCustomer().getPhone() != null) {
                     whatsAppClient.sendText(sub.getCustomer().getPhone(),
                             "Your subscription request expired as payment wasn't received. " +
-                            "Send *hi* to start again whenever you're ready. \uD83E\uDD56");
+                            ("WEB".equals(sub.getChannel())
+                                    ? "Start again at tranchebakery.in/subscribe.html whenever you're ready. \uD83E\uDD56"
+                                    : "Send *hi* to start again whenever you're ready. \uD83E\uDD56"));
                 }
                 log.info("Subscription {} expired (unpaid draft)", sub.getId());
             }
@@ -370,9 +376,21 @@ public class SubscriptionService {
         order.setSubscriptionId(sub.getId());
         order.setTotalAmount(BigDecimal.ZERO);
         order.setDeliveryCharge(BigDecimal.ZERO);
-        order.setDeliveryAddress(customer.getDeliveryAddress());
-        order.setLocationLat(customer.getLocationLat());
-        order.setLocationLng(customer.getLocationLng());
+        if (sub.getDeliveryAddress() != null) {
+            // Website subscription: deliver to the details accepted at sign-up, not the shared WhatsApp record.
+            order.setDeliveryAddress(sub.getDeliveryAddress());
+            order.setDeliveryPreference(sub.getDeliveryPreference());
+            order.setLoafPreference(sub.getLoafPreference());
+            // A saved WhatsApp pin only applies when it belongs to the same address.
+            if (sub.getDeliveryAddress().strip().equalsIgnoreCase(Objects.toString(customer.getDeliveryAddress(), "").strip())) {
+                order.setLocationLat(customer.getLocationLat());
+                order.setLocationLng(customer.getLocationLng());
+            }
+        } else {
+            order.setDeliveryAddress(customer.getDeliveryAddress());
+            order.setLocationLat(customer.getLocationLat());
+            order.setLocationLng(customer.getLocationLng());
+        }
         order = orderRepository.save(order);
         order.setOrderNumber(orderNumberGenerator.generate(order.getId(), order.getCreatedAt()));
         order = orderRepository.save(order);

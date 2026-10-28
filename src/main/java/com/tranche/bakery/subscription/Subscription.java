@@ -110,6 +110,22 @@ public class Subscription {
     @Enumerated(EnumType.STRING)
     private SubscriptionStatus status = SubscriptionStatus.PENDING_PAYMENT;
 
+    // WHATSAPP or WEB. Web subscriptions snapshot delivery details; WhatsApp ones use the customer record.
+    @Column(nullable = false, length = 20)
+    private String channel = "WHATSAPP";
+
+    @Column(name = "delivery_name", length = 100)
+    private String deliveryName;
+
+    @Column(name = "delivery_address", length = 2000)
+    private String deliveryAddress;
+
+    @Column(name = "delivery_preference", length = 20)
+    private String deliveryPreference;
+
+    @Column(name = "loaf_preference", length = 20)
+    private String loafPreference;
+
     @OneToMany(mappedBy = "subscription", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     private List<SubscriptionItem> items = new ArrayList<>();
 
