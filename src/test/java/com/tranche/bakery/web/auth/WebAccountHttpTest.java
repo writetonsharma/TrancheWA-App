@@ -442,7 +442,21 @@ class WebAccountHttpTest {
             problem(call(get("/api/account/orders").param("page", page), owner, false, 400), "INVALID_REQUEST");
         problem(call(get("/api/account/orders").param("page", "0", "1"), owner, false, 400), "INVALID_REQUEST");
         problem(call(get("/api/account/orders").param("page[]", "0"), owner, false, 400), "INVALID_REQUEST");
-        problem(call(get("/api/account/orders").param("page", "0").param("customerId", "1"), owner, false, 400), "INVALID_REQUEST");
+    }
+
+    @Test void proxyAddedQueryFieldsAreIgnoredAndNeverSelectAnotherCustomer() throws Exception {
+        Attempt mine = seed(owner);
+        Attempt theirs = seed(browser());
+        // Vercel's host-guarded external rewrite forwards the matched host as a query field.
+        var plain = call(get("/api/account/orders").param("host", "www.tranchebakery.in"), owner, false, 200);
+        assertThat(plain.path("page").asInt()).isZero();
+        assertThat(plain.path("orders")).hasSize(1);
+        assertThat(plain.path("orders").get(0).path("id").asText()).isEqualTo(mine.id());
+        var paged = call(get("/api/account/orders").param("page", "0").param("customerId", "1")
+                .param("host", "tranchebakery.in"), owner, false, 200);
+        assertThat(paged.toString()).contains(mine.id()).doesNotContain(theirs.id());
+        problem(call(get("/api/account/orders").param("page", "x").param("host", "tranchebakery.in"), owner, false, 400), "INVALID_REQUEST");
+        fields(call(get("/api/account/location").param("host", "www.tranchebakery.in"), owner, false, 200), "latitude", "longitude");
     }
 
     @Test void detailAndRecoveryAreHistoricalSnapshotsNotLiveCatalogCustomerOrSavedProfile() throws Exception {
@@ -650,7 +664,8 @@ class WebAccountHttpTest {
         var other = call(get("/api/account/location"), browser(), false, 200);
         assertThat(other.path("latitude").isNull()).isTrue();
         assertThat(other.path("longitude").isNull()).isTrue();
-        problem(call(get("/api/account/location").param("customerId", String.valueOf(foreign.orderId())), owner, false, 400), "INVALID_REQUEST");
+        assertThat(call(get("/api/account/location").param("customerId", String.valueOf(foreign.orderId())), owner, false, 200))
+                .isEqualTo(location);
         call(get("/api/account/location").header("Origin", "https://evil.example"), owner, false, 403);
         call(put("/api/account/location").contentType("application/json").content("{}"), owner, true, 405);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM web_customer_profiles WHERE customer_id=?", Integer.class, owner.customerId())).isZero();

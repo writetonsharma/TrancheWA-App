@@ -82,8 +82,9 @@ public class WebAccountService {
 
     public Location location(HttpServletRequest request) {
         return Objects.requireNonNull(tx.execute(status -> {
+            // Query parameters are ignored: the Vercel host-guarded rewrite forwards extras (e.g. host),
+            // and identity only ever comes from the session cookie.
             var customer = carts.requireCustomer(request);
-            if (!request.getParameterMap().isEmpty()) throw invalid();
             BigDecimal lat = customer.getLocationLat(), lng = customer.getLocationLng();
             // Omit both when legacy coordinates are incomplete or outside geographic bounds.
             if (lat == null || lng == null || lat.abs().compareTo(BigDecimal.valueOf(90)) > 0
@@ -175,12 +176,13 @@ public class WebAccountService {
     }
 
     private static int page(HttpServletRequest request) {
-        // Do not accept Spring's numeric coercion, duplicate params, array aliases or extra query fields.
+        // Do not accept Spring's numeric coercion, duplicate params or array aliases. Unrelated query fields are
+        // ignored because the Vercel host-guarded rewrite forwards extras (e.g. host) to the backend.
         var params = request.getParameterMap();
-        if (params.isEmpty()) return 0;
+        if (params.containsKey("page[]")) throw invalid();
         String[] values = params.get("page");
-        if (params.size() != 1 || values == null || values.length != 1
-                || !values[0].matches("0|[1-9][0-9]{0,4}")) throw invalid();
+        if (values == null) return 0;
+        if (values.length != 1 || !values[0].matches("0|[1-9][0-9]{0,4}")) throw invalid();
         int page = Integer.parseInt(values[0]);
         if (page > 10_000) throw invalid();
         return page;
