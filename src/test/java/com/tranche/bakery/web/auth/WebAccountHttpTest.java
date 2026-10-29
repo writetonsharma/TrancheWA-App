@@ -457,6 +457,61 @@ class WebAccountHttpTest {
         verifyNoInteractions(razorpay, notifier);
     }
 
+    private long subscription(Browser browser, String status, String created, LocalDate start) {
+        return jdbc.queryForObject("""
+            INSERT INTO subscriptions(customer_id,plan_code,plan_name,tier,weekly_price,delivery_charge,commitment_weeks,
+            bonus_weeks,upfront_amount,delivery_day,start_date,end_date,status,created_at,updated_at)
+            VALUES (?,'ACCOUNT_TEST','Weekly sourdough','TEST',200,0,4,1,800,'FRIDAY',?,?,?,?::timestamp,now()) RETURNING id
+            """, Long.class, browser.customerId(), start, start == null ? null : start.plusWeeks(4), status, created);
+    }
+
+    @Test void historyListsStartedSubscriptionsAsOneSummaryRowAmongOrders() throws Exception {
+        Attempt wa = seed(owner);
+        jdbc.update("UPDATE orders SET channel='WHATSAPP',status='COMPLETED',created_at='2026-09-20 10:00:00' WHERE id=?", wa.orderId());
+        LocalDate start = LocalDate.of(2026, 8, 7);
+        long completed = subscription(owner, "COMPLETED", "2026-08-01 09:00:00", start);
+        for (int week = 1; week <= 3; week++) {
+            Attempt delivery = seed(owner);
+            jdbc.update("UPDATE orders SET channel='WHATSAPP',status=?,subscription_id=? WHERE id=?",
+                    week < 3 ? "COMPLETED" : "CANCELLED", completed, delivery.orderId());
+            jdbc.update("INSERT INTO subscription_periods(subscription_id,week_number,delivery_date,order_id,created_at) VALUES (?,?,?,?,now())",
+                    completed, week, start.plusWeeks(week - 1), delivery.orderId());
+            jdbc.update("DELETE FROM web_checkout_attempts WHERE id=?", delivery.id());
+        }
+        subscription(owner, "ACTIVE", "2026-10-02 08:00:00", LocalDate.of(2026, 10, 9));
+        subscription(owner, "CANCELLED", "2026-09-25 08:00:00", null);    // never paid
+        subscription(owner, "PENDING_PAYMENT", "2026-10-03 08:00:00", null);
+        subscription(browser(), "ACTIVE", "2026-10-02 08:00:00", LocalDate.of(2026, 10, 9));
+        jdbc.update("DELETE FROM web_checkout_attempts WHERE id=?", wa.id());
+
+        var orders = call(get("/api/account/orders"), owner, false, 200).path("orders");
+        assertThat(orders).hasSize(3);
+        assertThat(orders.get(0).path("channel").asText()).isEqualTo("SUBSCRIPTION");
+        assertThat(orders.get(0).path("status").asText()).isEqualTo("ACTIVE");
+        assertThat(orders.get(1).path("channel").asText()).isEqualTo("WHATSAPP");
+        fields(orders.get(1), "id", "channel", "orderNumber", "createdAt", "deliveryDate", "orderStatus", "status", "totalAmount");
+        var past = orders.get(2);
+        fields(past, "id", "channel", "orderNumber", "createdAt", "deliveryDate", "orderStatus", "status", "totalAmount", "subscription");
+        assertThat(past.path("id").isNull()).isTrue();
+        assertThat(past.path("orderNumber").isNull()).isTrue();
+        assertThat(past.path("deliveryDate").isNull()).isTrue();
+        assertThat(past.path("orderStatus").isNull()).isTrue();
+        assertThat(past.path("status").asText()).isEqualTo("COMPLETED");
+        // created_at is IST wall time: 09:00 IST is 03:30Z.
+        assertThat(Instant.parse(past.path("createdAt").asText())).isEqualTo(Instant.parse("2026-08-01T03:30:00Z"));
+        assertThat(past.path("totalAmount").decimalValue()).isEqualByComparingTo("800");
+        var detail = past.path("subscription");
+        fields(detail, "planName", "deliveryDay", "startDate", "endDate", "weeks", "delivered");
+        assertThat(detail.path("planName").asText()).isEqualTo("Weekly sourdough");
+        assertThat(detail.path("deliveryDay").asText()).isEqualTo("FRIDAY");
+        assertThat(detail.path("startDate").asText()).isEqualTo("2026-08-07");
+        assertThat(detail.path("endDate").asText()).isEqualTo("2026-09-04");
+        assertThat(detail.path("weeks").asInt()).isEqualTo(5);
+        assertThat(detail.path("delivered").asInt()).isEqualTo(2);
+        assertThat(orders.toString()).doesNotContain("\"" + completed + "\"", "ACCOUNT_TEST", "phone", "customerId");
+        verifyNoInteractions(razorpay, notifier);
+    }
+
     @Test void pageDoesNotAcceptArraysDuplicatesCoercionOrUnboundedOffsets() throws Exception {
         for (String page : List.of("", "-1", "+1", "01", "1.0", "1e2", " 1", "10001", "99999999999999999999", "[0]", "null"))
             problem(call(get("/api/account/orders").param("page", page), owner, false, 400), "INVALID_REQUEST");
@@ -645,6 +700,7 @@ class WebAccountHttpTest {
         admin.confirmGatewayPayment(orderId, "pay_account_wire", "plink_account_wire", prepared.path("quote").path("totalAmount").decimalValue(),
             id, "web_" + id, "INR");
         payload.set("paid", wireJson("GET", "/api/account/orders/" + id, null));
+        subscription(owner, "COMPLETED", "2026-08-01 09:00:00", LocalDate.of(2026, 8, 7));
         payload.set("history", wireJson("GET", "/api/account/orders?page=0", null));
         payload.set("profile", wireJson("GET", "/api/account/profile", null));
         payload.set("location", wireJson("GET", "/api/account/location", null));

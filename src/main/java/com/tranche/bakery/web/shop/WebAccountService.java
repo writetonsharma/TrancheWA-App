@@ -1,5 +1,6 @@
 package com.tranche.bakery.web.shop;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,16 +29,29 @@ public class WebAccountService {
             AND o.source='RETAIL' AND o.subscription_id IS NULL AND o.status<>'DRAFT'
             """;
     // WhatsApp rows are summary-only: no checkout snapshot, detail view or payment link. orders.created_at is IST wall time.
+    // Subscriptions are one summary row each (not one per weekly delivery), only once they have actually started:
+    // unpaid requests that were cancelled or are still awaiting payment never appear. created_at is IST wall time.
     private static final String HISTORY = """
-            SELECT h.channel,h.ref,h.order_number,h.at,h.status,h.snapshot,h.delivery_date,h.total_amount FROM (
+            SELECT h.channel,h.ref,h.order_number,h.at,h.status,h.snapshot,h.delivery_date,h.total_amount,
+                   h.plan_name,h.delivery_day,h.start_date,h.end_date,h.weeks,h.delivered FROM (
               SELECT 'WEB' AS channel,a.id AS ref,o.order_number,a.created_at AS at,o.status,a.snapshot::text AS snapshot,
-                     NULL::date AS delivery_date,NULL::numeric AS total_amount
+                     NULL::date AS delivery_date,NULL::numeric AS total_amount,NULL::varchar AS plan_name,
+                     NULL::varchar AS delivery_day,NULL::date AS start_date,NULL::date AS end_date,NULL::int AS weeks,
+                     NULL::bigint AS delivered
             """ + OWNED + """
               UNION ALL
               SELECT 'WHATSAPP',o.id::text,o.order_number,o.created_at AT TIME ZONE 'Asia/Kolkata',o.status,NULL,
-                     o.delivery_date,o.total_amount
+                     o.delivery_date,o.total_amount,NULL,NULL,NULL,NULL,NULL,NULL
               FROM orders o WHERE o.customer_id=? AND o.channel='WHATSAPP' AND o.source='RETAIL'
               AND o.subscription_id IS NULL AND o.status<>'DRAFT' AND o.order_number IS NOT NULL
+              UNION ALL
+              SELECT 'SUBSCRIPTION',s.id::text,NULL,s.created_at AT TIME ZONE 'Asia/Kolkata',s.status,NULL,
+                     NULL,s.upfront_amount,s.plan_name,s.delivery_day,s.start_date,s.end_date,
+                     s.commitment_weeks+GREATEST(s.bonus_weeks,0),
+                     (SELECT count(*) FROM subscription_periods p JOIN orders d ON d.id=p.order_id
+                      WHERE p.subscription_id=s.id AND d.status='COMPLETED')
+              FROM subscriptions s WHERE s.customer_id=? AND s.status IN ('ACTIVE','COMPLETED','CANCELLED')
+              AND s.start_date IS NOT NULL AND s.end_date IS NOT NULL
             ) h ORDER BY h.at DESC,h.channel,h.ref DESC LIMIT 11 OFFSET ?
             """;
     private final JdbcTemplate jdbc;
@@ -57,15 +71,19 @@ public class WebAccountService {
     public record Location(BigDecimal latitude, BigDecimal longitude) { }
     private record Preferences(String delivery, String loaf) { }
     public record Fulfillment(String name, String address, String deliveryPreference, String loafPreference) { }
+    // Order rows omit "subscription" entirely so their wire shape is unchanged.
     public record Summary(String id, String channel, String orderNumber, Instant createdAt, LocalDate deliveryDate,
-                          String orderStatus, String status, BigDecimal totalAmount) { }
+                          String orderStatus, String status, BigDecimal totalAmount,
+                          @JsonInclude(JsonInclude.Include.NON_NULL) SubscriptionSummary subscription) { }
+    public record SubscriptionSummary(String planName, String deliveryDay, LocalDate startDate, LocalDate endDate,
+                                      int weeks, int delivered) { }
     public record History(List<Summary> orders, int page, boolean hasMore) { }
     public record Detail(String id, String orderNumber, Instant createdAt, String orderStatus, String status,
                          String paymentUrl, Instant expiresAt, Fulfillment fulfillment, StorefrontDtos.Quote quote) { }
     public record Recovery(Detail checkout) { }
     private record Stored(String id, String number, Instant created, String orderStatus, JsonNode snapshot) { }
     private record HistoryRow(String channel, String ref, String number, Instant created, String orderStatus,
-                              String snapshot, LocalDate deliveryDate, BigDecimal totalAmount) { }
+                              String snapshot, LocalDate deliveryDate, BigDecimal totalAmount, SubscriptionSummary subscription) { }
 
     public Profile profile(HttpServletRequest request) {
         return Objects.requireNonNull(tx.execute(status -> {
@@ -137,14 +155,20 @@ public class WebAccountService {
             int page = page(request);
             var rows = jdbc.query(HISTORY, (rs, n) -> new HistoryRow(rs.getString(1), rs.getString(2), rs.getString(3),
                     rs.getTimestamp(4).toInstant(), rs.getString(5), rs.getString(6), rs.getObject(7, LocalDate.class),
-                    rs.getBigDecimal(8)), customer.getId(), customer.getId(), page * 10);
+                    rs.getBigDecimal(8), "SUBSCRIPTION".equals(rs.getString(1))
+                            ? new SubscriptionSummary(rs.getString(9), rs.getString(10), rs.getObject(11, LocalDate.class),
+                                    rs.getObject(12, LocalDate.class), rs.getInt(13), rs.getInt(14))
+                            : null), customer.getId(), customer.getId(), customer.getId(), page * 10);
             var summaries = rows.stream().limit(10).map(row -> {
+                // Subscription rows carry their status in "status" (ACTIVE/COMPLETED/CANCELLED); no order status or id.
+                if (row.subscription() != null) return new Summary(null, row.channel(), null, row.created(),
+                        null, null, row.orderStatus(), row.totalAmount(), row.subscription());
                 if (!"WEB".equals(row.channel())) return new Summary(null, row.channel(), row.number(), row.created(),
-                        row.deliveryDate(), row.orderStatus(), null, row.totalAmount());
+                        row.deliveryDate(), row.orderStatus(), null, row.totalAmount(), null);
                 var quote = quote(parse(row.snapshot()));
                 var payment = checkouts.accountStatus(row.ref(), request);
                 return new Summary(row.ref(), row.channel(), row.number(), row.created(), quote.date(), row.orderStatus(),
-                        payment.status(), quote.totalAmount());
+                        payment.status(), quote.totalAmount(), null);
             }).toList();
             return new History(summaries, page, rows.size() > 10);
         }));
