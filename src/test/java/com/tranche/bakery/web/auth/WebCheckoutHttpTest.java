@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -1049,6 +1050,58 @@ class WebCheckoutHttpTest {
         assertThat(cancellationCalls).hasValue(2);
         verify(razorpay, times(2)).cancelPaymentLink(link);
         onlyOneProviderCall();
+    }
+
+    @Test void customerCancelRetiresLinkOutsideTransactionKeepsBasketAndAllowsNewCheckout() throws Exception {
+        cart(owner, 0, 1);
+        String id = checkout(owner, request(prepare(owner, 1), key())).path("id").asText();
+        String link = attempt(id).get("provider_link_id").toString();
+        doAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return null;
+        }).when(razorpay).cancelPaymentLink(link);
+        assertThat(call("POST", "/api/checkout/" + id + "/cancel", null, owner, false).statusCode()).isEqualTo(403);
+        error(call("POST", "/api/checkout/" + id + "/cancel", null, browser(), true), 404, "CHECKOUT_NOT_FOUND");
+        verify(razorpay, never()).cancelPaymentLink(any());
+        var cancelled = json(call("POST", "/api/checkout/" + id + "/cancel", null, owner, true), 200);
+        assertThat(cancelled.path("status").asText()).isEqualTo("CANCELLED");
+        noPaymentUrl(cancelled);
+        assertThat(jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, orderId(id))).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("SELECT gateway_link_url FROM payments WHERE order_id=?", String.class, orderId(id))).isNull();
+        assertThat(json(call("POST", "/api/checkout/" + id + "/cancel", null, owner, true), 200).path("status").asText())
+                .isEqualTo("CANCELLED");
+        verify(razorpay, times(1)).cancelPaymentLink(link);
+        var basket = json(call("GET", "/api/cart", null, owner, false), 200);
+        assertThat(basket.path("lines")).hasSize(1);
+        String next = checkout(owner, request(prepare(owner, basket.path("version").asLong()), key())).path("id").asText();
+        assertThat(status(owner, next).path("status").asText()).isEqualTo("PAYABLE");
+    }
+
+    @Test void customerCancelRefusesPaidOrUnconfirmedLinksWithoutCancellingTheOrder() throws Exception {
+        cart(owner, 0, 1);
+        var prepared = prepare(owner, 1);
+        String id = checkout(owner, request(prepared, key())).path("id").asText();
+        String link = attempt(id).get("provider_link_id").toString();
+        doThrow(new java.net.http.HttpTimeoutException("mock")).when(razorpay).cancelPaymentLink(link);
+        when(razorpay.fetchPaymentLink(link)).thenReturn(new RazorpayService.LinkState("paid", BigDecimal.ONE, "pay_mid_cancel"));
+        error(call("POST", "/api/checkout/" + id + "/cancel", null, owner, true), 409, "CANCEL_UNCONFIRMED");
+        assertThat(jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, orderId(id)))
+                .isEqualTo("PENDING_CONFIRMATION");
+        assertThat(status(owner, id).path("paymentUrl").asText()).startsWith("https://rzp.io/");
+        admin.confirmGatewayPayment(orderId(id), "pay_mid_cancel", link,
+                prepared.path("quote").path("totalAmount").decimalValue(), id, "web_" + id, "INR");
+        error(call("POST", "/api/checkout/" + id + "/cancel", null, owner, true), 409, "ALREADY_PAID");
+        verify(razorpay, times(1)).cancelPaymentLink(link);
+    }
+
+    @Test void customerCancelAcceptsALinkTheProviderAlreadyRetiredWithoutPayment() throws Exception {
+        cart(owner, 0, 1);
+        String id = checkout(owner, request(prepare(owner, 1), key())).path("id").asText();
+        String link = attempt(id).get("provider_link_id").toString();
+        doThrow(new IllegalStateException("already cancelled")).when(razorpay).cancelPaymentLink(link);
+        when(razorpay.fetchPaymentLink(link)).thenReturn(new RazorpayService.LinkState("cancelled", BigDecimal.ZERO, null));
+        assertThat(json(call("POST", "/api/checkout/" + id + "/cancel", null, owner, true), 200).path("status").asText())
+                .isEqualTo("CANCELLED");
     }
 
     @Test void providerTimeoutUnknownIsReconciledByVerifiedWebhookAndAllowsFutureCheckout() throws Exception {

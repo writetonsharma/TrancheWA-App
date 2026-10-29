@@ -148,10 +148,33 @@ class StorefrontQuoteTest {
         assertMoney(quote.totalAmount(), "205");
         assertMoney(quote.discountAmount(), "560");
         assertThat(quote.discountLabel()).isEqualTo("Special rate");
+        assertMoney(quote.lines().get(0).unitPrice(), "100");
+        assertMoney(quote.lines().get(0).specialUnitPrice(), "20");
         assertThat(quote.giftLabel()).isNull();
         assertMoney(quote.batchDiscountAmount(), "0");
         verifyNoInteractions(batches);
         assertMatchesOrder(quote, customer, 7);
+    }
+
+    @Test
+    void specialUnitPriceOnlyForDiscountedLinesWhenTheSpecialRateWins() throws Exception {
+        MenuItem cake = addItem(2L, "Tea cake", "550");
+        Customer customer = customer();
+        customer.getItemPrices().put(bread.getName(), new BigDecimal("100"));
+        customer.getItemPrices().put(cake.getName(), new BigDecimal("380"));
+        StorefrontDtos.Quote quote = service.quote(mapper.readTree("{\"lines\":[{\"itemId\":1,\"quantity\":2},"
+                + "{\"itemId\":2,\"quantity\":1}],\"date\":\"" + future(DayOfWeek.FRIDAY) + "\"}"), customer);
+        assertThat(quote.discountLabel()).isEqualTo("Special rate");
+        assertMoney(quote.discountAmount(), "170");
+        assertThat(quote.lines().get(0).specialUnitPrice()).isNull();
+        assertMoney(quote.lines().get(1).specialUnitPrice(), "380");
+
+        launchOffers();
+        customer.getItemPrices().put(cake.getName(), new BigDecimal("545"));
+        StorefrontDtos.Quote offer = service.quote(mapper.readTree("{\"lines\":[{\"itemId\":2,\"quantity\":1}],"
+                + "\"date\":\"" + future(DayOfWeek.FRIDAY) + "\"}"), customer);
+        assertThat(offer.discountLabel()).isEqualTo("Launch offer");
+        assertThat(offer.lines().get(0).specialUnitPrice()).isNull();
     }
 
     @Test
@@ -433,7 +456,9 @@ class StorefrontQuoteTest {
         assertFields(response, Set.of("lines", "listSubtotal", "discountAmount", "discountLabel",
                 "batchDiscountAmount", "batchDiscountLabel", "deliveryCharge", "giftLabel", "creditApplied",
                 "totalAmount", "itemCount", "date", "valid", "problems"));
-        assertFields(response.get("lines").get(0), Set.of("itemId", "name", "quantity", "unitPrice", "lineTotal"));
+        assertFields(response.get("lines").get(0), Set.of("itemId", "name", "quantity", "unitPrice", "lineTotal",
+                "specialUnitPrice"));
+        assertThat(response.get("lines").get(0).get("specialUnitPrice").decimalValue()).isEqualByComparingTo("10");
         assertThat(json).doesNotContain(customer.getPhone(), customer.getName(), "creditBalance", "customerId",
                 "deliveryAddress", "marketingOptIn", "subscriptionEligible", "overrideNote", "capacity");
     }

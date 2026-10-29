@@ -3,6 +3,8 @@ package com.tranche.bakery.order;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -35,11 +37,11 @@ public class CartPricingService {
     public record Price(BigDecimal listSubtotal, BigDecimal discountAmount, String discountLabel,
                         BigDecimal batchDiscountAmount, String batchDiscountLabel,
                         BigDecimal deliveryCharge, String giftLabel, BigDecimal creditApplied,
-                        BigDecimal totalAmount) {
+                        BigDecimal totalAmount, List<BigDecimal> specialUnitPrices) {
         /** Website empty baskets incur no fee/perks; legacy empty-order behaviour is unchanged. */
         public static Price empty() {
             return new Price(BigDecimal.ZERO, BigDecimal.ZERO, null, BigDecimal.ZERO, null,
-                    BigDecimal.ZERO, null, BigDecimal.ZERO, BigDecimal.ZERO);
+                    BigDecimal.ZERO, null, BigDecimal.ZERO, BigDecimal.ZERO, List.of());
         }
     }
 
@@ -51,6 +53,7 @@ public class CartPricingService {
         BigDecimal listSubtotal = lines.stream().map(Line::subtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal overrideTotal = null;
+        List<BigDecimal> overrideUnits = new ArrayList<>();
         boolean freeDeliveryFlag = false;
         int completedOrders = 0;
         if (customer != null) {
@@ -62,8 +65,10 @@ public class CartPricingService {
                     String category = item != null && item.getCategory() != null
                             ? item.getCategory().getName() : null;
                     BigDecimal unit = customer.unitPriceFor(name, category);
-                    overrideTotal = overrideTotal.add(unit != null
-                            ? unit.multiply(BigDecimal.valueOf(line.quantity())) : line.subtotal());
+                    BigDecimal charged = unit != null
+                            ? unit.multiply(BigDecimal.valueOf(line.quantity())) : line.subtotal();
+                    overrideTotal = overrideTotal.add(charged);
+                    overrideUnits.add(charged.compareTo(line.subtotal()) != 0 ? unit : null);
                 }
             }
             freeDeliveryFlag = customer.isFreeDelivery();
@@ -73,6 +78,11 @@ public class CartPricingService {
 
         PromoResult promo = promotionEngine.evaluate(
                 new PromoContext(listSubtotal, overrideTotal, freeDeliveryFlag, completedOrders));
+        boolean specialRateWon = overrideTotal != null && promo.itemsTotal().compareTo(overrideTotal) == 0
+                && "Special rate".equals(promo.discountLabel());
+        List<BigDecimal> specialUnitPrices = specialRateWon
+                ? Collections.unmodifiableList(overrideUnits)
+                : Collections.nCopies(lines.size(), null);
         BigDecimal fee = promo.freeDelivery() ? BigDecimal.ZERO : deliveryCharge;
         BigDecimal itemsTotal = promo.itemsTotal();
         BigDecimal batchDiscount = BigDecimal.ZERO;
@@ -115,6 +125,6 @@ public class CartPricingService {
             credit = customer.getCreditBalance().min(gross);
         }
         return new Price(listSubtotal, promo.discountAmount(), promo.discountLabel(), batchDiscount,
-                batchLabel, fee, promo.giftLabel(), credit, gross.subtract(credit));
+                batchLabel, fee, promo.giftLabel(), credit, gross.subtract(credit), specialUnitPrices);
     }
 }

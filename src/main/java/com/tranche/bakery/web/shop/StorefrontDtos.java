@@ -14,10 +14,13 @@ import java.util.List;
  *
  * POST /api/quote accepts ONLY {lines:[{itemId:integer,quantity:integer}],date?:"yyyy-MM-dd"}.
  * At most 40 input lines, each quantity 1..99; duplicate IDs merge up to 99 per item.
- * Response -> {lines:[{itemId,name,quantity,unitPrice,lineTotal}],listSubtotal,
+ * Response -> {lines:[{itemId,name,quantity,unitPrice,lineTotal,specialUnitPrice}],listSubtotal,
  * discountAmount,discountLabel,batchDiscountAmount,batchDiscountLabel,deliveryCharge,
  * giftLabel,creditApplied,totalAmount,itemCount,date,valid,problems:[{code,message}]}.
  * Optional labels/date serialize as null; amounts are JSON numbers in INR.
+ * specialUnitPrice is the customer's own unit price when their "Special rate" wins and it
+ * differs from list; otherwise null. The discount row already includes it.
+
  * valid means this preview passed current checks, NEVER an order, checkout or reservation.
  * Empty baskets return zero amounts and EMPTY_CART; no date returns DATE_REQUIRED.
  * Capacity failure returns FULLY_BOOKED without disclosing any booked/remaining counts.
@@ -44,7 +47,7 @@ public final class StorefrontDtos {
     public record PublishedOffer(String label, String kind, BigDecimal percent,
                                  BigDecimal thresholdAmount, String giftLabel) {}
     public record QuoteLine(Long itemId, String name, int quantity,
-                            BigDecimal unitPrice, BigDecimal lineTotal) {}
+                            BigDecimal unitPrice, BigDecimal lineTotal, BigDecimal specialUnitPrice) {}
     public record Problem(String code, String message) {}
     public record Error(boolean valid, List<Problem> problems) {}
     public record Quote(List<QuoteLine> lines, BigDecimal listSubtotal,

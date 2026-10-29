@@ -53,6 +53,12 @@ public class WebCartController {
         return checkouts.status(opaqueId, request);
     }
 
+    @PostMapping("/api/checkout/{opaqueId}/cancel")
+    public WebCheckoutService.Checkout cancel(@PathVariable String opaqueId, HttpServletRequest request) {
+        requireEnabled();
+        return checkouts.cancel(opaqueId, request);
+    }
+
     private void requireEnabled() {
         if (!enabled) throw new StorefrontProblemException(HttpStatus.NOT_FOUND, "DISABLED", "Website checkout is unavailable.");
     }

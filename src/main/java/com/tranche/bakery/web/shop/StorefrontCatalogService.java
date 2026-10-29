@@ -148,7 +148,6 @@ public class StorefrontCatalogService {
             }
         }
 
-        List<StorefrontDtos.QuoteLine> lines = new ArrayList<>();
         List<CartPricingService.Line> pricingLines = new ArrayList<>();
         int itemCount = 0; // At most 40 * 99, after input validation.
         for (Map.Entry<Long, Integer> entry : quantities.entrySet()) {
@@ -156,9 +155,15 @@ public class StorefrontCatalogService {
             int quantity = entry.getValue();
             BigDecimal subtotal = item.getPrice().multiply(BigDecimal.valueOf(quantity));
             pricingLines.add(new CartPricingService.Line(item, quantity, subtotal));
-            lines.add(new StorefrontDtos.QuoteLine(item.getId(), item.getName(), quantity,
-                    item.getPrice(), subtotal));
             itemCount += quantity;
+        }
+        CartPricingService.Price price = pricingLines.isEmpty() ? CartPricingService.Price.empty()
+                : pricingService.price(pricingLines, customer, date, null);
+        List<StorefrontDtos.QuoteLine> lines = new ArrayList<>();
+        for (int i = 0; i < pricingLines.size(); i++) {
+            CartPricingService.Line line = pricingLines.get(i);
+            lines.add(new StorefrontDtos.QuoteLine(line.item().getId(), line.item().getName(), line.quantity(),
+                    line.item().getPrice(), line.subtotal(), price.specialUnitPrices().get(i)));
         }
         List<StorefrontDtos.Problem> problems = new ArrayList<>();
         if (lines.isEmpty()) {
@@ -169,8 +174,6 @@ public class StorefrontCatalogService {
                 new DeliveryRules.CartFlags(false, false, itemCount, friendsAndFamily))) {
             problems.add(new StorefrontDtos.Problem("FULLY_BOOKED", "This delivery date is fully booked."));
         }
-        CartPricingService.Price price = lines.isEmpty() ? CartPricingService.Price.empty()
-                : pricingService.price(pricingLines, customer, date, null);
         return new StorefrontDtos.Quote(List.copyOf(lines), price.listSubtotal(), price.discountAmount(),
                 price.discountLabel(), price.batchDiscountAmount(), price.batchDiscountLabel(),
                 price.deliveryCharge(), price.giftLabel(), price.creditApplied(), price.totalAmount(),

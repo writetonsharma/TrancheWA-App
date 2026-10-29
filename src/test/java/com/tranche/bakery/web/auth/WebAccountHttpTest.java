@@ -173,7 +173,7 @@ class WebAccountHttpTest {
 
     private StorefrontDtos.Quote historicalQuote() {
         return new StorefrontDtos.Quote(List.of(new StorefrontDtos.QuoteLine(itemId, "Historical account loaf", 1,
-                new BigDecimal("200"), new BigDecimal("200"))), new BigDecimal("200"), BigDecimal.ZERO, null,
+                new BigDecimal("200"), new BigDecimal("200"), null)), new BigDecimal("200"), BigDecimal.ZERO, null,
                 BigDecimal.ZERO, null, BigDecimal.ZERO, null, BigDecimal.ZERO, new BigDecimal("200"), 1, date, true, List.of());
     }
 

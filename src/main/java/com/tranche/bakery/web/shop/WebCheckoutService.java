@@ -266,6 +266,54 @@ public class WebCheckoutService {
         return readStatus(id, request, true);
     }
 
+    /** Customer cancels an unpaid order. The link is retired first so it can never be paid afterwards. */
+    public Checkout cancel(String id, HttpServletRequest request) {
+        String link = Objects.requireNonNull(tx.execute(status -> {
+            capacity.acquire();
+            Customer customer = carts.requireCustomer(request);
+            View view = owned(id, customer.getId());
+            String state = view(view, false).status();
+            if (Set.of("CANCELLED", "EXPIRED").contains(state)) return "";
+            if ("PAID".equals(state)) throw conflict("ALREADY_PAID", "This order is paid. Message the bakery to change it.");
+            if (!"PAYABLE".equals(state)) throw conflict("CANCEL_UNCONFIRMED", "A payment is being checked.");
+            return view.link();
+        }));
+        if (!link.isEmpty()) {
+            if (!retire(link)) throw conflict("CANCEL_UNCONFIRMED", "The payment link could not be cancelled.");
+            tx.executeWithoutResult(status -> {
+                capacity.acquire();
+                long customerId = carts.requireCustomer(request).getId();
+                jdbc.update("""
+                        UPDATE orders SET status='CANCELLED',updated_at=now()
+                        WHERE id=(SELECT order_id FROM web_checkout_attempts WHERE id=? AND customer_id=?)
+                        AND status='PENDING_CONFIRMATION'
+                        AND NOT EXISTS(SELECT 1 FROM payments p WHERE p.order_id=orders.id AND p.status='GATEWAY_CAPTURED')
+                        """, id, customerId);
+                jdbc.update("""
+                        UPDATE payments SET gateway_link_url=NULL,updated_at=now() WHERE gateway_link_id=? AND status='PENDING'
+                        AND order_id=(SELECT order_id FROM web_checkout_attempts WHERE id=? AND customer_id=?)
+                        """, link, id, customerId);
+            });
+        }
+        return status(id, request);
+    }
+
+    // True only when the link can no longer take a payment and none was taken.
+    private boolean retire(String linkId) {
+        try {
+            razorpay.cancelPaymentLink(linkId);
+            return true;
+        } catch (Exception cancelFailed) {
+            try {
+                RazorpayService.LinkState state = razorpay.fetchPaymentLink(linkId);
+                return state != null && state.paymentId() == null
+                        && Set.of("cancelled", "expired").contains(state.status());
+            } catch (Exception fetchFailed) {
+                return false;
+            }
+        }
+    }
+
     private Checkout readStatus(String id, HttpServletRequest request, boolean accountRead) {
         Checkout result = Objects.requireNonNull(tx.execute(status -> {
             capacity.acquire();
