@@ -56,7 +56,7 @@ class AdminPricingControllerTest {
         c.setPhone("919820000001");
         c.setName("Old FnF");
         c.getCategoryPrices().put("Loaves", new BigDecimal("190"));
-        c.getItemPrices().put("Cinnamon Rolls", new BigDecimal("250")); // custom (rate card says 280)
+        c.getItemPrices().put("Cinnamon Rolls", new BigDecimal("250")); // custom (rate card says 320)
         customerRepository.save(c);
 
         controller.syncPreset(false, new RedirectAttributesModelMap());
@@ -71,7 +71,7 @@ class AdminPricingControllerTest {
 
     @Test
     void syncPreset_overwrite_resetsRateCardItemsToTheCard() {
-        // A customer whose Cinnamon price is below the current rate card (280).
+        // A customer whose Cinnamon price is below the current rate card (320).
         Customer c = new Customer();
         c.setPhone("919820000003");
         c.setName("Raise FnF");
@@ -82,7 +82,7 @@ class AdminPricingControllerTest {
         controller.syncPreset(true, new RedirectAttributesModelMap());
 
         Customer reloaded = customerRepository.findByPhone("919820000003").orElseThrow();
-        assertThat(reloaded.getItemPrices().get("Cinnamon Rolls")).isEqualByComparingTo("280"); // reset to card
+        assertThat(reloaded.getItemPrices().get("Cinnamon Rolls")).isEqualByComparingTo("320"); // reset to card
         assertThat(reloaded.getItemPrices().get("Sourdough Special")).isEqualByComparingTo("999"); // off-card kept
     }
 
