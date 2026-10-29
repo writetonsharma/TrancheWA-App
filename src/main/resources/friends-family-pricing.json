@@ -1,27 +1,27 @@
 {
   "subscriptionEligible": true,
   "categoryPrices": {
-    "Loaves": 190,
+    "Loaves": 180,
     "Buns & Rolls": 180
   },
   "itemPrices": {
-    "Millet & Whole Wheat Loaf (Ragi)": 240,
-    "Multi-Seed Loaf": 210,
-    "Milk & Butter Loaf": 210,
-    "Olive Loaf": 250,
-    "Caramelized Onion Loaf": 200,
-    "Honey & Oat Loaf": 220,
+    "Millet & Whole Wheat Loaf (Ragi)": 220,
+    "Multi-Seed Loaf": 220,
+    "Milk & Butter Loaf": 250,
+    "Olive Loaf": 280,
+    "Caramelized Onion Loaf": 210,
+    "Honey & Oat Loaf": 250,
     "Multi-Seed Rolls": 200,
-    "Sesame Burger Buns": 190,
+    "Sesame Burger Buns": 210,
     "Bavarian Pretzel Buns": 200,
-    "Classic New York-Style Bagel": 220,
-    "Olive, Tomato & Rosemary Focaccia": 260,
-    "Garlic & Herb Knots": 190,
-    "Cinnamon Rolls": 320,
-    "Chocolate Babka Buns": 450,
-    "Lemon Tea Cake": 300,
-    "Dark Chocolate Marble Tea Cake": 380,
-    "Vanilla Tea Cake": 300,
-    "Date & Walnut Tea Cake": 380
+    "Classic New York-Style Bagel": 250,
+    "Olive, Tomato & Rosemary Focaccia": 290,
+    "Garlic & Herb Knots": 180,
+    "Cinnamon Rolls": 290,
+    "Chocolate Babka Buns": 420,
+    "Lemon Tea Cake": 320,
+    "Dark Chocolate Marble Tea Cake": 390,
+    "Vanilla Tea Cake": 320,
+    "Date & Walnut Tea Cake": 390
   }
 }

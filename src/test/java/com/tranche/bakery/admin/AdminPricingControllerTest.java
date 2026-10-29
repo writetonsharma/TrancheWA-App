@@ -56,22 +56,22 @@ class AdminPricingControllerTest {
         c.setPhone("919820000001");
         c.setName("Old FnF");
         c.getCategoryPrices().put("Loaves", new BigDecimal("190"));
-        c.getItemPrices().put("Cinnamon Rolls", new BigDecimal("250")); // custom (rate card says 320)
+        c.getItemPrices().put("Cinnamon Rolls", new BigDecimal("250")); // custom (rate card says 290)
         customerRepository.save(c);
 
         controller.syncPreset(false, new RedirectAttributesModelMap());
 
         Customer reloaded = customerRepository.findByPhone("919820000001").orElseThrow();
-        assertThat(reloaded.getItemPrices().get("Lemon Tea Cake")).isEqualByComparingTo("300");
-        assertThat(reloaded.getItemPrices().get("Vanilla Tea Cake")).isEqualByComparingTo("300");
-        assertThat(reloaded.getItemPrices().get("Dark Chocolate Marble Tea Cake")).isEqualByComparingTo("380");
-        assertThat(reloaded.getItemPrices().get("Date & Walnut Tea Cake")).isEqualByComparingTo("380");
+        assertThat(reloaded.getItemPrices().get("Lemon Tea Cake")).isEqualByComparingTo("320");
+        assertThat(reloaded.getItemPrices().get("Vanilla Tea Cake")).isEqualByComparingTo("320");
+        assertThat(reloaded.getItemPrices().get("Dark Chocolate Marble Tea Cake")).isEqualByComparingTo("390");
+        assertThat(reloaded.getItemPrices().get("Date & Walnut Tea Cake")).isEqualByComparingTo("390");
         assertThat(reloaded.getItemPrices().get("Cinnamon Rolls")).isEqualByComparingTo("250"); // custom kept
     }
 
     @Test
     void syncPreset_overwrite_resetsRateCardItemsToTheCard() {
-        // A customer whose Cinnamon price is below the current rate card (320).
+        // A customer whose Cinnamon price is below the current rate card (290).
         Customer c = new Customer();
         c.setPhone("919820000003");
         c.setName("Raise FnF");
@@ -82,7 +82,7 @@ class AdminPricingControllerTest {
         controller.syncPreset(true, new RedirectAttributesModelMap());
 
         Customer reloaded = customerRepository.findByPhone("919820000003").orElseThrow();
-        assertThat(reloaded.getItemPrices().get("Cinnamon Rolls")).isEqualByComparingTo("320"); // reset to card
+        assertThat(reloaded.getItemPrices().get("Cinnamon Rolls")).isEqualByComparingTo("290"); // reset to card
         assertThat(reloaded.getItemPrices().get("Sourdough Special")).isEqualByComparingTo("999"); // off-card kept
     }
 

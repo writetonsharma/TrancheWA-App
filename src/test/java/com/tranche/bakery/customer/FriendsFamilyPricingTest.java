@@ -15,12 +15,12 @@ class FriendsFamilyPricingTest {
         FriendsFamilyPricing preset = new FriendsFamilyPricing(new ObjectMapper());
 
         assertThat(preset.categoryPrices())
-                .containsEntry("Loaves", new BigDecimal("190"))
+                .containsEntry("Loaves", new BigDecimal("180"))
                 .containsEntry("Buns & Rolls", new BigDecimal("180"));
         assertThat(preset.itemPrices())
-                .containsEntry("Multi-Seed Loaf", new BigDecimal("210"))
-                .containsEntry("Chocolate Babka Buns", new BigDecimal("450"))
-                .containsEntry("Olive, Tomato & Rosemary Focaccia", new BigDecimal("260"));
+                .containsEntry("Multi-Seed Loaf", new BigDecimal("220"))
+                .containsEntry("Chocolate Babka Buns", new BigDecimal("420"))
+                .containsEntry("Olive, Tomato & Rosemary Focaccia", new BigDecimal("290"));
         assertThat(preset.subscriptionEligible()).isTrue();
         assertThat(preset.size()).isGreaterThanOrEqualTo(15);
     }
