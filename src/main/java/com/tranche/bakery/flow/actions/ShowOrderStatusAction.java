@@ -59,10 +59,11 @@ public class ShowOrderStatusAction implements FlowAction {
                     customerId, List.of(OrderStatus.COMPLETED))
                     .ifPresentOrElse(
                             o -> whatsAppClient.sendText(phone,
-                                    "🎉 *Last order delivered!*\n\nOrder *" + ref(o) + "* was delivered. " +
-                                    "Send *hi* to place your next order."),
+                                    "\uD83C\uDF89 *Last order delivered!*\n\nOrder *" + ref(o) + "* was delivered.\n\n" +
+                                    "Order again at https://tranchebakery.in/breads.html \u2014 or send *hi* to order here."),
                             () -> whatsAppClient.sendText(phone,
-                                    "You don't have any active orders at the moment.\n\nSend *hi* to place a new order. 🥖"));
+                                    "You don't have any active orders at the moment.\n\n" +
+                                    "Order anytime at https://tranchebakery.in/breads.html \u2014 or send *hi* to order here. \uD83E\uDD56"));
             return;
         }
 

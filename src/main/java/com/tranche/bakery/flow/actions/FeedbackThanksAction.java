@@ -21,6 +21,7 @@ public class FeedbackThanksAction implements FlowAction {
     @Override
     public void execute(ActionContext ctx) {
         whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                "Thank you for your feedback! 💛 Send *hi* whenever you'd like to order again.");
+                "Thank you for your feedback! \uD83D\uDC9B\n\n"
+                        + "Order anytime at https://tranchebakery.in/breads.html \u2014 or send *hi* to order here.");
     }
 }

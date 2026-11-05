@@ -152,7 +152,8 @@ public class SendPaymentQrAction implements FlowAction {
         if (order.getStatus() != OrderStatus.PENDING_CONFIRMATION) {
             String ref = order.getOrderNumber() != null ? order.getOrderNumber() : "#" + order.getId();
             whatsAppClient.sendText(ctx.getCustomer().getPhone(), order.getStatus() == OrderStatus.CANCELLED
-                    ? "Order " + ref + " was cancelled. Send *hi* to place a new order. \uD83E\uDD56"
+                    ? "Order " + ref + " was cancelled.\n\nOrder anytime at https://tranchebakery.in/breads.html "
+                            + "\u2014 or send *hi* to order here. \uD83E\uDD56"
                     : "\u2705 Order " + ref + " is already confirmed \u2014 no further payment is needed. Send *hi* anytime. \uD83E\uDD56");
             return;
         }

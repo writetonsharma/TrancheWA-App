@@ -183,7 +183,8 @@ public class FlowEngine {
                 conversation.setContext(new HashMap<>());
                 conversationRepository.save(conversation);
                 whatsAppClient.sendText(phone,
-                        "✅ Order cancelled. Send *hi* whenever you'd like to place a new order. 🥖");
+                        "\u2705 Order cancelled.\n\nOrder anytime at https://tranchebakery.in/breads.html \u2014 "
+                                + "or send *hi* to order here. \uD83E\uDD56");
                 enterState(customer, conversation, "IDLE", input, messageType, rawMessage, postCommit);
             } else {
                 whatsAppClient.sendText(phone,
@@ -300,7 +301,8 @@ public class FlowEngine {
             marketingService.optOut(customer);
             whatsAppClient.sendText(phone,
                     "Done — you won't get promotional messages from us anymore. You'll still get updates about your "
-                            + "orders. Send *hi* anytime to place an order. \uD83E\uDD56");
+                            + "orders. Order anytime at https://tranchebakery.in/breads.html, or send *hi* to "
+                            + "order here. \uD83E\uDD56");
             return;
         }
 

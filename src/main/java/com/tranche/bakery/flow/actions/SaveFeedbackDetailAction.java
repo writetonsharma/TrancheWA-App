@@ -32,7 +32,7 @@ public class SaveFeedbackDetailAction implements FlowAction {
                     null, ctx.getCustomer().getPhone());
         }
         whatsAppClient.sendText(ctx.getCustomer().getPhone(),
-                "You're right, and thank you for telling us — we'll work on this. 💛 "
-                        + "Send *hi* anytime to order again.");
+                "You're right, and thank you for telling us \u2014 we'll work on this. \uD83D\uDC9B\n\n"
+                        + "Order anytime at https://tranchebakery.in/breads.html \u2014 or send *hi* to order here.");
     }
 }
