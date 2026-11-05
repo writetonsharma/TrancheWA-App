@@ -148,6 +148,51 @@
           "displayOrder": 6,
           "description": "Whole cake · no added sugar",
           "weightLabel": "375 g"
+        },
+        {
+          "name": "Chocolate Chunk & Sea Salt Cookies",
+          "price": 300.0,
+          "displayOrder": 7,
+          "description": "Pack of 5 \u00b7 eggless, soft centre",
+          "listTitle": "Choc Chunk Cookies",
+          "weightLabel": "5 \u00d7 55 g"
+        },
+        {
+          "name": "Almond Biscotti",
+          "price": 220.0,
+          "displayOrder": 8,
+          "description": "Pack of 6 \u00b7 eggless, twice-baked",
+          "weightLabel": "6 pieces"
+        },
+        {
+          "name": "Walnut Dark Chocolate Brownies (Pack of 4)",
+          "price": 800.0,
+          "displayOrder": 9,
+          "description": "Pack of 4 \u00b7 eggless, fudgy",
+          "listTitle": "Walnut Brownies (4)",
+          "weightLabel": "4 \u00d7 150 g"
+        },
+        {
+          "name": "Walnut Dark Chocolate Brownies (Pack of 2)",
+          "price": 440.0,
+          "displayOrder": 10,
+          "description": "Pack of 2 \u00b7 eggless, fudgy",
+          "listTitle": "Walnut Brownies (2)",
+          "weightLabel": "2 \u00d7 150 g"
+        }
+      ]
+    },
+    {
+      "name": "Spreads & Extras",
+      "displayOrder": 5,
+      "items": [
+        {
+          "name": "Garlic & Herb Butter",
+          "price": 350.0,
+          "displayOrder": 1,
+          "description": "Compound butter \u00b7 keep refrigerated",
+          "listTitle": "Garlic & Herb Butter",
+          "weightLabel": "150 g jar"
         }
       ]
     }
