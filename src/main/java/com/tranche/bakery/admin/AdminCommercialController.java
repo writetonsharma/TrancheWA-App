@@ -67,6 +67,7 @@ public class AdminCommercialController {
                          @RequestParam(required = false, defaultValue = "COMPANY") String sellerProfile,
                          @RequestParam(required = false) boolean notifyCustomer,
                          @RequestParam(required = false) List<Long> itemIds,
+                         @RequestParam(required = false) List<String> listPrices,
                          @RequestParam(required = false) List<String> unitPrices,
                          @RequestParam(required = false) List<String> quantities,
                          @RequestParam(required = false) List<Long> complimentaryItemIds,
@@ -85,7 +86,7 @@ public class AdminCommercialController {
                 boolean comp = complimentaryItemIds != null && complimentaryItemIds.contains(itemId);
                 BigDecimal price = moneyAt(unitPrices, i);
                 if (!comp && price == null) continue;
-                lines.add(new CommercialOrderService.Line(itemId, price, qty, comp));
+                lines.add(new CommercialOrderService.Line(itemId, moneyAt(listPrices, i), price, qty, comp));
             }
         }
         if (lines.isEmpty()) {

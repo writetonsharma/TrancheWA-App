@@ -21,6 +21,11 @@ public class MenuCategory {
     @Column(nullable = false)
     private boolean active = true;
 
+    // False for admin-billing-only categories such as gift hampers: hidden from the bot menu
+    // and website catalogue, excluded from the bake list and daily capacity.
+    @Column(name = "retail_visible", nullable = false)
+    private boolean retailVisible = true;
+
     @OneToMany(mappedBy = "category", fetch = FetchType.LAZY)
     private List<MenuItem> items;
 }

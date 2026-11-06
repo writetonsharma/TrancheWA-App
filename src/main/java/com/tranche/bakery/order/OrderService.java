@@ -149,6 +149,10 @@ public class OrderService {
         if (quantity <= 0) throw new IllegalArgumentException("Quantity must be positive");
         MenuItem menuItem = menuItemRepository.findById(Objects.requireNonNull(menuItemId))
                 .orElseThrow(() -> new IllegalArgumentException("Menu item not found: " + menuItemId));
+        // Billing-only products (gift hampers) are invoiced by an admin, never self-served into a cart.
+        if (menuItem.getCategory() != null && !menuItem.getCategory().isRetailVisible()) {
+            throw new IllegalArgumentException("Menu item not available: " + menuItemId);
+        }
 
         List<OrderItem> existingItems = freshItems(order);
         OrderItem existing = existingItems.stream()

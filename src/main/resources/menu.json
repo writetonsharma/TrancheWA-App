@@ -195,6 +195,27 @@
           "weightLabel": "150 g jar"
         }
       ]
+    },
+    {
+      "name": "Gift Hampers",
+      "displayOrder": 6,
+      "retailVisible": false,
+      "items": [
+        {
+          "name": "Regular Gift Hamper",
+          "price": 3000.0,
+          "displayOrder": 1,
+          "description": "Made-to-order gift basket \u00b7 billed as one line",
+          "listTitle": "Regular Gift Hamper"
+        },
+        {
+          "name": "Premium Gift Hamper",
+          "price": 4500.0,
+          "displayOrder": 2,
+          "description": "Made-to-order gift basket \u00b7 billed as one line",
+          "listTitle": "Premium Gift Hamper"
+        }
+      ]
     }
   ]
 }

@@ -721,6 +721,9 @@ public class AdminService {
         Map<String, int[]> aggregation = new LinkedHashMap<>();
         for (Order order : orders) {
             for (OrderItem item : orderItemRepository.findAllByOrderId(order.getId())) {
+                // Gift hampers are assembled, not baked, so they never belong on the bake list.
+                if (item.getMenuItem().getCategory() != null
+                        && !item.getMenuItem().getCategory().isRetailVisible()) continue;
                 String name = item.getMenuItem().getName();
                 aggregation.computeIfAbsent(name, k -> new int[]{0, 0});
                 aggregation.get(name)[0] += item.getQuantity();

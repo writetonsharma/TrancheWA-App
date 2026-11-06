@@ -181,7 +181,9 @@ public class StorefrontCatalogService {
     }
 
     private static boolean isActive(MenuItem item) {
-        return item.isActive() && item.getCategory() != null && item.getCategory().isActive();
+        // Billing-only categories (gift hampers) must never be quotable or orderable from the website.
+        return item.isActive() && item.getCategory() != null
+                && item.getCategory().isActive() && item.getCategory().isRetailVisible();
     }
 
     private static void requireFields(JsonNode node, Set<String> allowed) {

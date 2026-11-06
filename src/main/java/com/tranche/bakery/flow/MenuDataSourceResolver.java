@@ -54,6 +54,7 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         List<WhatsAppMessage.Row> rows = categoryRepository
                 .findAllByActiveTrueOrderByDisplayOrderAsc()
                 .stream()
+                .filter(MenuCategory::isRetailVisible)
                 .filter(c -> day == null || categoryHasItemsForDate(c, day, fnf))
                 .map(c -> new WhatsAppMessage.Row(c.getId().toString(), c.getName()))
                 .toList();
@@ -80,7 +81,8 @@ public class MenuDataSourceResolver implements DataSourceResolver {
 
         Long categoryId = Long.parseLong(categoryIdVal.toString());
         MenuCategory category = categoryRepository.findById(categoryId).orElse(null);
-        if (category == null) return List.of();
+        // A stale or tampered categoryId must not reach a billing-only category.
+        if (category == null || !category.isActive() || !category.isRetailVisible()) return List.of();
 
         final boolean fnf = customer != null && customer.isFriendsAndFamily();
         final LocalDate day = parseDeliveryDate(context);

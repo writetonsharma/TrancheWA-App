@@ -16,13 +16,16 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     boolean existsByOrderIdAndCategoryName(@Param("orderId") Long orderId,
                                            @Param("categoryName") String categoryName);
 
+    // Gift hampers are billed, not baked, so billing-only categories never consume the day's retail capacity.
     @Query("select coalesce(sum(oi.quantity), 0) from OrderItem oi "
-            + "where oi.order.deliveryDate = :date and oi.order.status in :statuses")
+            + "where oi.order.deliveryDate = :date and oi.order.status in :statuses "
+            + "and oi.menuItem.category.retailVisible = true")
     long sumBookedQuantity(@Param("date") LocalDate date,
                            @Param("statuses") Collection<OrderStatus> statuses);
 
     @Query("select coalesce(sum(oi.quantity), 0) from OrderItem oi "
             + "where oi.order.deliveryDate = :date and oi.order.status in :statuses "
+            + "and oi.menuItem.category.retailVisible = true "
             + "and oi.order.id <> :excludeOrderId")
     long sumBookedQuantityExcludingOrder(@Param("date") LocalDate date,
                                          @Param("statuses") Collection<OrderStatus> statuses,
@@ -49,6 +52,7 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
 
     @Query("select oi.menuItem.id, oi.order.deliveryDate, sum(oi.quantity) from OrderItem oi "
             + "where oi.order.deliveryDate in :dates and oi.order.status in :statuses "
+            + "and oi.menuItem.category.retailVisible = true "
             + "group by oi.menuItem.id, oi.order.deliveryDate")
     List<Object[]> sumBookedByItemAndDate(@Param("dates") Collection<LocalDate> dates,
                                           @Param("statuses") Collection<OrderStatus> statuses);

@@ -42,6 +42,7 @@ public class MenuSyncService implements ApplicationRunner {
                     });
             category.setDisplayOrder(catJson.getDisplayOrder());
             category.setActive(true);
+            category.setRetailVisible(catJson.isRetailVisible());
             categoryRepository.save(category);
             seenCategoryIds.add(category.getId());
 
@@ -99,6 +100,8 @@ public class MenuSyncService implements ApplicationRunner {
         static class CategoryJson {
             private String name;
             private int displayOrder;
+            // Absent means a normal customer-facing category.
+            private boolean retailVisible = true;
             private List<ItemJson> items;
         }
 

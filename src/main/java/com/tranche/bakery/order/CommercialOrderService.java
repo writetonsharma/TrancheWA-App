@@ -62,8 +62,13 @@ public class CommercialOrderService {
     @Value("${bakery.seller.individual.upi-name:NAVEEN SHARMA}")
     private String individualUpiName;
 
-    /** One requested line: a menu item, the admin-entered unit price, the number of units, and whether it's a free gift. */
-    public record Line(Long menuItemId, BigDecimal unitPrice, int quantity, boolean complimentary) {}
+    /**
+     * One requested line: a menu item, the admin-entered unit price, the number of units, and whether it's a free gift.
+     * {@code listUnitPrice} overrides the menu price the discount is measured against — gift hampers are quoted per
+     * enquiry, so their list price is agreed on the call rather than taken from the catalogue.
+     */
+    public record Line(Long menuItemId, BigDecimal listUnitPrice, BigDecimal unitPrice,
+                       int quantity, boolean complimentary) {}
 
     /** Flat, session-free projection for the commercial orders list (built inside the transaction). */
     public record CommercialOrderView(Long id, String invoiceNumber, String businessName,
@@ -114,12 +119,15 @@ public class CommercialOrderService {
             if (!comp && ln.unitPrice() == null) continue; // a paid line needs a price
             BigDecimal unit = comp ? BigDecimal.ZERO.setScale(2) : ln.unitPrice().setScale(2, RoundingMode.HALF_UP);
             BigDecimal sub = unit.multiply(BigDecimal.valueOf(ln.quantity()));
+            BigDecimal list = ln.listUnitPrice() != null && ln.listUnitPrice().signum() > 0
+                    ? ln.listUnitPrice().setScale(2, RoundingMode.HALF_UP)
+                    : mi.getPrice();
             OrderItem item = new OrderItem();
             item.setOrder(order);
             item.setMenuItem(mi);
             item.setQuantity(ln.quantity());
             item.setUnitPrice(unit);
-            item.setListUnitPrice(mi.getPrice()); // snapshot list price so the bill can show the discount / gift value
+            item.setListUnitPrice(list); // snapshot list price so the bill can show the discount / gift value
             if (comp) item.setNote("Complimentary");
             item.setSubtotal(sub);
             items.add(item);
