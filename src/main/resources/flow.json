@@ -14,7 +14,7 @@
     "MAIN_MENU": {
       "entryMessage": {
         "type": "buttons",
-        "body": "{greeting}Small-batch, European-inspired breads baked fresh for each day's orders. Orders placed before *5 PM* are usually prepared for next-day delivery.\n\n🛒 *Order online at* https://tranchebakery.in/breads.html\nBrowse with photos, pick your delivery day, and pay — all in one place.\n\nHow can we help you today?\n\n_Send *hi* anytime to return to the main menu._",
+        "body": "{greeting}Premium handmade breads, slow-fermented and baked fresh for each day's orders. Orders placed before *5 PM* are usually prepared for next-day delivery.\n\n🛒 *Order online at* https://tranchebakery.in/breads.html\nBrowse with photos, pick your delivery day, and pay — all in one place.\n\nHow can we help you today?\n\n_Send *hi* anytime to return to the main menu._",
         "buttons": [
           {
             "id": "order",
@@ -82,7 +82,7 @@
     "VIEW_MENU": {
       "entryMessage": {
         "type": "text",
-        "body": "🛍️ *Browse our full range with photos and prices:*\n\nhttps://tranchebakery.in/breads.html\n\nEuropean-style breads, rolls, buns, and seasonal bakes — all made to order in small batches."
+        "body": "🛍️ *Browse our full range with photos and prices:*\n\nhttps://tranchebakery.in/breads.html\n\nBreads, rolls, buns, and seasonal bakes — slow-fermented and baked to order in small batches."
       },
       "autoTransition": "MAIN_MENU"
     },
@@ -100,7 +100,7 @@
     "ABOUT": {
       "entryMessage": {
         "type": "text",
-        "body": "🥖 *About Tranché Bakery*\n\nWe're a small-batch bakery in Gurgaon focused on European-style breads baked fresh to order.\n\nOur breads are slow-fermented for better flavour and texture, made without preservatives or commercial improvers, and baked in small batches so every loaf reaches you fresh.\n\nFlour is sourced from established Delhi mills. Dairy from local sources. Ingredients are chosen for how the bread actually eats — not for shelf life or label marketing.\n\nEvery order is baked close to delivery. What you order is what gets baked. 🧡"
+        "body": "🥖 *About Tranché Bakery*\n\nWe're a small-batch bakery in Gurgaon focused on premium handmade breads baked fresh to order.\n\nOur breads are slow-fermented for better flavour and texture, made without preservatives or commercial improvers, and baked in small batches so every loaf reaches you fresh.\n\nFlour is sourced from established Delhi mills. Dairy from local sources. Ingredients are chosen for how the bread actually eats — not for shelf life or label marketing.\n\nEvery order is baked close to delivery. What you order is what gets baked. 🧡"
       },
       "autoTransition": "MAIN_MENU"
     },

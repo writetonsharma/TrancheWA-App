@@ -19,8 +19,8 @@ import com.tranche.bakery.order.OrderService;
  * OrderService.recalculateTotal against the migration-seeded launch offers
  * (launch-20, free-delivery-550, sweet-roll-450) and the ~50 test delivery fee.
  *
- * Expectations are computed from the real seeded item price so the tests stay
- * correct if list prices change.
+ * Expectations are computed from the real seeded item price and the real seeded
+ * thresholds so the tests stay correct if list prices or thresholds change.
  */
 class PromotionFlowTest extends FlowScenarioBase {
 
@@ -56,6 +56,15 @@ class PromotionFlowTest extends FlowScenarioBase {
                 .orElseThrow();
     }
 
+    /** Thresholds are read from the seeded offers so a threshold bump doesn't break these scenarios. */
+    private int giftThreshold() {
+        return offerRepository.findByCode("sweet-roll-450").orElseThrow().getThresholdAmount().intValueExact();
+    }
+
+    private int deliveryThreshold() {
+        return offerRepository.findByCode("free-delivery-550").orElseThrow().getThresholdAmount().intValueExact();
+    }
+
     private Order draftWith(MenuItem item, int qty) {
         Order order = orderService.getOrCreateDraft(customer, conversation);
         orderService.addItem(order, item.getId(), qty);
@@ -75,8 +84,7 @@ class PromotionFlowTest extends FlowScenarioBase {
 
         BigDecimal subtotal = item.getPrice();
         BigDecimal discounted = subtotal.subtract(expectedDiscount(subtotal));
-        // ensure this scenario really is below 450
-        assertThat(discounted).isLessThan(new BigDecimal("450"));
+        assertThat(discounted).isLessThan(BigDecimal.valueOf(giftThreshold()));
 
         assertThat(order.getDiscountAmount()).isEqualByComparingTo(expectedDiscount(subtotal));
         assertThat(order.getGiftLabel()).isNull();
@@ -84,35 +92,35 @@ class PromotionFlowTest extends FlowScenarioBase {
         assertThat(order.getTotalAmount()).isEqualByComparingTo(discounted.add(DELIVERY_FEE));
     }
 
-    // 2. Discounted subtotal in [450, 550): free gift, delivery still charged.
+    // 2. Discounted subtotal between the gift and delivery thresholds: free gift, delivery still charged.
     @Test
     void midThreshold_giftbutDeliveryCharged() {
-        int[] pick = itemAndQtyForDiscountedRange(450, 550);
+        int[] pick = itemAndQtyForDiscountedRange(giftThreshold(), deliveryThreshold());
         MenuItem item = itemRepository.findById((long) pick[0]).orElseThrow();
         int qty = pick[1];
         Order order = draftWith(item, qty);
 
         BigDecimal subtotal = item.getPrice().multiply(BigDecimal.valueOf(qty));
         BigDecimal discounted = subtotal.subtract(expectedDiscount(subtotal));
-        assertThat(discounted).isGreaterThanOrEqualTo(new BigDecimal("450"));
-        assertThat(discounted).isLessThan(new BigDecimal("550"));
+        assertThat(discounted).isGreaterThanOrEqualTo(BigDecimal.valueOf(giftThreshold()));
+        assertThat(discounted).isLessThan(BigDecimal.valueOf(deliveryThreshold()));
 
         assertThat(order.getGiftLabel()).isNotBlank();
         assertThat(order.getDeliveryCharge()).isEqualByComparingTo(DELIVERY_FEE);
         assertThat(order.getTotalAmount()).isEqualByComparingTo(discounted.add(DELIVERY_FEE));
     }
 
-    // 3. Discounted subtotal >= 550: gift AND free delivery stack.
+    // 3. Discounted subtotal at or above the delivery threshold: gift AND free delivery stack.
     @Test
     void highThreshold_giftAndFreeDelivery() {
-        int[] pick = itemAndQtyForDiscountedAtLeast(550);
+        int[] pick = itemAndQtyForDiscountedAtLeast(deliveryThreshold());
         MenuItem item = itemRepository.findById((long) pick[0]).orElseThrow();
         int qty = pick[1];
         Order order = draftWith(item, qty);
 
         BigDecimal subtotal = item.getPrice().multiply(BigDecimal.valueOf(qty));
         BigDecimal discounted = subtotal.subtract(expectedDiscount(subtotal));
-        assertThat(discounted).isGreaterThanOrEqualTo(new BigDecimal("550"));
+        assertThat(discounted).isGreaterThanOrEqualTo(BigDecimal.valueOf(deliveryThreshold()));
 
         assertThat(order.getGiftLabel()).isNotBlank();
         assertThat(order.getDeliveryCharge()).isEqualByComparingTo(BigDecimal.ZERO);
@@ -126,7 +134,7 @@ class PromotionFlowTest extends FlowScenarioBase {
         gift.setActive(false);
         offerRepository.save(gift);
 
-        int[] pick = itemAndQtyForDiscountedAtLeast(550);
+        int[] pick = itemAndQtyForDiscountedAtLeast(deliveryThreshold());
         MenuItem item = itemRepository.findById((long) pick[0]).orElseThrow();
         Order order = draftWith(item, pick[1]);
 
@@ -172,7 +180,7 @@ class PromotionFlowTest extends FlowScenarioBase {
         customer = customerRepository.save(customer);
 
         MenuItem item = anyItem();
-        Order order = draftWith(item, 3); // 3 × ₹200 = ₹600, over the ₹450 gift threshold
+        Order order = draftWith(item, 4); // 4 × ₹200 = ₹800, over the gift threshold
 
         assertThat(order.getGiftLabel()).isNull();
     }

@@ -34,7 +34,7 @@ class ReceiptPdfServiceTest {
         p.setBusinessName("Tranche");
         p.setTagline("Artisan Bakery");
         p.setContactPhone("+91 87967 70308");
-        p.setLocation("Gurugram, Sector-15 \u00b7 Serving DLF Phase 5");
+        p.setLocation("Gurugram, Sector-15");
         p.setFssai("20826005005996");
         return p;
     }

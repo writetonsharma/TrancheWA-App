@@ -18,6 +18,5 @@ class ReceiptPropertiesEncodingTest {
     @Test
     void accentedIdentityLoadsWithoutMojibake() {
         assertThat(props.getBusinessName()).isEqualTo("Tranch\u00e9 Artisan Bakery");
-        assertThat(props.getLocation()).contains("\u00b7");
     }
 }
