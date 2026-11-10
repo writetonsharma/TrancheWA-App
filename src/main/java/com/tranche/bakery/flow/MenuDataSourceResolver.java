@@ -13,7 +13,6 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 import com.tranche.bakery.customer.Customer;
-import com.tranche.bakery.delivery.DeliveryAreaLoader;
 import com.tranche.bakery.menu.MenuCategory;
 import com.tranche.bakery.menu.MenuCategoryRepository;
 import com.tranche.bakery.menu.MenuItemRepository;
@@ -29,7 +28,6 @@ public class MenuDataSourceResolver implements DataSourceResolver {
 
     private final MenuCategoryRepository categoryRepository;
     private final MenuItemRepository itemRepository;
-    private final DeliveryAreaLoader deliveryAreaLoader;
     private final DeliveryRules deliveryRules;
     private final SubscriptionCatalog subscriptionCatalog;
 
@@ -39,7 +37,6 @@ public class MenuDataSourceResolver implements DataSourceResolver {
         return switch (dataSource) {
             case "MENU_CATEGORIES" -> resolveCategories(context, fnf);
             case "MENU_ITEMS"      -> resolveItems(context, customer);
-            case "DELIVERY_AREAS"  -> resolveDeliveryAreas();
             case "DELIVERY_DATES"  -> resolveDeliveryDates(context, fnf);
             case "SUBSCRIPTION_PLANS"   -> resolveSubscriptionPlans(fnf);
             case "SUBSCRIPTION_OPTIONS" -> resolveSubscriptionOptions(context);
@@ -108,13 +105,6 @@ public class MenuDataSourceResolver implements DataSourceResolver {
                 })
                 .toList();
         return List.of(new WhatsAppMessage.Section(category.getName(), rows));
-    }
-
-    private List<WhatsAppMessage.Section> resolveDeliveryAreas() {
-        List<WhatsAppMessage.Row> rows = deliveryAreaLoader.getAreas().stream()
-                .map(a -> new WhatsAppMessage.Row(a.id(), a.name()))
-                .toList();
-        return List.of(new WhatsAppMessage.Section("Delivery Areas", rows));
     }
 
     private List<WhatsAppMessage.Section> resolveSubscriptionPlans(boolean fnf) {

@@ -104,20 +104,6 @@
       },
       "autoTransition": "MAIN_MENU"
     },
-    "AREA_SELECT": {
-      "entryMessage": {
-        "type": "text",
-        "body": "Hello. We currently deliver to *DLF Phase 5, Gurgaon* (pincodes 122002, 122022).\n\nIf you're unsure of your pincode, try *122022*.\n\nPlease share your pincode to confirm delivery:"
-      },
-      "transitions": [
-        {
-          "match": "*",
-          "nextState": "NAME_COLLECT",
-          "saveContext": "pincode",
-          "action": "SAVE_AREA"
-        }
-      ]
-    },
     "NAME_COLLECT": {
       "entryMessage": {
         "type": "text",
@@ -351,7 +337,7 @@
     "ADDRESS_COLLECT": {
       "entryMessage": {
         "type": "text",
-        "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_We currently deliver in and around DLF Phase 5, Gurgaon. If you're a bit further out, we'll message you to confirm — and refund in full if we can't reach you._\n\n_We'll save this as your default address for future orders. You can choose a different address for any later order._"
+        "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, Sector 65, Gurgaon_\n\n_If we can't reach your location, we'll message you to confirm — and refund in full._\n\n_We'll save this as your default address for future orders. You can choose a different address for any later order._"
       },
       "transitions": [
         {
@@ -383,7 +369,7 @@
     "ADDRESS_COLLECT_TEMP": {
       "entryMessage": {
         "type": "text",
-        "body": "📍 Please share the delivery address for this order:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_We currently deliver in and around DLF Phase 5, Gurgaon. If you're a bit further out, we'll message you to confirm — and refund in full if we can't reach you._"
+        "body": "📍 Please share the delivery address for this order:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, Sector 65, Gurgaon_\n\n_If we can't reach your location, we'll message you to confirm — and refund in full._"
       },
       "transitions": [
         {
@@ -602,7 +588,7 @@
     "SUB_ADDRESS_COLLECT": {
       "entryMessage": {
         "type": "text",
-        "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, DLF Phase 5_\n\n_We currently deliver in and around DLF Phase 5, Gurgaon. If you're a bit further out, we'll message you to confirm — and refund in full if we can't reach you._\n\n_We'll save this as your default delivery address._"
+        "body": "📍 Please share your full delivery address:\n\n_Example: Flat 4B, Tower 2, Emerald Hills, Sector 65, Gurgaon_\n\n_If we can't reach your location, we'll message you to confirm — and refund in full._\n\n_We'll save this as your default delivery address._"
       },
       "transitions": [
         {
