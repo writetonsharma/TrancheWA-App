@@ -20,7 +20,10 @@ class FriendsFamilyPricingTest {
         assertThat(preset.itemPrices())
                 .containsEntry("Multi-Seed Loaf", new BigDecimal("220"))
                 .containsEntry("Chocolate Babka Buns", new BigDecimal("420"))
-                .containsEntry("Olive, Tomato & Rosemary Focaccia", new BigDecimal("290"));
+                .containsEntry("Olive, Tomato & Rosemary Focaccia", new BigDecimal("290"))
+                .containsKeys("Chocolate Chunk & Sea Salt Cookies", "Almond Biscotti",
+                        "Walnut Dark Chocolate Brownies (Pack of 4)",
+                        "Walnut Dark Chocolate Brownies (Pack of 2)", "Garlic & Herb Butter");
         assertThat(preset.subscriptionEligible()).isTrue();
         assertThat(preset.size()).isGreaterThanOrEqualTo(15);
     }
