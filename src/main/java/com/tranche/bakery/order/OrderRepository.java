@@ -64,6 +64,11 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     List<Order> findAllByCustomerIdAndStatusAndCutoffCancelledTrueOrderByUpdatedAtDesc(Long customerId, OrderStatus status);
 
+    // Live, undelivered orders that still carry no pinned location — offered the customer's
+    // newly saved pin after a standalone pin update.
+    List<Order> findAllByCustomerIdAndStatusInAndDeliveryDateGreaterThanEqualAndLocationLatIsNullOrderByDeliveryDateAsc(
+            Long customerId, Collection<OrderStatus> statuses, java.time.LocalDate from);
+
     List<Order> findAllByStatusInAndDeliveryDateBetweenOrderByDeliveryDateAsc(Collection<OrderStatus> statuses, java.time.LocalDate from, java.time.LocalDate to);
 
     List<Order> findAllByStatusInAndUpdatedAtAfterOrderByUpdatedAtDesc(Collection<OrderStatus> statuses, LocalDateTime after);

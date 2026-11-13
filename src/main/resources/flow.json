@@ -8,6 +8,11 @@
           "match": "hi",
           "ignoreCase": true,
           "nextState": "MAIN_MENU"
+        },
+        {
+          "match": "update my delivery pin",
+          "ignoreCase": true,
+          "nextState": "PIN_UPDATE"
         }
       ]
     },
@@ -44,6 +49,11 @@
           "nextState": "INFO_MENU"
         },
         {
+          "match": "update my delivery pin",
+          "ignoreCase": true,
+          "nextState": "PIN_UPDATE"
+        },
+        {
           "match": "*",
           "nextState": "MAIN_MENU"
         }
@@ -61,6 +71,10 @@
           {
             "id": "order_status",
             "title": "My Order Status"
+          },
+          {
+            "id": "update_pin",
+            "title": "Update my pin"
           }
         ]
       },
@@ -72,6 +86,15 @@
         {
           "match": "order_status",
           "nextState": "ORDER_STATUS"
+        },
+        {
+          "match": "update_pin",
+          "nextState": "PIN_UPDATE"
+        },
+        {
+          "match": "update my delivery pin",
+          "ignoreCase": true,
+          "nextState": "PIN_UPDATE"
         },
         {
           "match": "*",
@@ -423,6 +446,45 @@
         {
           "match": "skip_location",
           "nextState": "DELIVERY_PREFERENCE"
+        }
+      ]
+    },
+    "PIN_UPDATE": {
+      "entryMessage": {
+        "type": "buttons",
+        "body": "📌 *Your delivery pin*\n\nPlease share a *pinned location* so our delivery team can find you easily. This replaces the pin we have on file for you.\n\n*How to share:*\n📱 *iPhone:* Tap *+* (bottom left) → *Location* → *Send Your Current Location*\n📱 *Android:* Tap *📎* (paperclip) → *Location* → *Send your current location*\n\n⚠️ _Please do not share live location._",
+        "buttons": [
+          {
+            "id": "pin_skip",
+            "title": "Not now"
+          }
+        ]
+      },
+      "defaultResponse": "Please share a pinned location using the attachment menu, or tap *Not now*.",
+      "transitions": [
+        {
+          "matchType": "location",
+          "nextState": "PIN_UPDATE_SAVED",
+          "action": "SAVE_PIN_ONLY"
+        },
+        {
+          "match": "pin_skip",
+          "nextState": "MAIN_MENU"
+        }
+      ]
+    },
+    "PIN_UPDATE_SAVED": {
+      "entryAction": "OFFER_PIN_FOR_UPCOMING_ORDER",
+      "defaultResponse": "Please tap *Yes, apply it* or *No*.",
+      "transitions": [
+        {
+          "match": "pin_apply_yes",
+          "nextState": "MAIN_MENU",
+          "action": "APPLY_PIN_TO_ORDERS"
+        },
+        {
+          "match": "pin_apply_no",
+          "nextState": "MAIN_MENU"
         }
       ]
     },

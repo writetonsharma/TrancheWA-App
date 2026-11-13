@@ -129,6 +129,15 @@ public abstract class FlowScenarioBase {
         reloadConversation();
     }
 
+    protected void sendLocation(String lat, String lng) {
+        ObjectNode node = MAPPER.createObjectNode();
+        node.putObject("location")
+                .put("latitude", new BigDecimal(lat))
+                .put("longitude", new BigDecimal(lng));
+        flowEngine.handle(customer, conversation, "location", "", node);
+        reloadConversation();
+    }
+
     protected void reloadConversation() {
         conversation = conversationRepository.findById(conversation.getId()).orElseThrow();
     }
